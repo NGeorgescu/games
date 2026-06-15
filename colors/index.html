@@ -381,7 +381,6 @@ function deriveLock(h,s,v){
 }
 const WHY_TMPL = {
   S:"It's a near-pure, vivid color — that's the giveaway. What's left is the exact hue and how bright it sits.",
-  B:"It reads as bright, so brightness is a given. The quiz is its hue and how saturated it is.",
   H:"The name pins the hue; what's left is how saturated and how light or dark it really is.",
 };
 // name-origin blurbs, scraped from Wikipedia opening sentences (memory hooks).
@@ -519,7 +518,7 @@ function wikiUrl(name){ return "https://en.wikipedia.org/w/index.php?title=Speci
 function prep(c){
   const t=rgb2hsv(...hex2rgb(c.hex));
   if(!c.lock) c.lock=deriveLock(t[0],t[1],t[2]);
-  if(!c.why)  c.why=WHY_TMPL[c.lock];
+  if(!c.why)  c.why=WHY_TMPL[c.lock]||"";   // B-locked colors intentionally show no axis blurb
   c.blurb = BLURBS[c.n] || "";
   return c;
 }
@@ -628,7 +627,7 @@ const game = {
     $("miniTrue").style.background=this.cur.hex;
     $("hexPick").textContent=hexAt(this.cur,gf.x,gf.y);
     $("hexTrue").textContent=this.cur.hex.toUpperCase();
-    $("why").textContent=this.cur.why;
+    $("why").textContent=this.cur.why||""; $("why").style.display=this.cur.why?"":"none";
     $("etymo").textContent=this.cur.blurb || "";
     $("cname").href=wikiUrl(this.cur.n); $("cname").classList.add("namelink");  // now linkable
     $("reveal").style.display="block";
