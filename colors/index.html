@@ -98,6 +98,21 @@
   .optname.wrong{box-shadow:0 0 0 3px #ff4d4d;border-color:#ff4d4d}
   .optname.dim{opacity:.4}
   .bigswatch{width:100%;height:84px;border-radius:12px;border:1px solid rgba(255,255,255,.18);margin:8px 0}
+  #fineBoard{display:flex;gap:16px;justify-content:center;margin:16px 0 6px;min-height:236px}
+  #fineShades{display:flex;flex-direction:column;gap:14px;flex:0 0 auto;align-items:center}
+  #fineSlots{display:flex;flex-direction:column;gap:14px;flex:1;max-width:62%}
+  .shade{width:66px;height:66px;border-radius:12px;border:1px solid rgba(255,255,255,.25);
+    touch-action:none;cursor:grab;flex:0 0 auto}
+  .fineSlot{display:flex;align-items:center;gap:10px;min-height:68px;border:2px dashed #3a4150;
+    border-radius:12px;padding:5px 8px;transition:border-color .12s,background .12s}
+  .fineSlot .drop{width:66px;height:56px;border-radius:10px;flex:0 0 auto;background:rgba(255,255,255,.03)}
+  .fineSlot .drop .shade{width:100%;height:100%}
+  .fineSlot .nm{font-weight:600;font-size:15px;line-height:1.2}
+  .fineSlot.slotHover{border-color:#7cc6ff;background:rgba(124,198,255,.1)}
+  .fineSlot.correct{border-style:solid;border-color:#2fe06a}
+  .fineSlot.wrong{border-style:solid;border-color:#ff4d4d}
+  .shadeGhost{position:fixed;z-index:60;border-radius:12px;border:1px solid rgba(255,255,255,.5);
+    pointer-events:none;box-shadow:0 8px 20px rgba(0,0,0,.55)}
   .cramFeedback{min-height:34px;font-size:13px;margin:6px 0 2px;text-align:center;color:var(--muted);line-height:1.4}
   .cramFeedback.ok{color:#2fe06a;font-weight:700}
   .cramFeedback.bad{color:#ff9a9a}
@@ -200,25 +215,28 @@
     <button class="ghost" onclick="cram.toStart()">Back to start</button>
   </section>
 
-  <!-- FINE (discrimination) -->
+  <!-- FINE (drag shades into names) -->
   <section id="fine" class="hidden">
     <button class="xclose" onclick="fine.quit()" aria-label="exit">✕</button>
-    <div class="hud"><span>Fine — sharp eye 👁</span><span>level <b id="fineLevel">1</b></span></div>
+    <div class="hud"><span>Fine — sort the shades 👁</span><span>round <b id="fineRound">1</b>/<b id="fineRoundMax">8</b> · <b id="fineScore">0</b> pts</span></div>
     <div class="card">
-      <div class="small" style="text-align:center">tap the tile that exactly matches this</div>
-      <div id="fineRef" class="bigswatch"></div>
-      <div class="optgrid" id="fineGrid"></div>
+      <div class="small" style="text-align:center">drag each shade onto the slot with its name</div>
+      <div id="fineBoard">
+        <div id="fineShades"></div>
+        <div id="fineSlots"></div>
+      </div>
       <div class="cramFeedback" id="fineFeedback"></div>
-      <button id="fineNext" class="hidden">Next →</button>
+      <button id="fineCheck" class="hidden" onclick="fine.check()">Check</button>
+      <button id="fineNext" class="ghost hidden" onclick="fine.next()">Next →</button>
     </div>
   </section>
 
   <!-- FINE END -->
   <section id="fineEnd" class="hidden center">
     <h1>Sharp eye 👁</h1>
-    <div class="final">level <span id="fineEndLevel">0</span></div>
+    <div class="final"><span id="fineEndScore">0</span> / <span id="fineEndMax">24</span></div>
     <div class="scoreSub" id="fineEndSub">—</div>
-    <button class="alt" onclick="fine.start()">Try again</button>
+    <button class="alt" onclick="fine.start()">Play again</button>
     <button class="ghost" onclick="fine.toStart()">Back to start</button>
   </section>
 
@@ -837,85 +855,122 @@ const cram = {
   }
 };
 
-/* ---------- fine (discrimination ladder) ---------- */
-function rgbHex(r,g,b){ return "#"+[r,g,b].map(v=>Math.max(0,Math.min(255,v)).toString(16).padStart(2,"0")).join("").toUpperCase(); }
-// closest-to-targetDE (OKLab) perturbation of hex — always returns a valid, distinct color
-// (best-approximation so it works even for near-white/near-black bases at the gamut edge)
-function nearColor(hex, targetDE){
-  const [r,g,b]=hex2rgb(hex), baseLab=rgb2oklab(r,g,b);
-  const scale=Math.max(1.5, targetDE*260), C=v=>Math.max(0,Math.min(255,Math.round(v)));
-  const ri=()=>(Math.random()*2-1)*scale;
-  let best=null, bestErr=1e9;
-  for(let t=0;t<140;t++){
-    const cr=C(r+ri()), cg=C(g+ri()), cb=C(b+ri());
-    if(cr===r && cg===g && cb===b) continue;
-    const err=Math.abs(oklabDist(rgb2oklab(cr,cg,cb), baseLab) - targetDE);
-    if(err<bestErr){ bestErr=err; best=rgbHex(cr,cg,cb); }
-  }
-  return best;
+/* ---------- fine (drag the shades into the right names) ---------- */
+// pick a base color plus its two nearest deck neighbours (a tight, hard-to-tell-apart trio)
+function pickTrio(){
+  const base = COLORS[Math.floor(Math.random()*COLORS.length)];
+  const baseLab = rgb2oklab(...hex2rgb(base.hex));
+  const ranked = COLORS.filter(c=>c!==base)
+    .map(c=>({c, lab:rgb2oklab(...hex2rgb(c.hex))}))
+    .map(x=>({...x, d:oklabDist(x.lab, baseLab)}))
+    .filter(x=>x.d>=0.012)                       // skip identical twins (e.g. Magenta/Fuchsia)
+    .sort((a,b)=>a.d-b.d);
+  const n1 = ranked[0];
+  let n2 = ranked.find((x,i)=> i>0 && oklabDist(x.lab, n1.lab)>=0.012) || ranked[1];
+  return [base, n1.c, n2.c];
 }
 
-const FINE_DE0 = 0.06, FINE_FLOOR = 0.006;
+function fineDragStart(e){
+  if(fine.answered) return;
+  e.preventDefault();
+  const shade=e.currentTarget, rect=shade.getBoundingClientRect();
+  const ghost=document.createElement("div");
+  ghost.className="shadeGhost";
+  ghost.style.width=rect.width+"px"; ghost.style.height=rect.height+"px";
+  ghost.style.background=shade.style.background;
+  document.body.appendChild(ghost);
+  shade.style.opacity=".25";
+  let hover=null;
+  const move=ev=>{
+    ghost.style.left=(ev.clientX-rect.width/2)+"px";
+    ghost.style.top=(ev.clientY-rect.height/2)+"px";
+    ghost.style.display="none";
+    const under=document.elementFromPoint(ev.clientX,ev.clientY);
+    ghost.style.display="";
+    const slot=under&&under.closest?under.closest(".fineSlot"):null;
+    if(slot!==hover){ if(hover)hover.classList.remove("slotHover"); hover=slot; if(slot)slot.classList.add("slotHover"); }
+  };
+  const up=ev=>{
+    document.removeEventListener("pointermove",move);
+    document.removeEventListener("pointerup",up);
+    if(hover)hover.classList.remove("slotHover");
+    ghost.style.display="none";
+    const under=document.elementFromPoint(ev.clientX,ev.clientY);
+    ghost.remove(); shade.style.opacity="";
+    const slot=under&&under.closest?under.closest(".fineSlot"):null;
+    if(slot) fine.place(shade,slot); else fine.home(shade);
+  };
+  document.addEventListener("pointermove",move);
+  document.addEventListener("pointerup",up);
+  move(e);
+}
+
+const FINE_ROUNDS = 8;
 const fine = {
-  level:1, base:null, options:[], answered:false, advancing:false, t:null,
+  round:1, score:0, answered:false,
 
-  toStart(){ if(this.t)clearTimeout(this.t); show("start"); },
-  quit(){ if(this.level>1 && !confirm("Exit? Your run ends here.")) return; if(this.t)clearTimeout(this.t); show("start"); },
-  curDE(){ return Math.max(FINE_FLOOR, FINE_DE0*Math.pow(0.9, this.level-1)); },
-  curN(){ return Math.min(6, 3+Math.floor((this.level-1)/3)); },
-
-  start(){ this.level=1; show("fine"); this.load(); },
+  toStart(){ show("start"); },
+  quit(){ if((this.round>1||this.score>0) && !confirm("Exit? This game won't be saved.")) return; show("start"); },
+  start(){ this.round=1; this.score=0; $("fineRoundMax").textContent=FINE_ROUNDS; $("fineEndMax").textContent=FINE_ROUNDS*3; show("fine"); this.load(); },
   load(){
-    this.answered=false; this.advancing=false; if(this.t){clearTimeout(this.t); this.t=null;}
-    this.base = COLORS[Math.floor(Math.random()*COLORS.length)];
-    let de=this.curDE(); const n=this.curN();
-    const baseLab=rgb2oklab(...hex2rgb(this.base.hex));
-    const opts=[{hex:this.base.hex, exact:true}], seen=new Set([this.base.hex.toUpperCase()]);
-    let guard=0, minDE=Infinity;
-    const add=h=>{ if(h && !seen.has(h)){ seen.add(h); opts.push({hex:h, exact:false});
-      minDE=Math.min(minDE, oklabDist(rgb2oklab(...hex2rgb(h)), baseLab)); return true; } return false; };
-    while(opts.length<n && guard++<800){ if(!add(nearColor(this.base.hex, de)) && guard%120===0) de*=1.4; }
-    while(opts.length<3 && guard++<1200){ de*=1.3; add(nearColor(this.base.hex, de)); }  // never fewer than 3 tiles
-    this.minDE = isFinite(minDE) ? minDE : de;
-    this.options = shuffle(opts);
-    this.render();
-  },
-  render(){
-    $("fineLevel").textContent=this.level;
-    $("fineRef").style.background=this.base.hex;
-    const grid=$("fineGrid"); grid.innerHTML="";
-    this.options.forEach((o,i)=>{
-      const cell=document.createElement("button");
-      cell.className="optcell"; cell.style.background=o.hex;
-      cell.setAttribute("aria-label","color tile");
-      cell.onclick=()=>this.pick(i,cell);
-      grid.appendChild(cell);
+    this.answered=false;
+    const trio=pickTrio();
+    const shadeOrder=shuffle(trio.slice()), slotOrder=shuffle(trio.slice());
+    $("fineRound").textContent=this.round; $("fineScore").textContent=this.score;
+    const sc=$("fineShades"); sc.innerHTML="";
+    shadeOrder.forEach(c=>{
+      const el=document.createElement("div");
+      el.className="shade"; el.style.background=c.hex; el.dataset.name=c.n;
+      el.addEventListener("pointerdown", fineDragStart);
+      sc.appendChild(el);
+    });
+    const sl=$("fineSlots"); sl.innerHTML="";
+    slotOrder.forEach(c=>{
+      const slot=document.createElement("div");
+      slot.className="fineSlot"; slot.dataset.name=c.n;
+      slot.innerHTML='<div class="drop"></div><div class="nm"></div>';
+      slot.querySelector(".nm").textContent=c.n;
+      sl.appendChild(slot);
     });
     $("fineFeedback").textContent=""; $("fineFeedback").className="cramFeedback";
+    $("fineCheck").classList.add("hidden");
     $("fineNext").classList.add("hidden");
   },
-  pick(i,cell){
-    if(this.answered) return; this.answered=true;
-    const o=this.options[i], cells=$("fineGrid").children, fb=$("fineFeedback"), next=$("fineNext");
-    this.options.forEach((op,idx)=>{ if(op.exact) cells[idx].classList.add("right"); else cells[idx].classList.add("dim"); });
-    if(o.exact){
-      this.level++;
-      fb.textContent="✓ "+this.base.n+" — level "+this.level; fb.className="cramFeedback ok";
-      next.textContent="Next →"; next.onclick=()=>this.next(); next.classList.remove("hidden");
-      this.t=setTimeout(()=>this.next(), 700);
-    }else{
-      cell.classList.remove("dim"); cell.classList.add("wrong");
-      fb.textContent="✗ that was "+this.base.n+" — the framed tile was exact (closest was ΔE "+this.minDE.toFixed(3)+")";
-      fb.className="cramFeedback bad";
-      next.textContent="See result →"; next.onclick=()=>this.finish(); next.classList.remove("hidden");
-    }
+  place(shade,slot){
+    if(this.answered) return;
+    const drop=slot.querySelector(".drop"), occupant=drop.querySelector(".shade");
+    if(occupant && occupant!==shade) $("fineShades").appendChild(occupant);
+    drop.appendChild(shade);
+    this.afterPlace();
   },
-  next(){ if(this.advancing) return; this.advancing=true; this.load(); },
+  home(shade){ if(this.answered) return; $("fineShades").appendChild(shade); this.afterPlace(); },
+  afterPlace(){
+    const allPlaced = $("fineShades").children.length===0;
+    $("fineCheck").classList.toggle("hidden", !allPlaced);
+  },
+  check(){
+    if(this.answered) return; this.answered=true;
+    let correct=0;
+    document.querySelectorAll("#fineSlots .fineSlot").forEach(slot=>{
+      const shade=slot.querySelector(".shade");
+      const ok = shade && shade.dataset.name===slot.dataset.name;
+      slot.classList.add(ok?"correct":"wrong");
+      if(ok) correct++;
+    });
+    this.score+=correct; $("fineScore").textContent=this.score;
+    $("fineFeedback").textContent = correct+" / 3 placed correctly";
+    $("fineFeedback").className = "cramFeedback "+(correct===3?"ok":"bad");
+    $("fineCheck").classList.add("hidden");
+    $("fineNext").textContent = this.round>=FINE_ROUNDS ? "See results →" : "Next →";
+    $("fineNext").classList.remove("hidden");
+  },
+  next(){ if(this.round>=FINE_ROUNDS){ this.finish(); return; } this.round++; this.load(); },
   finish(){
-    if(this.t)clearTimeout(this.t);
     show("fineEnd");
-    $("fineEndLevel").textContent=this.level;
-    $("fineEndSub").textContent="you got stuck around ΔE "+(this.minDE||this.curDE()).toFixed(3)+" (OKLab)";
+    $("fineEndScore").textContent=this.score;
+    const max=FINE_ROUNDS*3;
+    $("fineEndSub").textContent = this.score===max ? "flawless — a connoisseur's eye 👁"
+      : this.score>=max*0.7 ? "sharp eye" : "those shades are sneaky";
   }
 };
 
