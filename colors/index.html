@@ -58,6 +58,11 @@
     background:var(--accent);color:#06243a;width:100%;margin-top:8px;cursor:pointer}
   button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
   button.alt{background:#7ee0a3;color:#063a1f}
+  .modegrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+  button.mode{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin:0;
+    padding:12px 12px;line-height:1.25;text-align:left}
+  button.mode b{font-size:15px}
+  button.mode small{font-weight:400;font-size:11px;opacity:.78}
   button:disabled{opacity:.4}
 
   .reveal{margin-top:12px;display:none}
@@ -131,13 +136,17 @@
       Tap where you think the color sits. The third HSB axis is fixed for you — baked into the gradient.
       You'll be scored by how close you land, then shown the true spot.
     </div>
-    <button onclick="game.start()">Start — 8 colors</button>
-    <button class="alt" onclick="cram.start('match')">Match — name → color</button>
-    <button class="alt" onclick="cram.start('describe')">Describe — color → name</button>
-    <button class="alt" onclick="fine.start()">Fine — spot the exact shade</button>
-    <p class="small" style="margin-top:8px">Match &amp; Describe are flashcard drills (6-way multiple choice). Miss a card
-    and it returns a few cards later — clear the whole deck and you know them all. Same color-distance
-    rule keeps the six options visibly distinct.</p>
+    <button onclick="game.start()">Place — 8 colors on a gradient</button>
+    <div class="modegrid">
+      <button class="alt mode" onclick="cram.start('drill','toColor')"><b>All colors</b><small>see a name → tap swatch</small></button>
+      <button class="alt mode" onclick="cram.start('drill','toName')"><b>All color names</b><small>see a swatch → tap name</small></button>
+      <button class="alt mode" onclick="cram.start('lightning','toColor')"><b>⚡ Lightning colors</b><small>timed · name → swatch</small></button>
+      <button class="alt mode" onclick="cram.start('lightning','toName')"><b>⚡ Lightning names</b><small>timed · swatch → name</small></button>
+    </div>
+    <button class="alt" onclick="fine.start()">Fine — sort the shades</button>
+    <p class="small" style="margin-top:8px"><b>All&nbsp;…</b> drill the whole deck — misses come back until you clear it.
+    <b>Lightning</b> is 15 timed cards, points for answering fast. Both are 6-way multiple choice with
+    visibly-distinct options.</p>
   </section>
 
   <!-- PLAY -->
@@ -686,50 +695,57 @@ function buildCramOptions(answer){
 
 const DESCRIBE_N = 15, TIMER_MS = 9000, MAX_PTS = 100, TIMER_LEADIN = 800;
 const cram = {
-  dir:"match", queue:[], total:0, learned:0, attempts:0, lapses:0,
-  score:0, correctCount:0,                                  // describe (lightning) stats
+  style:"drill", dir:"toColor", queue:[], total:0, learned:0, attempts:0, lapses:0,
+  score:0, correctCount:0,
   cur:null, options:[], answered:false, advancing:false,
   advTimer:null, tickId:null, tStart:0, elimFired:0, curPts:0,
 
   toStart(){ this.clearTimers(); show("start"); },
   quit(){
-    const inProgress = this.dir==="describe" ? (this.learned<this.total) : (this.queue.length>0);
+    const inProgress = this.style==="lightning" ? (this.learned<this.total) : (this.queue.length>0);
     if(inProgress && !confirm("Exit? This round's progress won't be saved.")) return;
     this.clearTimers(); show("start");
   },
   clearTimers(){ if(this.advTimer){clearTimeout(this.advTimer); this.advTimer=null;}
                  if(this.tickId){clearInterval(this.tickId); this.tickId=null;} },
 
-  start(dir){
-    this.dir = dir || "match";
-    const describe = this.dir==="describe";
+  modeLabel(){
+    const what = this.dir==="toName" ? "color names" : "colors";
+    return this.style==="lightning" ? "Lightning · "+what+" ⚡" : "All "+what;
+  },
+  // style: 'drill' (clear the deck, requeue misses) | 'lightning' (15 timed, scored, no requeue)
+  // dir:   'toColor' (see a name, tap the swatch) | 'toName' (see a color, tap the name)
+  start(style, dir){
+    this.style = style || "drill";
+    this.dir = dir || "toColor";
+    const lightning = this.style==="lightning";
     this.queue = shuffle(COLORS.slice());
-    if(describe) this.queue = this.queue.slice(0, Math.min(DESCRIBE_N, this.queue.length));
+    if(lightning) this.queue = this.queue.slice(0, Math.min(DESCRIBE_N, this.queue.length));
     this.total = this.queue.length;
     this.learned=0; this.attempts=0; this.lapses=0; this.score=0; this.correctCount=0;
-    $("cramMode").textContent = describe ? "Describe — lightning round ⚡" : "Match — name → color";
-    $("cramTimerRow").classList.toggle("hidden", !describe);
+    $("cramMode").textContent = this.modeLabel();
+    $("cramTimerRow").classList.toggle("hidden", !lightning);
     show("cram"); this.load();
   },
-  again(){ this.start(this.dir); },
+  again(){ this.start(this.style, this.dir); },
   load(){
     this.clearTimers(); this.answered=false; this.advancing=false;
     if(this.queue.length===0){ this.finish(); return; }
     this.cur = this.queue.shift();
     this.options = shuffle(buildCramOptions(this.cur));
     this.render();
-    if(this.dir==="describe") this.startTimer();
+    if(this.style==="lightning") this.startTimer();
   },
   hud(){
     $("cramProg").style.width=(100*this.learned/this.total)+"%";
-    $("cramRight").innerHTML = this.dir==="describe"
+    $("cramRight").innerHTML = this.style==="lightning"
       ? "<b>"+this.score+"</b> pts · <b>"+this.learned+"/"+this.total+"</b>"
       : "<b>"+this.learned+" / "+this.total+"</b> learned";
   },
   render(){
-    const c=this.cur, describe=(this.dir==="describe");
-    $("cramInstr").textContent = describe ? "tap the name of this color" : "tap the swatch that matches";
-    if(describe){
+    const c=this.cur, tapName=(this.dir==="toName");
+    $("cramInstr").textContent = tapName ? "tap the name of this color" : "tap the swatch that matches";
+    if(tapName){
       $("cramPromptSwatch").classList.remove("hidden"); $("cramPromptSwatch").style.background=c.hex;
       $("cramName").textContent="";                 // name hidden until answered (no spoiler)
     }else{
@@ -741,7 +757,7 @@ const cram = {
     const grid=$("cramGrid"); grid.innerHTML="";
     this.options.forEach((o,i)=>{
       const cell=document.createElement("button");
-      if(describe){ cell.className="optname"; cell.textContent=o.n; }
+      if(tapName){ cell.className="optname"; cell.textContent=o.n; }
       else { cell.className="optcell"; cell.style.background=o.hex; cell.setAttribute("aria-label","color choice"); }
       cell.onclick=()=>this.pick(i,cell);
       grid.appendChild(cell);
@@ -753,7 +769,7 @@ const cram = {
   revealName(){
     $("cramName").textContent=this.cur.n;
     $("cramName").href=wikiUrl(this.cur.n); $("cramName").classList.add("namelink");
-    $("cramNext").textContent = this.dir==="describe"
+    $("cramNext").textContent = this.style==="lightning"
       ? (this.learned>=this.total ? "See results →" : "Next round →")
       : "Next →";
     $("cramNext").classList.remove("hidden");
@@ -769,9 +785,9 @@ const cram = {
 
   pick(i,cell){
     if(this.answered) return;
-    if(this.dir==="describe") this.pickDescribe(i,cell); else this.pickMatch(i,cell);
+    if(this.style==="lightning") this.pickLightning(i,cell); else this.pickDrill(i,cell);
   },
-  pickMatch(i,cell){                                 // drill: requeue misses, clear the deck
+  pickDrill(i,cell){                                 // drill: requeue misses, clear the deck
     this.answered=true; this.attempts++;
     const chosen=this.options[i], correct=(chosen.hex===this.cur.hex);
     this.markCells(cell);
@@ -790,7 +806,7 @@ const cram = {
     }
     this.revealName();
   },
-  pickDescribe(i,cell){                              // lightning: score by speed, no requeue
+  pickLightning(i,cell){                             // lightning: score by speed, no requeue
     this.answered=true; this.clearTimers();
     const chosen=this.options[i], correct=(chosen.hex===this.cur.hex);
     this.markCells(cell);
@@ -805,7 +821,7 @@ const cram = {
     this.learned++; this.hud();
     this.revealName();
   },
-  timeout(){                                         // describe: ran out of time
+  timeout(){                                         // lightning: ran out of time
     if(this.answered) return;
     this.answered=true; this.clearTimers();
     this.markCells(null);
@@ -848,7 +864,7 @@ const cram = {
   },
   finish(){
     this.clearTimers(); show("cramEnd");
-    if(this.dir==="describe"){
+    if(this.style==="lightning"){
       $("cramEndTitle").textContent="Lightning round ⚡";
       $("cramEndBig").textContent=this.score+" pts";
       $("cramEndSub").textContent=this.correctCount+" / "+this.total+" correct · max "+(this.total*MAX_PTS);
