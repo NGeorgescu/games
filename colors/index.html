@@ -617,6 +617,7 @@ const game = {
     this.results.push({c:this.cur, pts});
 
     // truth marker + connector
+    const tf=this.truthFrac;
     const t=$("mTruth"); t.classList.remove("hidden");
     t.style.left=(tf.x*100)+"%"; t.style.top=((1-tf.y)*100)+"%";
     drawConnector(gf, tf);
