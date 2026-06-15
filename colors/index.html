@@ -684,7 +684,7 @@ function buildCramOptions(answer){
   return [answer, ...chosen];
 }
 
-const DESCRIBE_N = 15, TIMER_MS = 9000, MAX_PTS = 100;
+const DESCRIBE_N = 15, TIMER_MS = 9000, MAX_PTS = 100, TIMER_LEADIN = 800;
 const cram = {
   dir:"match", queue:[], total:0, learned:0, attempts:0, lapses:0,
   score:0, correctCount:0,                                  // describe (lightning) stats
@@ -753,6 +753,9 @@ const cram = {
   revealName(){
     $("cramName").textContent=this.cur.n;
     $("cramName").href=wikiUrl(this.cur.n); $("cramName").classList.add("namelink");
+    $("cramNext").textContent = this.dir==="describe"
+      ? (this.learned>=this.total ? "See results →" : "Next round →")
+      : "Next →";
     $("cramNext").classList.remove("hidden");
   },
   markCells(chosenCell){
@@ -795,7 +798,6 @@ const cram = {
     if(correct){
       const pts=this.curPts; this.score+=pts; this.correctCount++;
       fb.textContent="✓ "+this.cur.n+"   +"+pts; fb.className="cramFeedback ok";
-      this.advTimer=setTimeout(()=>this.next(), 750);
     }else{
       fb.textContent="✗ you tapped "+chosen.n+" — it was "+this.cur.n+"   +0"; fb.className="cramFeedback bad";
       $("cramBlurb").textContent=this.cur.blurb || "";
@@ -815,16 +817,19 @@ const cram = {
   },
 
   startTimer(){
-    this.tStart = (window.performance && performance.now) ? performance.now() : Date.now();
+    const now=(window.performance && performance.now) ? performance.now() : Date.now();
+    this.tStart = now + TIMER_LEADIN;                // countdown holds for a beat so you can look first
     this.elimFired=0; this.curPts=MAX_PTS;
     $("cramTimer").style.width="100%";
-    $("cramPts").textContent="worth "+MAX_PTS+" pts — answer fast";
-    this.tickId=setInterval(()=>this.tick(), 100);
+    $("cramPts").textContent="get ready…";
+    this.tickId=setInterval(()=>this.tick(), 80);
   },
   tick(){
     if(this.answered) return;
     const now=(window.performance && performance.now) ? performance.now() : Date.now();
-    const elapsed=now-this.tStart, frac=Math.max(0,1-elapsed/TIMER_MS);
+    const elapsed=now-this.tStart;
+    if(elapsed<0){ this.curPts=MAX_PTS; $("cramTimer").style.width="100%"; $("cramPts").textContent="get ready…"; return; }
+    const frac=Math.max(0, Math.min(1, 1-elapsed/TIMER_MS));
     this.curPts=Math.round(MAX_PTS*frac);
     $("cramTimer").style.width=(frac*100)+"%";
     $("cramPts").textContent = this.curPts>0 ? ("worth "+this.curPts+" pts") : "no points left";
