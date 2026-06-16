@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Grid Memory</title>
+<style>
+  :root{ --bg:#0e1014; --panel:#171a21; --ink:#eef1f6; --muted:#9aa3b2; --line:#262b35; --accent:#7cc6ff; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-text-size-adjust:100%}
+  .wrap{max-width:440px;margin:0 auto;padding:18px 16px 36px;position:relative}
+  h1{font-size:24px;margin:.1em 0 .1em}
+  .sub{color:var(--muted);font-size:13px;line-height:1.55;margin:0 0 18px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px}
+  button{appearance:none;border:0;border-radius:12px;padding:13px 18px;font-size:16px;font-weight:600;
+    background:var(--accent);color:#06243a;width:100%;margin-top:8px;cursor:pointer}
+  button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+  button.alt{background:#7ee0a3;color:#063a1f}
+  .xclose{position:absolute;top:8px;right:10px;width:32px;height:32px;border-radius:50%;
+    background:var(--panel);color:var(--muted);border:1px solid var(--line);font-size:17px;line-height:1;cursor:pointer;z-index:5;padding:0}
+  .hidden{display:none}
+  .hud{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:13px;
+    margin-bottom:8px;min-height:32px;padding-right:44px}
+  .hud b{color:var(--ink)}
+  .center{text-align:center}
+  .small{font-size:12px;color:var(--muted);line-height:1.5}
+
+  .progwrap{height:8px;background:var(--line);border-radius:999px;overflow:hidden;margin:4px 0 10px}
+  .progbar{height:100%;background:var(--accent);width:100%;transition:width .2s linear}
+
+  .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;width:min(92vw,380px);margin:8px auto 6px}
+  .cell{aspect-ratio:1/1;border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    font-size:22px;font-weight:700;background:#1c222c;border:1px solid #2a313d;user-select:none;line-height:1}
+  .cell.blank{background:#12151b;border-style:dashed;color:transparent}
+  .cell.open{cursor:pointer}
+  .cell.open:active{background:#222a36}
+  .cell.placed{background:#223047;border-color:#3a567d;color:#dbe8ff}
+  .cell.correct{background:#16462a;border-color:#2fe06a;color:#dffbe8}
+  .cell.wrong{background:#4a1d1d;border-color:#ff6b6b;color:#ffd9d9}
+  .cell .sub{font-size:11px;font-weight:600;opacity:.85;margin-top:2px}
+
+  .nowbar{display:flex;align-items:center;justify-content:center;gap:12px;margin:6px 0 2px}
+  .nowchip{min-width:60px;height:60px;border-radius:14px;background:var(--accent);color:#06243a;
+    font-size:30px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 10px}
+  .nowlabel{color:var(--muted);font-size:13px;text-align:left}
+  .final{font-size:42px;font-weight:800;margin:6px 0}
+  .scoreSub{color:var(--muted);font-size:14px}
+  .diffrow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .diffrow button{margin-top:0;font-size:14px;padding:12px 6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- START -->
+  <section id="start">
+    <h1>Grid Memory</h1>
+    <p class="sub">A shuffled 5×5 grid of <b>1–25</b> appears. Memorize where every number sits, then the grid
+    goes blank and you place them back. How many can you get right?</p>
+    <div class="card">
+      <div class="small" style="margin-bottom:8px">Pick your memorize time:</div>
+      <div class="diffrow">
+        <button class="alt" onclick="mem.start(120000)">Easy<br><span class="small">2:00</span></button>
+        <button class="alt" onclick="mem.start(60000)">Medium<br><span class="small">1:00</span></button>
+        <button class="alt" onclick="mem.start(30000)">Hard<br><span class="small">0:30</span></button>
+      </div>
+    </div>
+    <p class="small">Tip: you can hit “Recall now” the moment you feel ready — you don’t have to use the whole clock.</p>
+  </section>
+
+  <!-- MEMORIZE -->
+  <section id="memorize" class="hidden">
+    <button class="xclose" onclick="mem.quit()" aria-label="exit">✕</button>
+    <div class="hud"><span>Memorize</span><span><b id="memClock">2:00</b> left</span></div>
+    <div class="progwrap"><div class="progbar" id="memBar"></div></div>
+    <div class="grid" id="memGrid"></div>
+    <button class="alt" onclick="mem.toRecall()">Recall now →</button>
+  </section>
+
+  <!-- RECALL -->
+  <section id="recall" class="hidden">
+    <button class="xclose" onclick="mem.quit()" aria-label="exit">✕</button>
+    <div class="hud"><span>Recall</span><span><b id="recallCount">0</b>/25 placed</span></div>
+    <div class="nowbar">
+      <div class="nowchip" id="nowChip">1</div>
+      <div class="nowlabel">tap the cell where<br>this number goes</div>
+    </div>
+    <div class="grid" id="recallGrid"></div>
+    <button class="ghost" id="undoBtn" onclick="mem.undo()" disabled>Undo last</button>
+  </section>
+
+  <!-- RESULT -->
+  <section id="result" class="hidden center">
+    <h1 id="resultTitle">Result</h1>
+    <div class="final"><span id="resultScore">0</span> / 25</div>
+    <div class="scoreSub" id="resultSub">—</div>
+    <div class="grid" id="resultGrid"></div>
+    <button class="alt" onclick="mem.again()">Play again</button>
+    <button class="ghost" onclick="mem.toStart()">Back to start</button>
+  </section>
+
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+function show(id){ for(const s of ["start","memorize","recall","result"]) $(s).classList.add("hidden"); $(id).classList.remove("hidden"); }
+function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
+function fmt(ms){ const s=Math.max(0,Math.ceil(ms/1000)); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+
+const mem = {
+  solution:[],          // solution[cell] = the number that belongs in that cell
+  placed:[],            // placed[cell] = number the player put there (or null)
+  history:[],           // cell indices, in placement order (for undo)
+  current:1, memMs:120000, timerId:null, tEnd:0,
+
+  toStart(){ this.stopTimer(); show("start"); },
+  quit(){ if(confirm("Quit this game? Progress will be lost.")){ this.stopTimer(); show("start"); } },
+  stopTimer(){ if(this.timerId){ clearInterval(this.timerId); this.timerId=null; } },
+  again(){ this.start(this.memMs); },
+
+  start(ms){
+    this.memMs = ms;
+    this.solution = shuffle(Array.from({length:25}, (_,i)=>i+1));
+    show("memorize");
+    const g=$("memGrid"); g.innerHTML="";
+    this.solution.forEach(n=>{ const c=document.createElement("div"); c.className="cell"; c.textContent=n; g.appendChild(c); });
+    this.tEnd = Date.now()+ms;
+    $("memBar").style.width="100%"; $("memClock").textContent=fmt(ms);
+    this.timerId=setInterval(()=>this.tick(), 200);
+  },
+  tick(){
+    const left=this.tEnd-Date.now();
+    if(left<=0){ this.toRecall(); return; }
+    $("memClock").textContent=fmt(left);
+    $("memBar").style.width=(100*left/this.memMs)+"%";
+  },
+  toRecall(){
+    this.stopTimer();
+    this.placed=Array(25).fill(null); this.history=[]; this.current=1;
+    show("recall"); this.renderRecall();
+  },
+  renderRecall(){
+    $("nowChip").textContent = this.current<=25 ? this.current : "✓";
+    $("recallCount").textContent = this.current-1;
+    $("undoBtn").disabled = this.history.length===0;
+    const g=$("recallGrid"); g.innerHTML="";
+    for(let i=0;i<25;i++){
+      const c=document.createElement("div");
+      if(this.placed[i]!=null){ c.className="cell placed"; c.textContent=this.placed[i]; }
+      else { c.className="cell blank open"; c.onclick=()=>this.placeAt(i); }
+      g.appendChild(c);
+    }
+  },
+  placeAt(i){
+    if(this.current>25 || this.placed[i]!=null) return;
+    this.placed[i]=this.current; this.history.push(i); this.current++;
+    if(this.current>25){ this.finish(); return; }
+    this.renderRecall();
+  },
+  undo(){
+    if(!this.history.length) return;
+    const i=this.history.pop(); this.placed[i]=null; this.current--;
+    this.renderRecall();
+  },
+  finish(){
+    let score=0;
+    for(let i=0;i<25;i++) if(this.placed[i]===this.solution[i]) score++;
+    show("result");
+    $("resultScore").textContent=score;
+    $("resultTitle").textContent = score===25 ? "Perfect memory 🧠" : score>=20 ? "Sharp 🔥" : score>=12 ? "Not bad" : "Tricky, isn’t it?";
+    $("resultSub").textContent = score===25 ? "all 25 in the right place" : (25-score)+" misplaced — correct answers in red";
+    const g=$("resultGrid"); g.innerHTML="";
+    for(let i=0;i<25;i++){
+      const c=document.createElement("div"), ok=this.placed[i]===this.solution[i];
+      c.className="cell "+(ok?"correct":"wrong");
+      c.textContent=this.placed[i]==null?"":this.placed[i];
+      if(!ok){ const s=document.createElement("div"); s.className="sub"; s.textContent="→"+this.solution[i]; c.appendChild(s); }
+      g.appendChild(c);
+    }
+  }
+};
+</script>
+</body>
+</html>
