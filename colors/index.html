@@ -58,9 +58,9 @@
     background:var(--accent);color:#06243a;width:100%;margin-top:8px;cursor:pointer}
   button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
   button.alt{background:#7ee0a3;color:#063a1f}
-  .modegrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
-  button.mode{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin:0;
-    padding:12px 12px;line-height:1.25;text-align:left}
+  .modegrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0 12px}
+  button.mode{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:3px;margin:0;
+    padding:12px 12px;min-height:62px;line-height:1.25;text-align:left;white-space:normal}
   button.mode b{font-size:15px}
   button.mode small{font-weight:400;font-size:11px;opacity:.78}
   button:disabled{opacity:.4}
@@ -74,7 +74,7 @@
   a.namelink{text-decoration:none;color:inherit;border-bottom:1px dotted rgba(255,255,255,.45)}
   a.namelink:after{content:"\2197";font-size:.5em;vertical-align:super;opacity:.55;
     font-style:normal;margin-left:2px}
-  .hud{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;margin-bottom:10px;padding-right:38px}
+  .hud{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:12px;margin-bottom:10px;min-height:32px;padding-right:46px}
   .optcell.gone,.optname.gone{opacity:.12;pointer-events:none;box-shadow:none}
   .timerwrap{height:7px;background:var(--line);border-radius:999px;overflow:hidden;margin:10px 0 2px}
   .timerbar{height:100%;background:#ffcf6b;width:100%;transition:width .1s linear}
