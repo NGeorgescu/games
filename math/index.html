@@ -126,8 +126,8 @@ const TRICKS = [
       <p><b>×9:</b> do ×10 and subtract the number. 7×9 = 70−7 = 63. (Bonus: the two digits of any ×9 answer add to 9.)</p>
       <p><b>×5:</b> do ×10, then halve. 8×5 = 80÷2 = 40.</p>
       <p><b>×4:</b> double twice. 7×4 → 14 → 28. &nbsp; <b>×8:</b> double three times.</p>
-      <div class="ex mono">6 × 7 = 42 · 8 × 9 = 72 · 12 × 11 = 132</div>`,
-    gen(){ const a=rnd(2,12), b=rnd(2,12); return { q:`${a} × ${b}`, a:a*b, steps:timesSteps(a,b) }; } },
+      <div class="ex mono">6 × 7 = 42 · 8 × 9 = 72 · 4 × 9 = 36</div>`,
+    gen(){ const a=rnd(2,9), b=rnd(2,9); return { q:`${a} × ${b}`, a:a*b, steps:timesSteps(a,b) }; } },
 
   { id:"x11", cat:"2-digit multiplication", name:"Multiply by 11", tag:"Split the digits, drop the sum between",
     lesson:`<h3>× 11 in one move</h3>
