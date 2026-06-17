@@ -51,6 +51,9 @@
   .steps.show{display:block}
   .steps ol{margin:0;padding-left:20px} .steps li{margin:3px 0}
   .steps .mono{color:#cfe6ff}
+  .pick{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:12px 0}
+  .picknum{background:var(--accent);color:#06243a;border:0;border-radius:10px;padding:14px 0;font-size:18px;font-weight:700;cursor:pointer}
+  .picknum:active{filter:brightness(.92)}
   .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:8px}
   .key{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:12px;
     font-size:22px;font-weight:700;padding:16px 0;cursor:pointer;user-select:none}
@@ -76,7 +79,7 @@
   <section id="lesson" class="hidden">
     <div class="top"><button class="back" onclick="app.home()">←</button><h2 id="lessonTitle"></h2></div>
     <div class="lesson" id="lessonBody"></div>
-    <button class="go alt" onclick="app.practice()">Practice →</button>
+    <button class="go alt" id="lessonGo" onclick="app.practice()">Practice →</button>
   </section>
 
   <!-- PRACTICE -->
@@ -128,6 +131,8 @@ const TRICKS = [
       <p><b>×4:</b> double twice. 7×4 → 14 → 28. &nbsp; <b>×8:</b> double three times.</p>
       <div class="ex mono">6 × 7 = 42 · 8 × 9 = 72 · 4 × 9 = 36</div>`,
     gen(){ const a=rnd(2,9), b=rnd(2,9); return { q:`${a} × ${b}`, a:a*b, steps:timesSteps(a,b) }; } },
+
+  { id:"tables", cat:"Foundation", name:"Times table for a number", tag:"Pick 11–20 and drill it up to N×N", picker:true },
 
   { id:"x11", cat:"2-digit multiplication", name:"Multiply by 11", tag:"Split the digits, drop the sum between",
     lesson:`<h3>× 11 in one move</h3>
@@ -234,7 +239,7 @@ const TRICKS = [
 
 /* ---- app ---- */
 const app = {
-  cur:null, prob:null, input:"", answered:false,
+  cur:null, prob:null, input:"", answered:false, factor:11,
   total:0, correct:0, streak:0, best:0,
 
   init(){
@@ -252,12 +257,34 @@ const app = {
   },
   home(){ show("home"); },
   lesson(id){ this.cur=TRICKS.find(t=>t.id===id);
-    $("lessonTitle").textContent=this.cur.name; $("lessonBody").innerHTML=this.cur.lesson; show("lesson"); },
+    $("lessonTitle").textContent=this.cur.name;
+    if(this.cur.picker){ $("lessonBody").innerHTML=this.pickerHTML(); $("lessonGo").classList.add("hidden"); }
+    else { $("lessonBody").innerHTML=this.cur.lesson; $("lessonGo").classList.remove("hidden"); }
+    show("lesson"); },
   practice(){ this.total=0; this.correct=0; this.streak=0; this.best=0;
     $("practiceTitle").textContent=this.cur.name; show("practice"); this.next(); },
 
+  pickerHTML(){
+    let h='<p>Pick a number — you’ll drill its whole table, all the way up to that number squared.</p><div class="pick">';
+    for(let n=11;n<=20;n++) h+=`<button class="picknum" onclick="app.startTable(${n})">${n}</button>`;
+    h+='</div><p class="why">e.g. pick 13 → you’ll get 13×2 through 13×13, with the “10×k + 3×k” split shown each time.</p>';
+    return h;
+  },
+  startTable(factor){
+    this.factor=factor; this.total=0; this.correct=0; this.streak=0; this.best=0;
+    $("practiceTitle").textContent=this.cur.name+" — "+factor;
+    show("practice"); this.next();
+  },
+  tableProblem(N){
+    const k=rnd(2,N), a=(N/10|0)*10, b=N%10;
+    const steps=[`${N} × ${k} = <b>${N*k}</b>`];
+    if(b>0 && a>0) steps.push(`split: ${a}×${k} + ${b}×${k} = ${a*k} + ${b*k} = <b>${N*k}</b>`);
+    return { q:`${N} × ${k}`, a:N*k, steps };
+  },
+
   next(){
-    this.prob=this.cur.gen(); this.input=""; this.answered=false;
+    this.prob = this.cur.picker ? this.tableProblem(this.factor) : this.cur.gen();
+    this.input=""; this.answered=false;
     $("qtext").textContent=this.prob.q;
     $("fb").textContent=""; $("fb").className="fb";
     $("steps").className="steps"; $("steps").innerHTML="";
