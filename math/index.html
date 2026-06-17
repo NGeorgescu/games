@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Mental Math</title>
+<style>
+  :root{ --bg:#0e1014; --panel:#171a21; --ink:#eef1f6; --muted:#9aa3b2; --line:#262b35; --accent:#7cc6ff; --good:#7ee0a3; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%}
+  .wrap{max-width:460px;margin:0 auto;padding:16px 16px 40px}
+  h1{font-size:24px;margin:.1em 0}
+  .sub{color:var(--muted);font-size:13px;line-height:1.55;margin:0 0 16px}
+  .cat{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.6px;margin:16px 0 6px}
+  a.tile,button.tile{display:block;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);
+    border-radius:13px;padding:13px 14px;margin-bottom:9px;text-decoration:none;color:var(--ink);cursor:pointer}
+  .tile b{font-size:16px}
+  .tile span{display:block;color:var(--muted);font-size:12.5px;margin-top:2px;line-height:1.4}
+  .top{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .back{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:10px;
+    width:40px;height:40px;font-size:18px;cursor:pointer;flex:0 0 auto}
+  .top h2{font-size:18px;margin:0}
+  .lesson{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;line-height:1.6;font-size:14.5px}
+  .lesson h3{margin:.2em 0 .4em;font-size:15px}
+  .lesson p{margin:.5em 0}
+  .lesson .ex{background:#10141b;border-left:3px solid var(--accent);padding:8px 12px;border-radius:6px;margin:10px 0}
+  .lesson code,.mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+  .lesson table{border-collapse:collapse;margin:8px 0;font-family:ui-monospace,monospace;font-size:13px}
+  .lesson td{border:1px solid var(--line);padding:3px 8px;text-align:center}
+  .map td:first-child{color:var(--muted)}
+  button.go{appearance:none;border:0;border-radius:12px;padding:14px;font-size:16px;font-weight:700;
+    background:var(--accent);color:#06243a;width:100%;margin-top:12px;cursor:pointer}
+  button.go.alt{background:var(--good);color:#063a1f}
+
+  .scoreline{display:flex;justify-content:space-between;color:var(--muted);font-size:13px;margin:2px 0 10px}
+  .scoreline b{color:var(--ink)}
+  .prob{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 14px;text-align:center;margin-bottom:10px}
+  .qtext{font-size:30px;font-weight:800;font-family:ui-monospace,Menlo,monospace;letter-spacing:.5px;word-break:break-all}
+  .ans{margin-top:12px;min-height:42px;font-size:30px;font-weight:800;font-family:ui-monospace,monospace;
+    border-bottom:2px solid var(--line);display:inline-block;min-width:120px;padding:2px 10px}
+  .ans.empty{color:#3a4150}
+  .fb{min-height:22px;text-align:center;font-size:14px;margin:8px 0;font-weight:600}
+  .fb.ok{color:var(--good)} .fb.bad{color:#ff8a8a}
+  .steps{background:#10141b;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:6px 0 2px;
+    font-size:13.5px;line-height:1.7;display:none}
+  .steps.show{display:block}
+  .steps ol{margin:0;padding-left:20px} .steps li{margin:3px 0}
+  .steps .mono{color:#cfe6ff}
+  .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:8px}
+  .key{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:12px;
+    font-size:22px;font-weight:700;padding:16px 0;cursor:pointer;user-select:none}
+  .key:active{background:#222a36}
+  .key.wide{font-size:17px}
+  .key.check{background:var(--good);color:#063a1f;border-color:var(--good)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:9px}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HOME -->
+  <section id="home">
+    <h1>Mental Math</h1>
+    <p class="sub">Learn the “Human Calculator” tricks — then drill them. Each trick has a quick lesson and a
+    practice mode that shows you the steps on every problem.</p>
+    <div id="trickList"></div>
+  </section>
+
+  <!-- LESSON -->
+  <section id="lesson" class="hidden">
+    <div class="top"><button class="back" onclick="app.home()">←</button><h2 id="lessonTitle"></h2></div>
+    <div class="lesson" id="lessonBody"></div>
+    <button class="go alt" onclick="app.practice()">Practice →</button>
+  </section>
+
+  <!-- PRACTICE -->
+  <section id="practice" class="hidden">
+    <div class="top"><button class="back" onclick="app.lesson(app.cur.id)">←</button><h2 id="practiceTitle"></h2></div>
+    <div class="scoreline"><span><b id="scCorrect">0</b>/<b id="scTotal">0</b> correct</span><span>streak <b id="scStreak">0</b> · best <b id="scBest">0</b></span></div>
+    <div class="prob">
+      <div class="qtext" id="qtext">—</div>
+      <div class="ans empty" id="ans">—</div>
+    </div>
+    <div class="fb" id="fb"></div>
+    <div class="steps" id="steps"></div>
+    <div id="keypad"></div>
+    <button class="go hidden" id="nextBtn" onclick="app.next()">Next →</button>
+  </section>
+
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+function show(id){ for(const s of ["home","lesson","practice"]) $(s).classList.add("hidden"); $(id).classList.remove("hidden"); window.scrollTo(0,0); }
+const rnd = (lo,hi) => lo + Math.floor(Math.random()*(hi-lo+1));
+const commas = n => n.toLocaleString("en-US");
+
+/* ---- shared reference data (all verified by brute force) ---- */
+const CUBE_UNITS = {0:0,1:1,8:2,7:3,4:4,5:5,6:6,3:7,2:8,9:9};   // last digit of cube -> units of root
+const CUBES  = [0,1,8,27,64,125,216,343,512,729];               // n^3, n=0..9
+const FIFTHS = [0,1,32,243,1024,3125,7776,16807,32768,59049];   // n^5, n=0..9
+function largestIdx(table, val){ let k=0; for(let t=0;t<=9;t++) if(table[t]<=val) k=t; return k; }
+
+function timesSteps(a,b){
+  const s=[`${a} × ${b} = <span class="mono">${a*b}</span>`];
+  const has=x=>a===x||b===x, other=x=>a===x?b:a;
+  if(has(9))      s.push(`×9 tip: ${other(9)}×10 − ${other(9)} = ${other(9)*10}−${other(9)} = ${other(9)*9}`);
+  else if(has(5)) s.push(`×5 tip: ${other(5)}×10 ÷ 2 = ${other(5)*10}÷2 = ${other(5)*5}`);
+  else if(has(4)) s.push(`×4 tip: double ${other(4)} twice → ${other(4)*2} → ${other(4)*4}`);
+  else if(has(6)) s.push(`×6 tip: ×3 then double → ${other(6)*3} → ${other(6)*6}`);
+  return s;
+}
+
+/* ---- the tricks ---- */
+const TRICKS = [
+  { id:"times", cat:"Foundation", name:"Times tables", tag:"Single-digit recall, the bedrock of everything",
+    lesson:`<h3>Make recall automatic</h3>
+      <p>Every other trick leans on instant single-digit products. Drill these until they're reflex. A few patterns help:</p>
+      <p><b>×9:</b> do ×10 and subtract the number. 7×9 = 70−7 = 63. (Bonus: the two digits of any ×9 answer add to 9.)</p>
+      <p><b>×5:</b> do ×10, then halve. 8×5 = 80÷2 = 40.</p>
+      <p><b>×4:</b> double twice. 7×4 → 14 → 28. &nbsp; <b>×8:</b> double three times.</p>
+      <div class="ex mono">6 × 7 = 42 · 8 × 9 = 72 · 12 × 11 = 132</div>`,
+    gen(){ const a=rnd(2,12), b=rnd(2,12); return { q:`${a} × ${b}`, a:a*b, steps:timesSteps(a,b) }; } },
+
+  { id:"x11", cat:"2-digit multiplication", name:"Multiply by 11", tag:"Split the digits, drop the sum between",
+    lesson:`<h3>× 11 in one move</h3>
+      <p>For a 2-digit number, <b>pull the digits apart and put their sum in the middle.</b></p>
+      <div class="ex mono">35 × 11 → 3 _ 5, &nbsp;3+5=8 → <b>385</b></div>
+      <p>If the middle sum is 10 or more, <b>carry the 1</b> into the left digit:</p>
+      <div class="ex mono">57 × 11 → 5 _ 7, &nbsp;5+7=12 → carry → (5+1)(2)(7) = <b>627</b></div>`,
+    gen(){ const n=rnd(10,99), a=(n/10|0), b=n%10, s=a+b; const steps=[
+        `Split <span class="mono">${n}</span> → <span class="mono">${a} _ ${b}</span>`,
+        `Middle = ${a}+${b} = <span class="mono">${s}</span>`,
+        s<10 ? `No carry → <span class="mono">${a}${s}${b}</span> = <b>${n*11}</b>`
+             : `${s}≥10, carry 1 → (${a}+1)(${s-10})(${b}) = <b>${n*11}</b>` ];
+      return { q:`${n} × 11`, a:n*11, steps }; } },
+
+  { id:"sq5", cat:"2-digit multiplication", name:"Square a number ending in 5", tag:"a·(a+1) then tack on 25",
+    lesson:`<h3>Squaring n5</h3>
+      <p>Take the tens digit <b>a</b>, multiply by <b>(a+1)</b>, and write <b>25</b> after it.</p>
+      <div class="ex mono">35² → 3×4 = 12 → <b>1225</b><br>85² → 8×9 = 72 → <b>7225</b></div>
+      <p>Works because (10a+5)² = 100·a·(a+1) + 25.</p>`,
+    gen(){ const a=rnd(1,9), n=a*10+5; return { q:`${n}²`, a:n*n, steps:[
+        `Tens digit a = <span class="mono">${a}</span>`,
+        `a × (a+1) = ${a} × ${a+1} = <span class="mono">${a*(a+1)}</span>`,
+        `Tack on 25 → <b>${a*(a+1)}25</b>` ]}; } },
+
+  { id:"cross", cat:"2-digit multiplication", name:"Cross method (any 2×2)", tag:"Units, cross, hundreds — the general trick",
+    lesson:`<h3>Vertically &amp; crosswise</h3>
+      <p>For <span class="mono">ab × cd</span>, build the answer in three pieces (carry as you go):</p>
+      <p>1. <b>Units</b> = b×d &nbsp; 2. <b>Cross</b> = a×d + b×c &nbsp; 3. <b>Hundreds</b> = a×c</p>
+      <div class="ex mono">23 × 47<br>units 3×7 = 21 → write 1, carry 2<br>cross 2×7 + 3×4 = 26, +2 = 28 → write 8, carry 2<br>hund 2×4 = 8, +2 = 10<br>= <b>1081</b></div>`,
+    gen(){ const x=rnd(11,99), y=rnd(11,99), a=(x/10|0),b=x%10,c=(y/10|0),d=y%10;
+      return { q:`${x} × ${y}`, a:x*y, steps:[
+        `Units: b×d = ${b}×${d} = <span class="mono">${b*d}</span>`,
+        `Cross: a×d + b×c = ${a}×${d} + ${b}×${c} = ${a*d}+${b*c} = <span class="mono">${a*d+b*c}</span>`,
+        `Hundreds: a×c = ${a}×${c} = <span class="mono">${a*c}</span>`,
+        `Combine 100·${a*c} + 10·${a*d+b*c} + ${b*d} = <b>${x*y}</b>` ]}; } },
+
+  { id:"diffsq", cat:"2-digit multiplication", name:"Difference of squares", tag:"When the two numbers share parity",
+    lesson:`<h3>Meet in the middle</h3>
+      <p>If both numbers are odd, or both even, their product is <b>midpoint² − halfgap²</b>.</p>
+      <div class="ex mono">23 × 17 → midpoint 20, gap/2 = 3 → 20² − 3² = 400 − 9 = <b>391</b></div>
+      <p>Best when the midpoint is a round number you can square instantly.</p>`,
+    gen(){ const m=rnd(13,87); const maxd=Math.min(9, m-11, 99-m); const d=rnd(1,Math.max(1,maxd));
+      const a=m-d, b=m+d; return { q:`${a} × ${b}`, a:a*b, steps:[
+        `Same parity → midpoint = (${a}+${b})/2 = <span class="mono">${m}</span>`,
+        `Half-gap = (${b}−${a})/2 = <span class="mono">${d}</span>`,
+        `${m}² − ${d}² = ${m*m} − ${d*d} = <b>${a*b}</b>` ]}; } },
+
+  { id:"cube", cat:"Roots", name:"Cube root of a perfect cube", tag:"Two digits, two glances",
+    lesson:`<h3>Cube root in your head</h3>
+      <p>For a perfect cube with a two-digit root:</p>
+      <p><b>Units digit</b> — the last digit of the cube maps 1-to-1 to the root's units digit:</p>
+      <table class="map mono"><tr><td>cube ends</td><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td></tr>
+      <tr><td>units is</td><td>0</td><td>1</td><td>8</td><td>7</td><td>4</td><td>5</td><td>6</td><td>3</td><td>2</td><td>9</td></tr></table>
+      <p><b>Tens digit</b> — cover the last 3 digits; find the largest cube ≤ what's left (1,8,27,64,125,216,343,512,729).</p>
+      <div class="ex mono">∛91125 → ends in 5 → units 5<br>cover 125 → 91 → biggest cube ≤91 is 4³=64 → tens 4<br>= <b>45</b></div>`,
+    gen(){ const r=rnd(11,99), N=r**3, a=(r/10|0), b=r%10, lo=(N/1000|0);
+      return { q:`∛ ${commas(N)}`, a:r, steps:[
+        `Last digit ${N%10} → units digit <span class="mono">${b}</span> (from the map)`,
+        `Cover the last 3 digits → <span class="mono">${lo}</span>`,
+        `Biggest cube ≤ ${lo} is ${a}³=${CUBES[a]} → tens digit <span class="mono">${a}</span>`,
+        `Answer = <b>${r}</b>` ]}; } },
+
+  { id:"fifth", cat:"Roots", name:"Fifth root of a perfect 5th power", tag:"Even easier — the last digit is free",
+    lesson:`<h3>Fifth root in your head</h3>
+      <p>A fifth power <b>ends in the same digit as its root</b> (9⁵ ends in 9, 3⁵ ends in 3…). So:</p>
+      <p><b>Units digit</b> = the last digit of the number. No table needed.</p>
+      <p><b>Tens digit</b> — cover the last 5 digits; largest fifth power ≤ what's left (1,32,243,1024,3125,7776,16807,32768,59049).</p>
+      <div class="ex mono">⁵√9765625 → ends in 5 → units 5<br>cover last 5 → 97 → biggest 5th power ≤97 is 2⁵=32 → tens 2<br>= <b>25</b></div>`,
+    gen(){ const r=rnd(11,99), N=r**5, a=(r/10|0), b=r%10, lo=Math.floor(N/100000);
+      return { q:`⁵√ ${commas(N)}`, a:r, steps:[
+        `Last digit ${N%10} → units digit <span class="mono">${b}</span> (same as the root)`,
+        `Cover the last 5 digits → <span class="mono">${lo}</span>`,
+        `Biggest 5th power ≤ ${lo} is ${a}⁵=${FIFTHS[a]} → tens digit <span class="mono">${a}</span>`,
+        `Answer = <b>${r}</b>` ]}; } },
+];
+
+/* ---- app ---- */
+const app = {
+  cur:null, prob:null, input:"", answered:false,
+  total:0, correct:0, streak:0, best:0,
+
+  init(){
+    const list=$("trickList"); let lastCat="";
+    TRICKS.forEach(t=>{
+      if(t.cat!==lastCat){ const h=document.createElement("div"); h.className="cat"; h.textContent=t.cat; list.appendChild(h); lastCat=t.cat; }
+      const b=document.createElement("button"); b.className="tile";
+      b.innerHTML=`<b>${t.name}</b><span>${t.tag}</span>`;
+      b.onclick=()=>this.lesson(t.id);
+      list.appendChild(b);
+    });
+    this.buildPad();
+  },
+  home(){ show("home"); },
+  lesson(id){ this.cur=TRICKS.find(t=>t.id===id);
+    $("lessonTitle").textContent=this.cur.name; $("lessonBody").innerHTML=this.cur.lesson; show("lesson"); },
+  practice(){ this.total=0; this.correct=0; this.streak=0; this.best=0;
+    $("practiceTitle").textContent=this.cur.name; show("practice"); this.next(); },
+
+  next(){
+    this.prob=this.cur.gen(); this.input=""; this.answered=false;
+    $("qtext").textContent=this.prob.q;
+    $("fb").textContent=""; $("fb").className="fb";
+    $("steps").className="steps"; $("steps").innerHTML="";
+    $("nextBtn").classList.add("hidden");
+    this.renderAns();
+  },
+  renderAns(){ const a=$("ans"); if(this.input===""){ a.textContent="—"; a.classList.add("empty"); }
+    else { a.textContent=this.input; a.classList.remove("empty"); } },
+
+  press(d){ if(this.answered) return; if(this.input.length<7) this.input+=d; this.renderAns(); },
+  del(){ if(this.answered) return; this.input=this.input.slice(0,-1); this.renderAns(); },
+  check(){
+    if(this.answered || this.input==="") return;
+    this.answered=true; this.total++;
+    const ok = Number(this.input)===this.prob.a;
+    const fb=$("fb");
+    if(ok){ this.correct++; this.streak++; this.best=Math.max(this.best,this.streak);
+      fb.textContent="✓ correct"; fb.className="fb ok"; }
+    else { this.streak=0; fb.textContent="✗ it's "+commas(this.prob.a); fb.className="fb bad"; }
+    const st=$("steps"); st.innerHTML="<ol><li>"+this.prob.steps.join("</li><li>")+"</li></ol>"; st.classList.add("show");
+    $("scCorrect").textContent=this.correct; $("scTotal").textContent=this.total;
+    $("scStreak").textContent=this.streak; $("scBest").textContent=this.best;
+    $("nextBtn").classList.remove("hidden");
+  },
+  buildPad(){
+    const pad=$("keypad"); pad.innerHTML="";
+    const grid=document.createElement("div"); grid.className="pad";
+    for(let n=1;n<=9;n++){ const k=document.createElement("div"); k.className="key"; k.textContent=n; k.onclick=()=>this.press(""+n); grid.appendChild(k); }
+    const del=document.createElement("div"); del.className="key wide"; del.textContent="⌫"; del.onclick=()=>this.del();
+    const zero=document.createElement("div"); zero.className="key"; zero.textContent="0"; zero.onclick=()=>this.press("0");
+    const chk=document.createElement("div"); chk.className="key check wide"; chk.textContent="Check"; chk.onclick=()=>this.check();
+    grid.appendChild(del); grid.appendChild(zero); grid.appendChild(chk);
+    pad.appendChild(grid);
+  }
+};
+app.init();
+// physical keyboard support (desktop)
+document.addEventListener("keydown", e=>{
+  if($("practice").classList.contains("hidden")) return;
+  if(e.key>="0"&&e.key<="9") app.press(e.key);
+  else if(e.key==="Backspace"){ e.preventDefault(); app.del(); }
+  else if(e.key==="Enter"){ app.answered ? app.next() : app.check(); }
+});
+</script>
+</body>
+</html>
