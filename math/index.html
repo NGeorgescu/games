@@ -22,8 +22,12 @@
     width:40px;height:40px;font-size:18px;cursor:pointer;flex:0 0 auto}
   .top h2{font-size:18px;margin:0}
   .lesson{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;line-height:1.6;font-size:14.5px}
-  .lesson h3{margin:.2em 0 .4em;font-size:15px}
+  .lesson h3{margin:.6em 0 .4em;font-size:15px}
+  .lesson h3:first-child{margin-top:.1em}
   .lesson p{margin:.5em 0}
+  .lesson ul{margin:.5em 0;padding-left:20px}
+  .lesson li{margin:.35em 0}
+  .lesson .why{color:var(--muted);font-size:12.5px;font-style:italic;border-left:2px solid var(--line);padding-left:10px;margin:9px 0;line-height:1.55}
   .lesson .ex{background:#10141b;border-left:3px solid var(--accent);padding:8px 12px;border-radius:6px;margin:10px 0}
   .lesson code,.mono{font-family:ui-monospace,Menlo,Consolas,monospace}
   .lesson table{border-collapse:collapse;margin:8px 0;font-family:ui-monospace,monospace;font-size:13px}
@@ -173,12 +177,29 @@ const TRICKS = [
 
   { id:"cube", cat:"Roots", name:"Cube root of a perfect cube", tag:"Two digits, two glances",
     lesson:`<h3>Cube root in your head</h3>
-      <p>For a perfect cube with a two-digit root:</p>
-      <p><b>Units digit</b> — the last digit of the cube maps 1-to-1 to the root's units digit:</p>
-      <table class="map mono"><tr><td>cube ends</td><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td></tr>
-      <tr><td>units is</td><td>0</td><td>1</td><td>8</td><td>7</td><td>4</td><td>5</td><td>6</td><td>3</td><td>2</td><td>9</td></tr></table>
-      <p><b>Tens digit</b> — cover the last 3 digits; find the largest cube ≤ what's left (1,8,27,64,125,216,343,512,729).</p>
-      <div class="ex mono">∛91125 → ends in 5 → units 5<br>cover 125 → 91 → biggest cube ≤91 is 4³=64 → tens 4<br>= <b>45</b></div>`,
+      <p>The answer is always two digits, and you find each one separately — units first, then tens.</p>
+
+      <h3>① Units: the last-digit map</h3>
+      <p>Cube each digit and watch only the last digit of the result:</p>
+      <table class="map mono">
+        <tr><td>n</td><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td></tr>
+        <tr><td>n³ ends</td><td>0</td><td>1</td><td>8</td><td>7</td><td>4</td><td>5</td><td>6</td><td>3</td><td>2</td><td>9</td></tr>
+      </table>
+      <p>Now read it the other way — cube-ending → root — and a clean pattern falls out:</p>
+      <p><b>Six digits are honest:</b> the cube ends in the same digit as the root — <span class="mono">0, 1, 4, 5, 6, 9</span> map to themselves.</p>
+      <p><b>The other four swap, in two pairs that each add to 10:</b></p>
+      <ul>
+        <li><b>2 ↔ 8</b> — straight from <span class="mono">2³ = 8</span>: a 2 makes a cube ending in 8, so a cube ending in 8 came from a 2 (and 8³ = 51<b>2</b> sends it back).</li>
+        <li><b>3 ↔ 7</b> — from <span class="mono">3³ = 2<b>7</b></span>: a 3 makes a cube ending in 7; and 7³ = 34<b>3</b> sends 7 back to 3.</li>
+      </ul>
+      <p>So the whole units rule is just: <b>0 1 4 5 6 9 stay put; 2↔8 and 3↔7 flip.</b></p>
+      <p class="why">Why only those four flip? Their last digits run in a 4-step cycle (2→4→8→6→…, 3→9→7→1→…). A cube is the 3rd step, which lands on the partner — the swap. The honest six cycle in length 1 or 2, so an odd power leaves them untouched.</p>
+
+      <h3>② Tens: cover three digits</h3>
+      <p>Since (10a+b)³ = 1000·a³ + (small stuff), everything below the thousands is just noise from b. <b>Cover the last three digits</b> and find the largest cube ≤ what's left — its root is the tens digit.</p>
+      <p>Cubes to know: <span class="mono">1, 8, 27, 64, 125, 216, 343, 512, 729</span>.</p>
+
+      <div class="ex mono">∛250047<br>① ends in 7 → 7 flips to 3 → units 3<br>② cover 047 → 250 → biggest cube ≤ 250 is 6³ = 216 → tens 6<br>= <b>63</b> &nbsp;(63³ = 250047)</div>`,
     gen(){ const r=rnd(11,99), N=r**3, a=(r/10|0), b=r%10, lo=(N/1000|0);
       return { q:`∛ ${commas(N)}`, a:r, steps:[
         `Last digit ${N%10} → units digit <span class="mono">${b}</span> (from the map)`,
@@ -187,11 +208,22 @@ const TRICKS = [
         `Answer = <b>${r}</b>` ]}; } },
 
   { id:"fifth", cat:"Roots", name:"Fifth root of a perfect 5th power", tag:"Even easier — the last digit is free",
-    lesson:`<h3>Fifth root in your head</h3>
-      <p>A fifth power <b>ends in the same digit as its root</b> (9⁵ ends in 9, 3⁵ ends in 3…). So:</p>
-      <p><b>Units digit</b> = the last digit of the number. No table needed.</p>
-      <p><b>Tens digit</b> — cover the last 5 digits; largest fifth power ≤ what's left (1,32,243,1024,3125,7776,16807,32768,59049).</p>
-      <div class="ex mono">⁵√9765625 → ends in 5 → units 5<br>cover last 5 → 97 → biggest 5th power ≤97 is 2⁵=32 → tens 2<br>= <b>25</b></div>`,
+    lesson:`<h3>Fifth root in your head — even easier</h3>
+
+      <h3>① Units: it's free</h3>
+      <p>The magic of fifth powers: <b>n⁵ always ends in the same digit as n.</b> No map, no swaps — all ten digits are honest.</p>
+      <table class="map mono">
+        <tr><td>n</td><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td></tr>
+        <tr><td>n⁵ ends</td><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td></tr>
+      </table>
+      <p>So just read the last digit of the number — that's the units digit of the root, instantly.</p>
+      <p class="why">Why? Last digits of powers repeat in cycles of length 1, 2, or 4. Since 5 ≡ 1 (mod 4), the 5th power lands right back where the 1st did — on the original digit. (A cube is 3 ≡ 3, which is exactly why cubing scrambled four of them.)</p>
+
+      <h3>② Tens: cover five digits</h3>
+      <p>Because (10a+b)⁵ = 100000·a⁵ + (smaller), the b part only disturbs the last five digits. <b>Cover them</b>; the largest fifth power ≤ what remains gives the tens digit.</p>
+      <p>Fifth powers to know: <span class="mono">1, 32, 243, 1024, 3125, 7776, 16807, 32768, 59049</span>.</p>
+
+      <div class="ex mono">⁵√4084101<br>① ends in 1 → units 1<br>② cover 84101 → 40 → biggest 5th power ≤ 40 is 2⁵ = 32 → tens 2<br>= <b>21</b> &nbsp;(21⁵ = 4084101)</div>`,
     gen(){ const r=rnd(11,99), N=r**5, a=(r/10|0), b=r%10, lo=Math.floor(N/100000);
       return { q:`⁵√ ${commas(N)}`, a:r, steps:[
         `Last digit ${N%10} → units digit <span class="mono">${b}</span> (same as the root)`,
