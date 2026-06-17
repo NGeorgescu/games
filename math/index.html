@@ -207,7 +207,9 @@ const app = {
 
   init(){
     const list=$("trickList"); let lastCat="";
-    TRICKS.forEach(t=>{
+    const catOrder=["Foundation","Roots","2-digit multiplication"];
+    const ordered=[...TRICKS].sort((a,b)=>catOrder.indexOf(a.cat)-catOrder.indexOf(b.cat));
+    ordered.forEach(t=>{
       if(t.cat!==lastCat){ const h=document.createElement("div"); h.className="cat"; h.textContent=t.cat; list.appendChild(h); lastCat=t.cat; }
       const b=document.createElement("button"); b.className="tile";
       b.innerHTML=`<b>${t.name}</b><span>${t.tag}</span>`;
