@@ -157,6 +157,20 @@ const TRICKS = [
         `a × (a+1) = ${a} × ${a+1} = <span class="mono">${a*(a+1)}</span>`,
         `Tack on 25 → <b>${a*(a+1)}25</b>` ]}; } },
 
+  { id:"squareany", cat:"2-digit multiplication", name:"Square any 2-digit number", tag:"(a−d)(a+d) + d² — round to the nearest ten",
+    lesson:`<h3>Square any two-digit number</h3>
+      <p>Use <b>a² = (a−d)(a+d) + d²</b>, where <b>d</b> is the distance to the nearest ten. One factor becomes a round number.</p>
+      <div class="ex mono">47² → nearest ten 50, d = 3<br>(47−3)(47+3) + 3² = 44 × 50 + 9<br>= 2200 + 9 = <b>2209</b></div>
+      <p>Round numbers multiply instantly — you just add a small square on top.</p>
+      <p class="why">It works because (a−d)(a+d) = a² − d², so adding d² back gives a² exactly. Pick d to land one factor on a multiple of ten.</p>`,
+    gen(){ let a; do{ a=rnd(11,99); }while(a%10===0||a%10===5);
+      const u=a%10, d=Math.min(u,10-u), lo=a-d, hi=a+d;
+      return { q:`${a}²`, a:a*a, steps:[
+        `Nearest ten is ${u<5?lo:hi} → d = <span class="mono">${d}</span>`,
+        `(${a}−${d})(${a}+${d}) = ${lo} × ${hi} = <span class="mono">${lo*hi}</span>`,
+        `+ ${d}² = + <span class="mono">${d*d}</span>`,
+        `= <b>${a*a}</b>` ]}; } },
+
   { id:"cross", cat:"2-digit multiplication", name:"Cross method (any 2×2)", tag:"Units, cross, hundreds — the general trick",
     lesson:`<h3>Vertically &amp; crosswise</h3>
       <p>For <span class="mono">ab × cd</span>, build the answer in three pieces (carry as you go):</p>
@@ -179,6 +193,41 @@ const TRICKS = [
         `Same parity → midpoint = (${a}+${b})/2 = <span class="mono">${m}</span>`,
         `Half-gap = (${b}−${a})/2 = <span class="mono">${d}</span>`,
         `${m}² − ${d}² = ${m*m} − ${d*d} = <b>${a*b}</b>` ]}; } },
+
+  { id:"roundup", cat:"2-digit multiplication", name:"Round up & subtract", tag:"When a number ends in 8 or 9",
+    lesson:`<h3>Round up, then subtract</h3>
+      <p>When a number ends in <b>8 or 9</b> — just shy of a round ten — round it up, do the easy multiply, then subtract what you added.</p>
+      <div class="ex mono">59 × 21<br>→ 60 × 21 = 1260<br>→ subtract 1 × 21 = 21<br>= <b>1239</b></div>
+      <p>60 × 21 is just 6 × 21 with a zero tacked on, so the hard part vanishes — you only pay one small subtraction.</p>`,
+    gen(){ const ten=rnd(2,10), off=rnd(1,2), N=ten*10-off, M=rnd(11,99), R=ten*10;
+      return { q:`${N} × ${M}`, a:N*M, steps:[
+        `Round ${N} up to ${R}`,
+        `${R} × ${M} = <span class="mono">${R*M}</span>`,
+        `Subtract ${off} × ${M} = <span class="mono">${off*M}</span>`,
+        `${R*M} − ${off*M} = <b>${N*M}</b>` ]}; } },
+
+  { id:"close", cat:"2-digit multiplication", name:"Close-together method", tag:"When both numbers are in the same decade",
+    lesson:`<h3>Close-together</h3>
+      <p>When two numbers share a decade (near a base <b>z</b>): <b>(z+a)(z+b) = z·(z+a+b) + ab</b>.</p>
+      <div class="ex mono">23 × 26 → base 20<br>20 × (20+3+6) + 3×6<br>= 20 × 29 + 18 = 580 + 18 = <b>598</b></div>
+      <p>Shortcut: <b>20 × 29</b> is "base × (one number + the other's offset)" — and 23+6 = 26+3 = 29, a handy cross-check.</p>`,
+    gen(){ const z=rnd(1,9)*10, oa=rnd(1,9), ob=rnd(1,9), x=z+oa, y=z+ob;
+      return { q:`${x} × ${y}`, a:x*y, steps:[
+        `Base ${z}: ${x} = ${z}+${oa}, ${y} = ${z}+${ob}`,
+        `${z} × (${z}+${oa}+${ob}) = ${z} × ${z+oa+ob} = <span class="mono">${z*(z+oa+ob)}</span>`,
+        `+ ${oa}×${ob} = + <span class="mono">${oa*ob}</span>`,
+        `= <b>${x*y}</b>` ]}; } },
+
+  { id:"factor", cat:"2-digit multiplication", name:"Factoring method", tag:"Break one number into small factors",
+    lesson:`<h3>Factoring</h3>
+      <p>If one number splits into small factors, multiply in easy steps instead of all at once.</p>
+      <div class="ex mono">27 × 56 → 56 = 7 × 8<br>27 × 7 = 189<br>189 × 8 = <b>1512</b></div>
+      <p>Each step is a single-digit multiply, so you never have to hold a big partial product in your head.</p>`,
+    gen(){ let p,q; do{ p=rnd(2,9); q=rnd(2,9); }while(p*q<10); const F=p*q, M=rnd(12,99);
+      return { q:`${M} × ${F}`, a:M*F, steps:[
+        `${F} = ${p} × ${q}`,
+        `${M} × ${p} = <span class="mono">${M*p}</span>`,
+        `× ${q} = <b>${M*p*q}</b>` ]}; } },
 
   { id:"cube", cat:"Roots", name:"Cube root of a perfect cube", tag:"Two digits, two glances",
     lesson:`<h3>Cube root in your head</h3>
