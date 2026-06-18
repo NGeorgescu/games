@@ -55,6 +55,10 @@
   .picknum{background:var(--accent);color:#06243a;border:0;border-radius:10px;padding:14px 0;font-size:18px;font-weight:700;cursor:pointer}
   .picknum:active{filter:brightness(.92)}
   .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:8px}
+  .daypad{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:8px}
+  .key.day{font-size:15px;padding:16px 0}
+  .key.right{background:#16462a;border-color:#2fe06a;color:#dffbe8}
+  .key.wrongkey{background:#4a1d1d;border-color:#ff6b6b;color:#ffd9d9}
   .key{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:12px;
     font-size:22px;font-weight:700;padding:16px 0;cursor:pointer;user-select:none}
   .key:active{background:#222a36}
@@ -104,6 +108,14 @@ const $ = id => document.getElementById(id);
 function show(id){ for(const s of ["home","lesson","practice"]) $(s).classList.add("hidden"); $(id).classList.remove("hidden"); window.scrollTo(0,0); }
 const rnd = (lo,hi) => lo + Math.floor(Math.random()*(hi-lo+1));
 const commas = n => n.toLocaleString("en-US");
+const WD = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+// independent weekday grader (Zeller's congruence) → 0=Sun … 6=Sat
+function dow(y,m,d){
+  if(m<3){ m+=12; y-=1; }
+  const K=y%100, J=Math.floor(y/100);
+  const h=(d + Math.floor(13*(m+1)/5) + K + Math.floor(K/4) + Math.floor(J/4) + 5*J) % 7; // Zeller: 0=Sat
+  return (h+6)%7;   // re-base to 0=Sun
+}
 
 /* ---- shared reference data (all verified by brute force) ---- */
 const CUBE_UNITS = {0:0,1:1,8:2,7:3,4:4,5:5,6:6,3:7,2:8,9:9};   // last digit of cube -> units of root
@@ -229,6 +241,17 @@ const TRICKS = [
         `${M} × ${p} = <span class="mono">${M*p}</span>`,
         `× ${q} = <b>${M*p*q}</b>` ]}; } },
 
+  { id:"cubes", cat:"Roots", name:"Cubes 1–9", tag:"Know your cubes (the cube-root toolkit)", answerType:"num",
+    lesson:`<h3>Cube the single digits</h3>
+      <p>Cube roots lean on instantly knowing the cubes of 1–9 — so drill them cold. Given a digit, you give its cube (6 → 216).</p>
+      <table class="map mono">
+        <tr><td>n</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td></tr>
+        <tr><td>n³</td><td>1</td><td>8</td><td>27</td><td>64</td><td>125</td><td>216</td><td>343</td><td>512</td><td>729</td></tr>
+      </table>
+      <p>Pattern: the last digits run <span class="mono">1, 8, 7, 4, 5, 6, 3, 2, 9</span> — every one different — which is exactly what makes the cube-root last-digit trick work.</p>`,
+    gen(){ const n=rnd(1,9); return { q:`${n}³ = ?`, a:n*n*n, steps:[
+      `${n} × ${n} = ${n*n}`, `${n*n} × ${n} = <b>${n**3}</b>` ]}; } },
+
   { id:"cube", cat:"Roots", name:"Cube root of a perfect cube", tag:"Two digits, two glances",
     lesson:`<h3>Cube root in your head</h3>
       <p>The answer is always two digits, and you find each one separately — units first, then tens.</p>
@@ -311,6 +334,128 @@ const TRICKS = [
         `Remainder = ${N} − 7×${q} = <span class="mono">${r}</span>`,
         `Block = 142857 × ${r} = <span class="mono">${block}</span>`,
         `So ${N} ÷ 7 = <b>${q}.${block}</b>…` ]}; } },
+
+  { id:"calDates", cat:"Calendar", name:"Doomsday dates of the months", tag:"Memorize the monthly anchors", answerType:"num",
+    lesson:`<h3>What is a "doomsday"?</h3>
+<p>In every year, a set of easy-to-remember dates all land on the <b>same weekday</b> — that shared weekday is the year's <b>doomsday</b>. Know one anchor date per month and you can count a short distance to any date. This module just memorizes those anchor dates.</p>
+<h3>The 12 anchor dates (common year)</h3>
+<table class="map mono">
+<tr><td>Jan <b>3</b></td><td>Feb <b>28</b></td><td>Mar <b>14</b></td><td>Apr <b>4</b></td></tr>
+<tr><td>May <b>9</b></td><td>Jun <b>6</b></td><td>Jul <b>11</b></td><td>Aug <b>8</b></td></tr>
+<tr><td>Sep <b>5</b></td><td>Oct <b>10</b></td><td>Nov <b>7</b></td><td>Dec <b>12</b></td></tr>
+</table>
+<h3>Mnemonics</h3>
+<p><b>Even months 4,6,8,10,12 are "doubles":</b> 4/4, 6/6, 8/8, 10/10, 12/12.</p>
+<p><b>Odd months — "9-to-5 at 7-11":</b> May 9 &amp; Sep 5 (5/9, 9/5), Jul 11 &amp; Nov 7 (7/11, 11/7). Each pair is the same two numbers swapped.</p>
+<p><b>March</b> = Pi Day 3/14. <b>Jan/Feb</b> = 3 and 28 in a common year (the last day of Feb is the anchor).</p>
+<h3>The leap-year twist</h3>
+<p>A leap year changes <b>only Jan and Feb</b>: Jan → <b>4</b>, Feb → <b>29</b>. March–December are unchanged.</p>
+<p class="why">Why? Feb 29 pushes the early-year anchors forward one day; later months already sit past it. (This drill always asks the common-year value.)</p>
+<h3>Weekday-number map (background for later stages)</h3>
+<table class="map mono">
+<tr><td>Sun</td><td>Mon</td><td>Tue</td><td>Wed</td><td>Thu</td><td>Fri</td><td>Sat</td></tr>
+<tr><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td></tr>
+</table>
+<h3>Common mistakes</h3>
+<ul><li>Forgetting the leap-year Jan/Feb shift (Jan 3→4, Feb 28→29).</li>
+<li>Swapping a pair the wrong way (May is 5/9 = day 9; Sep is 9/5 = day 5).</li></ul>`,
+    gen(){
+      const DD=[,3,28,14,4,9,6,11,8,5,10,7,12];
+      const MON=["","January","February","March","April","May","June","July","August","September","October","November","December"];
+      const m=rnd(1,12); let why;
+      if(m===1) why=`January's common-year anchor is the 3rd (it shifts to the 4th in a leap year).`;
+      else if(m===2) why=`February's anchor is its last day: 28 (29 in a leap year).`;
+      else if(m===3) why=`March is Pi Day: 3/14 (like π = 3.14).`;
+      else if(m%2===0) why=`${MON[m]} is even, so its anchor is the "double" ${m}/${m} → day ${DD[m]}.`;
+      else if(m===5) why=`May is the "9-to-5" pair: 5/9 → day 9 (partner Sep is 9/5).`;
+      else if(m===9) why=`September is the "9-to-5" pair: 9/5 → day 5 (partner May is 5/9).`;
+      else if(m===7) why=`July is the "7-11" pair: 7/11 → day 11 (partner Nov is 11/7).`;
+      else why=`November is the "7-11" pair: 11/7 → day 7 (partner Jul is 7/11).`;
+      return { q:`Doomsday date in ${MON[m]} — which day of the month?`, a:DD[m], steps:[ why, `Answer: ${DD[m]}` ] };
+    } },
+
+  { id:"calYear", cat:"Calendar", name:"The year's doomsday", tag:"From the two-digit year", answerType:"weekday",
+    lesson:`<h3>What is the year's doomsday?</h3>
+<p>Every year has a <b>doomsday</b> weekday on which the monthly anchors (4/4, 6/6, …) all fall. You get it from the <b>century anchor</b> plus a <b>year offset</b>, mod 7. This module fixes the century to the <b>2000s</b>, whose anchor is <b>Tuesday</b> (<span class="mono">2</span>), so you only work out the year part. (Weekdays: Sun=0 … Sat=6.)</p>
+<h3>The divide-by-12 method</h3>
+<p>From the two-digit year <span class="mono">y</span>:</p>
+<ul><li><b>a</b> = <span class="mono">⌊y/12⌋</span> (whole 12s)</li>
+<li><b>b</b> = <span class="mono">y mod 12</span> (remainder)</li>
+<li><b>c</b> = <span class="mono">⌊b/4⌋</span> (fours in the remainder)</li></ul>
+<p>offset = <span class="mono">(a + b + c) mod 7</span>, and year's doomsday = <span class="mono">(2 + offset) mod 7</span>.</p>
+<h3>Worked: 2027</h3>
+<div class="ex mono">y=27 → a=2, b=3, c=0 → offset 5<br>(2 + 5) mod 7 = 0 = Sunday</div>
+<h3>Worked: 2066</h3>
+<div class="ex mono">y=66 → a=5, b=6, c=1 ← don't skip c!<br>offset = 12 mod 7 = 5 → (2+5) mod 7 = 0 = Sunday</div>
+<p class="why">Why it works: each year shifts the doomsday +1 (a common year is 52 weeks + 1 day), and each leap year shifts +2. The a, b, c terms just count those steps and the extra leap days.</p>
+<h3>The "odd + 11" shortcut</h3>
+<p>T=y; if T odd add 11; halve; if T odd add 11; then T = 7 − (T mod 7). Year's doomsday = (anchor + T) mod 7. Same answer — pick your favorite.</p>
+<p><b>Common mistake:</b> dropping the fours term <span class="mono">c</span> when the remainder b ≥ 4 — that's off by exactly one day.</p>`,
+    gen(){
+      const yr = 2000 + rnd(0,99);
+      const a = dow(yr, 4, 4);
+      const y = yr % 100, A = Math.floor(y/12), b = y%12, c = Math.floor(b/4), off = (A+b+c)%7;
+      return { q:`Doomsday weekday of ${yr}?`, a, steps:[
+        `Two-digit year ${y}: 12s a = ${A}, remainder b = ${b}, fours c = ${c}`,
+        `offset = (${A} + ${b} + ${c}) mod 7 = ${off}`,
+        `2000s anchor Tuesday(2): (2 + ${off}) mod 7 = ${a} → <b>${WD[a]}</b>` ]};
+    } },
+
+  { id:"calCentury", cat:"Calendar", name:"Century anchor days", tag:"The backbone weekday per century", answerType:"weekday",
+    lesson:`<h3>Century anchor days</h3>
+<p>The Doomsday method starts from one fixed weekday per century — the <b>century anchor</b>, the doomsday of the year ending in <span class="mono">00</span>.</p>
+<h3>The four core anchors</h3>
+<table class="map mono">
+<tr><td>1700s</td><td>Sunday (0)</td></tr><tr><td>1800s</td><td>Friday (5)</td></tr>
+<tr><td>1900s</td><td>Wednesday (3)</td></tr><tr><td>2000s</td><td>Tuesday (2)</td></tr></table>
+<p><b>Hook:</b> 1700→2000 = Sun, Fri, Wed, Tue (each step back 2 days, then 1).</p>
+<h3>The 400-year cycle</h3>
+<p>The calendar repeats every 400 years, so anchors cycle with period 4 centuries: 2100s=Sun, 2200s=Fri, 2300s=Wed, 2400s=Tue, …</p>
+<h3>The c-mod-4 rule</h3>
+<p>Let <span class="mono">c = ⌊year/100⌋</span>. Then:</p>
+<table class="map mono"><tr><td>c mod 4</td><td>0</td><td>1</td><td>2</td><td>3</td></tr>
+<tr><td>anchor</td><td>Tue</td><td>Sun</td><td>Fri</td><td>Wed</td></tr></table>
+<div class="ex mono">1900s → c=19, 19 mod 4 = 3 → Wednesday<br>2200s → c=22, 22 mod 4 = 2 → Friday</div>
+<p class="why">Only c mod 4 matters because the 400-year cycle lands the four residues on Tue, Sun, Fri, Wed.</p>
+<p><b>Common mistake:</b> a year ending in 00 is in its <i>own</i> century — 2000 is in the 2000s (Tuesday), not the 1900s.</p>`,
+    gen(){
+      const c = rnd(15, 24), yr = c*100, a = dow(yr, 4, 4), cm = c % 4;
+      return { q:`Anchor day for the ${yr}s?`, a, steps:[
+        `Century number c = ${c}, c mod 4 = ${cm}`,
+        `${cm} → ${WD[a]} (0→Tue, 1→Sun, 2→Fri, 3→Wed)`,
+        `Anchor of the ${yr}s = <b>${WD[a]}</b>` ]};
+    } },
+
+  { id:"calFull", cat:"Calendar", name:"Any date → day of the week", tag:"Put it all together", answerType:"weekday",
+    lesson:`<h3>The capstone: any date in your head</h3>
+<p>The whole Doomsday method, assembled. Three ingredients: <b>century anchor</b>, <b>year's doomsday</b>, and a <b>month anchor date</b>. (Sun=0 … Sat=6.)</p>
+<h3>The 3 steps</h3>
+<p><b>1 — Century anchor.</b> c = ⌊year/100⌋, c mod 4 → Tue/Sun/Fri/Wed (1700s Sun, 1800s Fri, 1900s Wed, 2000s Tue).</p>
+<p><b>2 — Year offset.</b> a=⌊y/12⌋, b=y mod 12, cc=⌊b/4⌋, offset=(a+b+cc) mod 7. Year's doomsday = (anchor + offset) mod 7.</p>
+<p><b>3 — Month anchor.</b> Step from the month's anchor date: Jan 3*, Feb 28*, Mar 14, Apr 4, May 9, Jun 6, Jul 11, Aug 8, Sep 5, Oct 10, Nov 7, Dec 12. Weekday = (year's doomsday + (day − anchor date)) mod 7. (*leap years: Jan 4, Feb 29.)</p>
+<h3>Worked: July 4, 1776</h3>
+<div class="ex mono">1700s anchor = Sun (0)<br>Year 76: a=6, b=4, cc=1 → offset 11 mod 7 = 4 → doomsday Thu (4)<br>July anchor 11; 4 − 11 = −7 ≡ 0<br>= <b>Thursday</b></div>
+<h3>Worked: Dec 25, 2027</h3>
+<div class="ex mono">2000s anchor = Tue (2)<br>Year 27: offset 5 → doomsday Sun (0)<br>Dec anchor 12; 25 − 12 = 13 ≡ 6<br>= <b>Saturday</b></div>
+<h3>Leap-year edge cases</h3>
+<ul><li>Leap if divisible by 4, except centuries not divisible by 400 → <b>2000 is leap; 1700/1800/1900/2100 are not</b>.</li>
+<li>Only Jan/Feb anchors shift (Jan 4, Feb 29).</li></ul>
+<h3>Expert shortcuts</h3>
+<ul><li>Any date ±7 from an anchor shares its weekday (4/4, 4/11, 4/18, 4/25…).</li>
+<li>Reduce mod 7 early; wrap negative differences by adding 7.</li></ul>`,
+    gen(){
+      function isLeap(y){ return (y%4===0 && y%100!==0) || y%400===0; }
+      function dim(y,m){ return [31, isLeap(y)?29:28,31,30,31,30,31,31,30,31,30,31][m-1]; }
+      const MON=["","January","February","March","April","May","June","July","August","September","October","November","December"];
+      const y = rnd(1700,2099), m = rnd(1,12), d = rnd(1, dim(y,m));
+      const a = dow(y,m,d), anchor = dow(Math.floor(y/100)*100, 4, 4), yearDoom = dow(y, 4, 4);
+      const DD=[,3, isLeap(y)?29:28,14,4,9,6,11,8,5,10,7,12];
+      return { q:`What day of the week was ${d} ${MON[m]} ${y}?`, a, steps:[
+        `Century anchor (${Math.floor(y/100)}00s): ${WD[anchor]}`,
+        `${y}'s doomsday weekday: ${WD[yearDoom]}`,
+        `${MON[m]} anchor is the ${DD[m]}${m<=2?" (leap-adjusted)":""}; ${d} − ${DD[m]} = ${d-DD[m]} (mod 7)`,
+        `Answer: <b>${WD[a]}</b>` ]};
+    } },
 ];
 
 /* ---- app ---- */
@@ -320,7 +465,7 @@ const app = {
 
   init(){
     const list=$("trickList"); let lastCat="";
-    const catOrder=["Roots","Division","2-digit multiplication"];
+    const catOrder=["Roots","Division","Calendar","2-digit multiplication"];
     const ordered=[...TRICKS].sort((a,b)=>catOrder.indexOf(a.cat)-catOrder.indexOf(b.cat));
     ordered.forEach(t=>{
       if(t.cat!==lastCat){ const h=document.createElement("div"); h.className="cat"; h.textContent=t.cat; list.appendChild(h); lastCat=t.cat; }
@@ -329,7 +474,6 @@ const app = {
       b.onclick=()=>this.lesson(t.id);
       list.appendChild(b);
     });
-    this.buildPad();
   },
   home(){ show("home"); },
   lesson(id){ this.cur=TRICKS.find(t=>t.id===id);
@@ -365,6 +509,7 @@ const app = {
     $("fb").textContent=""; $("fb").className="fb";
     $("steps").className="steps"; $("steps").innerHTML="";
     $("nextBtn").classList.add("hidden");
+    this.renderPad();
     this.renderAns();
   },
   renderAns(){ const a=$("ans"); if(this.input===""){ a.textContent="—"; a.classList.add("empty"); }
@@ -372,37 +517,60 @@ const app = {
 
   press(d){ if(this.answered) return; if(this.input.length<7) this.input+=d; this.renderAns(); },
   del(){ if(this.answered) return; this.input=this.input.slice(0,-1); this.renderAns(); },
-  check(){
-    if(this.answered || this.input==="") return;
+  check(){ if(this.answered || this.input==="") return; this.grade(Number(this.input)); },
+  submitWeekday(i){ this.grade(i); },
+  grade(value){
+    if(this.answered) return;
     this.answered=true; this.total++;
-    const ok = Number(this.input)===this.prob.a;
-    const fb=$("fb");
+    const weekday = this.cur.answerType==="weekday", ok = value===this.prob.a, fb=$("fb");
     if(ok){ this.correct++; this.streak++; this.best=Math.max(this.best,this.streak);
-      fb.textContent="✓ correct"; fb.className="fb ok"; }
-    else { this.streak=0; fb.textContent="✗ it's "+commas(this.prob.a); fb.className="fb bad"; }
-    const st=$("steps"); st.innerHTML="<ol><li>"+this.prob.steps.join("</li><li>")+"</li></ol>"; st.classList.add("show");
+      fb.textContent = weekday ? "✓ "+WD[this.prob.a] : "✓ correct"; fb.className="fb ok"; }
+    else { this.streak=0;
+      fb.textContent = weekday ? "✗ it's "+WD[this.prob.a]+" — you tapped "+WD[value] : "✗ it's "+commas(this.prob.a);
+      fb.className="fb bad"; }
+    if(weekday){ const keys=$("keypad").querySelectorAll(".day");
+      if(keys[this.prob.a]) keys[this.prob.a].classList.add("right");
+      if(!ok && keys[value]) keys[value].classList.add("wrongkey"); }
+    // only reveal the steps when you MISS — a correct answer keeps the layout still
+    if(!ok){ const st=$("steps"); st.innerHTML="<ol><li>"+this.prob.steps.join("</li><li>")+"</li></ol>"; st.classList.add("show"); }
     $("scCorrect").textContent=this.correct; $("scTotal").textContent=this.total;
     $("scStreak").textContent=this.streak; $("scBest").textContent=this.best;
-    $("nextBtn").classList.remove("hidden");
+    // advance affordance: numeric → the Check key becomes Next (no new button); weekday → small Next button
+    if(this.chkKey){ this.chkKey.textContent="Next →"; this.chkKey.onclick=()=>this.next(); }
+    else { $("nextBtn").classList.remove("hidden"); }
   },
-  buildPad(){
-    const pad=$("keypad"); pad.innerHTML="";
-    const grid=document.createElement("div"); grid.className="pad";
-    for(let n=1;n<=9;n++){ const k=document.createElement("div"); k.className="key"; k.textContent=n; k.onclick=()=>this.press(""+n); grid.appendChild(k); }
-    const del=document.createElement("div"); del.className="key wide"; del.textContent="⌫"; del.onclick=()=>this.del();
-    const zero=document.createElement("div"); zero.className="key"; zero.textContent="0"; zero.onclick=()=>this.press("0");
-    const chk=document.createElement("div"); chk.className="key check wide"; chk.textContent="Check"; chk.onclick=()=>this.check();
-    grid.appendChild(del); grid.appendChild(zero); grid.appendChild(chk);
-    pad.appendChild(grid);
+  renderPad(){
+    const pad=$("keypad"); pad.innerHTML=""; this.chkKey=null;
+    const weekday = this.cur && this.cur.answerType==="weekday";
+    $("ans").style.display = weekday ? "none" : "";
+    if(weekday){
+      const grid=document.createElement("div"); grid.className="daypad";
+      WD.forEach((name,i)=>{ const k=document.createElement("div"); k.className="key day"; k.textContent=name; k.onclick=()=>this.submitWeekday(i); grid.appendChild(k); });
+      pad.appendChild(grid);
+    } else {
+      const grid=document.createElement("div"); grid.className="pad";
+      for(let n=1;n<=9;n++){ const k=document.createElement("div"); k.className="key"; k.textContent=n; k.onclick=()=>this.press(""+n); grid.appendChild(k); }
+      const del=document.createElement("div"); del.className="key wide"; del.textContent="⌫"; del.onclick=()=>this.del();
+      const zero=document.createElement("div"); zero.className="key"; zero.textContent="0"; zero.onclick=()=>this.press("0");
+      const chk=document.createElement("div"); chk.className="key check wide"; chk.textContent="Check"; chk.onclick=()=>this.check();
+      grid.appendChild(del); grid.appendChild(zero); grid.appendChild(chk);
+      pad.appendChild(grid); this.chkKey=chk;       // remember it so it can morph into "Next"
+    }
   }
 };
 app.init();
 // physical keyboard support (desktop)
 document.addEventListener("keydown", e=>{
   if($("practice").classList.contains("hidden")) return;
+  if(app.cur && app.cur.answerType==="weekday"){
+    if(!app.answered && e.key>="0" && e.key<="6") app.submitWeekday(Number(e.key));
+    else if(e.key==="Enter" && app.answered) app.next();
+    return;
+  }
+  if(app.answered){ if(e.key==="Enter") app.next(); return; }
   if(e.key>="0"&&e.key<="9") app.press(e.key);
   else if(e.key==="Backspace"){ e.preventDefault(); app.del(); }
-  else if(e.key==="Enter"){ app.answered ? app.next() : app.check(); }
+  else if(e.key==="Enter") app.check();
 });
 </script>
 </body>
