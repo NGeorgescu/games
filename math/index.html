@@ -284,6 +284,33 @@ const TRICKS = [
         `Cover the last 5 digits → <span class="mono">${lo}</span>`,
         `Biggest 5th power ≤ ${lo} is ${a}⁵=${FIFTHS[a]} → tens digit <span class="mono">${a}</span>`,
         `Answer = <b>${r}</b>` ]}; } },
+
+  { id:"div7q", cat:"Division", name:"Divide by 7 — whole number", tag:"Quotient & remainder",
+    lesson:`<h3>The whole-number part</h3>
+      <p>To divide N by 7, find the biggest multiple of 7 that fits — that count is the quotient, and what's left over (0–6) is the remainder.</p>
+      <div class="ex mono">47 ÷ 7 → 7×6 = 42, leftover 5<br>= <b>6</b> remainder 5</div>
+      <p>Hold on to that remainder — it's the whole key to the decimal (next trick): the leftover r decides the repeating digits.</p>`,
+    gen(){ const N=rnd(15,199), q=(N/7|0), r=N%7;
+      return { q:`${N} ÷ 7 = ?`, a:q, steps:[
+        `Biggest multiple of 7 ≤ ${N}: 7 × ${q} = <span class="mono">${7*q}</span>`,
+        `${N} − ${7*q} = remainder <span class="mono">${r}</span>`,
+        `Whole number = <b>${q}</b>${r?` (remainder ${r})`:` (exact)`}` ]}; } },
+
+  { id:"div7d", cat:"Division", name:"Divide by 7 — the decimal", tag:"The 142857 cycle",
+    lesson:`<h3>The decimal — the 142857 cycle</h3>
+      <p>1/7 = 0.<b>142857</b> repeating. The magic: for any remainder r, the repeating block of r/7 is just <b>142857 × r</b> — and those six are all rotations of the same digits.</p>
+      <table class="map mono">
+        <tr><td>r</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td></tr>
+        <tr><td>0.…</td><td>142857</td><td>285714</td><td>428571</td><td>571428</td><td>714285</td><td>857142</td></tr>
+      </table>
+      <p>In practice don't multiply — learn the cycle <b>1→4→2→8→5→7</b>, start on the digit for your remainder (the starts are 1, 2, 4, 5, 7, 8 for r = 1…6), and read six digits around.</p>
+      <div class="ex mono">30 ÷ 7 → remainder 2 → block 285714<br>= 4.<b>285714</b>…</div>
+      <p class="why">142857 is a "cyclic number": multiplying it by 1–6 just rotates its digits, which is exactly why every r/7 reuses the same six in a new starting spot.</p>`,
+    gen(){ let N; do{ N=rnd(8,99); }while(N%7===0); const q=(N/7|0), r=N%7, block=142857*r;
+      return { q:`${N} ÷ 7 = ${q}.??????`, a:block, steps:[
+        `Remainder = ${N} − 7×${q} = <span class="mono">${r}</span>`,
+        `Block = 142857 × ${r} = <span class="mono">${block}</span>`,
+        `So ${N} ÷ 7 = <b>${q}.${block}</b>…` ]}; } },
 ];
 
 /* ---- app ---- */
@@ -293,7 +320,7 @@ const app = {
 
   init(){
     const list=$("trickList"); let lastCat="";
-    const catOrder=["Roots","2-digit multiplication"];
+    const catOrder=["Roots","2-digit multiplication","Division"];
     const ordered=[...TRICKS].sort((a,b)=>catOrder.indexOf(a.cat)-catOrder.indexOf(b.cat));
     ordered.forEach(t=>{
       if(t.cat!==lastCat){ const h=document.createElement("div"); h.className="cat"; h.textContent=t.cat; list.appendChild(h); lastCat=t.cat; }
