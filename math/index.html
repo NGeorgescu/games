@@ -308,16 +308,17 @@ const TRICKS = [
         `Biggest 5th power ≤ ${lo} is ${a}⁵=${FIFTHS[a]} → tens digit <span class="mono">${a}</span>`,
         `Answer = <b>${r}</b>` ]}; } },
 
-  { id:"div7q", cat:"Division", name:"Divide by 7 — whole number", tag:"Quotient & remainder",
+  { id:"div7q", cat:"Division", name:"Divide by 7 — whole number", tag:"Quotient & remainder", answerType:"quotrem",
     lesson:`<h3>The whole-number part</h3>
-      <p>To divide N by 7, find the biggest multiple of 7 that fits — that count is the quotient, and what's left over (0–6) is the remainder.</p>
-      <div class="ex mono">47 ÷ 7 → 7×6 = 42, leftover 5<br>= <b>6</b> remainder 5</div>
+      <p>To divide N by 7, find the biggest multiple of 7 that fits — that count is the <b>quotient</b>, and what's left over (0–6) is the <b>remainder</b>.</p>
+      <div class="ex mono">47 ÷ 7 → 7×6 = 42, leftover 5<br>= <b>6 R 5</b></div>
+      <p>Enter <b>both</b>: type the quotient, then the remainder. The digits push left like an ATM — the last digit you type is always the remainder, shown as <span class="mono">Q R r</span>.</p>
       <p>Hold on to that remainder — it's the whole key to the decimal (next trick): the leftover r decides the repeating digits.</p>`,
     gen(){ const N=rnd(15,199), q=(N/7|0), r=N%7;
-      return { q:`${N} ÷ 7 = ?`, a:q, steps:[
+      return { q:`${N} ÷ 7 = ?`, a:`${q}${r}`, steps:[
         `Biggest multiple of 7 ≤ ${N}: 7 × ${q} = <span class="mono">${7*q}</span>`,
         `${N} − ${7*q} = remainder <span class="mono">${r}</span>`,
-        `Whole number = <b>${q}</b>${r?` (remainder ${r})`:` (exact)`}` ]}; } },
+        `Answer: <b>${q} R ${r}</b>` ]}; } },
 
   { id:"div7d", cat:"Division", name:"Divide by 7 — the decimal", tag:"The 142857 cycle",
     lesson:`<h3>The decimal — the 142857 cycle</h3>
@@ -518,21 +519,30 @@ const app = {
     this.renderPad();
     this.renderAns();
   },
-  renderAns(){ const a=$("ans"); if(this.input===""){ a.textContent="—"; a.classList.add("empty"); }
+  renderAns(){ const a=$("ans");
+    if(this.cur && this.cur.answerType==="quotrem"){          // quotient R remainder, ATM-style (last digit = remainder)
+      a.textContent = (this.input.slice(0,-1)||"_")+" R "+(this.input.slice(-1)||"_");
+      a.classList.toggle("empty", this.input===""); return; }
+    if(this.input===""){ a.textContent="—"; a.classList.add("empty"); }
     else { a.textContent=this.input; a.classList.remove("empty"); } },
 
   press(d){ if(this.answered) return; if(this.input.length<7) this.input+=d; this.renderAns(); },
   del(){ if(this.answered) return; this.input=this.input.slice(0,-1); this.renderAns(); },
-  check(){ if(this.answered || this.input==="") return; this.grade(Number(this.input)); },
+  check(){
+    if(this.answered) return;
+    if(this.cur.answerType==="quotrem"){ if(this.input.length<2) return; this.grade(this.input); }   // compare string "Qr"
+    else { if(this.input==="") return; this.grade(Number(this.input)); }
+  },
   submitWeekday(i){ this.grade(i); },
   grade(value){
     if(this.answered) return;
     this.answered=true; this.total++;
-    const weekday = this.cur.answerType==="weekday", ok = value===this.prob.a, fb=$("fb");
+    const weekday = this.cur.answerType==="weekday", qr = this.cur.answerType==="quotrem", ok = value===this.prob.a, fb=$("fb");
     if(ok){ this.correct++; this.streak++; this.best=Math.max(this.best,this.streak);
       fb.textContent = weekday ? "✓ "+WD[this.prob.a] : "✓ correct"; fb.className="fb ok"; }
     else { this.streak=0;
-      fb.textContent = weekday ? "✗ it's "+WD[this.prob.a]+" — you tapped "+WD[value] : "✗ it's "+commas(this.prob.a);
+      const want = weekday ? WD[this.prob.a] : qr ? (this.prob.a.slice(0,-1)+" R "+this.prob.a.slice(-1)) : commas(this.prob.a);
+      fb.textContent = "✗ it's "+want+(weekday ? " — you tapped "+WD[value] : "");
       fb.className="fb bad"; }
     if(weekday){ const keys=$("keypad").querySelectorAll(".day");
       if(keys[this.prob.a]) keys[this.prob.a].classList.add("right");
