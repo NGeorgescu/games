@@ -386,16 +386,19 @@ const TRICKS = [
     gen(){
       const DD=[,3,28,14,4,9,6,11,8,5,10,7,12];
       const MON=["","January","February","March","April","May","June","July","August","September","October","November","December"];
-      const m=rnd(1,12); let why;
-      if(m===1) why=`January's common-year anchor is the 3rd (it shifts to the 4th in a leap year).`;
-      else if(m===2) why=`February's anchor is its last day: 28 (29 in a leap year).`;
+      const m=rnd(1,12); let a=DD[m], why, suf="";
+      if(m<=2){ const leap=rnd(0,1)===1; suf = leap?" in a leap year":" in a common year";
+        a = m===1 ? (leap?4:3) : (leap?29:28);
+        why = m===1 ? (leap?`A leap year bumps January's anchor to the 4th.`:`January's common-year anchor is the 3rd.`)
+                    : (leap?`February's anchor is its last day — the 29th in a leap year.`:`February's anchor is its last day — the 28th in a common year.`);
+      }
       else if(m===3) why=`March is Pi Day: 3/14 (like π = 3.14).`;
       else if(m%2===0) why=`${MON[m]} is even, so its anchor is the "double" ${m}/${m} → day ${DD[m]}.`;
       else if(m===5) why=`May is the "9-to-5" pair: 5/9 → day 9 (partner Sep is 9/5).`;
       else if(m===9) why=`September is the "9-to-5" pair: 9/5 → day 5 (partner May is 5/9).`;
       else if(m===7) why=`July is the "7-11" pair: 7/11 → day 11 (partner Nov is 11/7).`;
       else why=`November is the "7-11" pair: 11/7 → day 7 (partner Jul is 7/11).`;
-      return { q:`Doomsday date in ${MON[m]} — which day of the month?`, a:DD[m], steps:[ why, `Answer: ${DD[m]}` ] };
+      return { q:`Doomsday date in ${MON[m]}${suf} — which day of the month?`, a, steps:[ why, `Answer: ${a}` ] };
     } },
 
   { id:"calYear", cat:"Calendar", name:"The year's doomsday", tag:"From the two-digit year", answerType:"weekday",
