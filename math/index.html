@@ -401,6 +401,31 @@ const TRICKS = [
       return { q:`Doomsday date in ${MON[m]}${suf} — which day of the month?`, a, steps:[ why, `Answer: ${a}` ] };
     } },
 
+  { id:"calCentury", cat:"Calendar", name:"Century anchor days", tag:"The backbone weekday per century", answerType:"weekday",
+    lesson:`<h3>Century anchor days</h3>
+<p>The Doomsday method starts from one fixed weekday per century — the <b>century anchor</b>, the doomsday of the year ending in <span class="mono">00</span>.</p>
+<h3>The four core anchors</h3>
+<table class="map mono">
+<tr><td>1700s</td><td>Sunday (0)</td></tr><tr><td>1800s</td><td>Friday (5)</td></tr>
+<tr><td>1900s</td><td>Wednesday (3)</td></tr><tr><td>2000s</td><td>Tuesday (2)</td></tr></table>
+<p><b>Hook:</b> 1700→2000 = Sun, Fri, Wed, Tue (each step back 2 days, then 1).</p>
+<h3>The 400-year cycle</h3>
+<p>The calendar repeats every 400 years, so anchors cycle with period 4 centuries: 2100s=Sun, 2200s=Fri, 2300s=Wed, 2400s=Tue, …</p>
+<h3>The c-mod-4 rule</h3>
+<p>Let <span class="mono">c = ⌊year/100⌋</span>. Then:</p>
+<table class="map mono"><tr><td>c mod 4</td><td>0</td><td>1</td><td>2</td><td>3</td></tr>
+<tr><td>anchor</td><td>Tue</td><td>Sun</td><td>Fri</td><td>Wed</td></tr></table>
+<div class="ex mono">1900s → c=19, 19 mod 4 = 3 → Wednesday<br>2200s → c=22, 22 mod 4 = 2 → Friday</div>
+<p class="why">Only c mod 4 matters because the 400-year cycle lands the four residues on Tue, Sun, Fri, Wed.</p>
+<p><b>Common mistake:</b> a year ending in 00 is in its <i>own</i> century — 2000 is in the 2000s (Tuesday), not the 1900s.</p>`,
+    gen(){
+      const c = rnd(15, 24), yr = c*100, a = dow(yr, 4, 4), cm = c % 4;
+      return { q:`Anchor day for the ${yr}s?`, a, steps:[
+        `Century number c = ${c}, c mod 4 = ${cm}`,
+        `${cm} → ${WD[a]} (0→Tue, 1→Sun, 2→Fri, 3→Wed)`,
+        `Anchor of the ${yr}s = <b>${WD[a]}</b>` ]};
+    } },
+
   { id:"calYear", cat:"Calendar", name:"The year's doomsday", tag:"From the two-digit year", answerType:"weekday",
     lesson:`<h3>What is the year's doomsday?</h3>
 <p>Every year has a <b>doomsday</b> weekday on which the monthly anchors (4/4, 6/6, …) all fall. You get it from the <b>century anchor</b> plus a <b>year offset</b>, mod 7. This module fixes the century to the <b>2000s</b>, whose anchor is <b>Tuesday</b> (<span class="mono">2</span>), so you only work out the year part. (Weekdays: Sun=0 … Sat=6.)</p>
@@ -426,31 +451,6 @@ const TRICKS = [
         `Two-digit year ${y}: 12s a = ${A}, remainder b = ${b}, fours c = ${c}`,
         `offset = (${A} + ${b} + ${c}) mod 7 = ${off}`,
         `2000s anchor Tuesday(2): (2 + ${off}) mod 7 = ${a} → <b>${WD[a]}</b>` ]};
-    } },
-
-  { id:"calCentury", cat:"Calendar", name:"Century anchor days", tag:"The backbone weekday per century", answerType:"weekday",
-    lesson:`<h3>Century anchor days</h3>
-<p>The Doomsday method starts from one fixed weekday per century — the <b>century anchor</b>, the doomsday of the year ending in <span class="mono">00</span>.</p>
-<h3>The four core anchors</h3>
-<table class="map mono">
-<tr><td>1700s</td><td>Sunday (0)</td></tr><tr><td>1800s</td><td>Friday (5)</td></tr>
-<tr><td>1900s</td><td>Wednesday (3)</td></tr><tr><td>2000s</td><td>Tuesday (2)</td></tr></table>
-<p><b>Hook:</b> 1700→2000 = Sun, Fri, Wed, Tue (each step back 2 days, then 1).</p>
-<h3>The 400-year cycle</h3>
-<p>The calendar repeats every 400 years, so anchors cycle with period 4 centuries: 2100s=Sun, 2200s=Fri, 2300s=Wed, 2400s=Tue, …</p>
-<h3>The c-mod-4 rule</h3>
-<p>Let <span class="mono">c = ⌊year/100⌋</span>. Then:</p>
-<table class="map mono"><tr><td>c mod 4</td><td>0</td><td>1</td><td>2</td><td>3</td></tr>
-<tr><td>anchor</td><td>Tue</td><td>Sun</td><td>Fri</td><td>Wed</td></tr></table>
-<div class="ex mono">1900s → c=19, 19 mod 4 = 3 → Wednesday<br>2200s → c=22, 22 mod 4 = 2 → Friday</div>
-<p class="why">Only c mod 4 matters because the 400-year cycle lands the four residues on Tue, Sun, Fri, Wed.</p>
-<p><b>Common mistake:</b> a year ending in 00 is in its <i>own</i> century — 2000 is in the 2000s (Tuesday), not the 1900s.</p>`,
-    gen(){
-      const c = rnd(15, 24), yr = c*100, a = dow(yr, 4, 4), cm = c % 4;
-      return { q:`Anchor day for the ${yr}s?`, a, steps:[
-        `Century number c = ${c}, c mod 4 = ${cm}`,
-        `${cm} → ${WD[a]} (0→Tue, 1→Sun, 2→Fri, 3→Wed)`,
-        `Anchor of the ${yr}s = <b>${WD[a]}</b>` ]};
     } },
 
   { id:"calFull", cat:"Calendar", name:"Any date → day of the week", tag:"Put it all together", answerType:"weekday",
