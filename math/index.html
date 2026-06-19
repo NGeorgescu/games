@@ -363,7 +363,7 @@ const TRICKS = [
       </table>
       <div class="ex mono">30 ÷ 7 → remainder 2 → block 285714<br>= 4.<b>285714</b>…</div>
       <p class="why">142857 is a "cyclic number": multiplying it by 1–6 just rotates its digits, which is exactly why every r/7 reuses the same six in a new starting spot.</p>`,
-    gen(){ let N; do{ N=rnd(100,9999); }while(N%7===0); const q=(N/7|0), r=N%7, block=142857*r;
+    gen(){ let N; do{ N=rnd(8,69); }while(N%7===0); const q=(N/7|0), r=N%7, block=142857*r;
       return { q:`${N} ÷ 7 = ${q}.??????`, a:block, steps:[
         `Remainder = ${N} − 7×${q} = <span class="mono">${r}</span>`,
         `Block = 142857 × ${r} = <span class="mono">${block}</span>`,
