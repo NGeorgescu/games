@@ -374,7 +374,7 @@ const TRICKS = [
       <p>Now do the lot: divide N by 7 and give the <b>quotient</b> and the <b>repeating decimal</b>. It's the three skills stacked — quotient + remainder (the small/large drills), then turn the remainder into its 6-digit block (the decimal drill).</p>
       <div class="ex mono">30 ÷ 7 → 4 remainder 2<br>remainder 2 → block 285714<br>= <b>4.285714</b>…</div>
       <p>Type the quotient, the <b>.</b> key, then the six repeating digits.</p>`,
-    gen(){ let N; do{ N=rnd(8,999); }while(N%7===0); const q=(N/7|0), r=N%7, block=142857*r;
+    gen(){ let N; do{ N=rnd(8,9999); }while(N%7===0); const q=(N/7|0), r=N%7, block=142857*r;
       return { q:`${N} ÷ 7 = ?`, a:`${q}.${block}`, steps:[
         `${N} ÷ 7 → ${q} remainder ${r}`,
         `remainder ${r} → 142857 × ${r} = <span class="mono">${block}</span>`,
