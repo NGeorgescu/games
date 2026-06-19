@@ -428,22 +428,21 @@ const TRICKS = [
     } },
 
   { id:"calYear", cat:"Calendar", name:"The year's doomsday", tag:"From the two-digit year", answerType:"weekday",
-    lesson:`<h3>What is the year's doomsday?</h3>
-<p>Every year has a <b>doomsday</b> weekday on which the monthly anchors (4/4, 6/6, …) all fall. You get it from the <b>century anchor</b> plus a <b>year offset</b>, mod 7. This module fixes the century to the <b>2000s</b>, whose anchor is <b>Tuesday</b> (<span class="mono">2</span>), so you only work out the year part. (Weekdays: Sun=0 … Sat=6.)</p>
-<h3>The divide-by-12 method</h3>
-<p>From the two-digit year <span class="mono">y</span>:</p>
-<ul><li><b>a</b> = <span class="mono">⌊y/12⌋</span> (whole 12s)</li>
-<li><b>b</b> = <span class="mono">y mod 12</span> (remainder)</li>
-<li><b>c</b> = <span class="mono">⌊b/4⌋</span> (fours in the remainder)</li></ul>
-<p>offset = <span class="mono">(a + b + c) mod 7</span>, and year's doomsday = <span class="mono">(2 + offset) mod 7</span>.</p>
-<h3>Worked: 2027</h3>
-<div class="ex mono">y=27 → a=2, b=3, c=0 → offset 5<br>(2 + 5) mod 7 = 0 = Sunday</div>
-<h3>Worked: 2066</h3>
-<div class="ex mono">y=66 → a=5, b=6, c=1 ← don't skip c!<br>offset = 12 mod 7 = 5 → (2+5) mod 7 = 0 = Sunday</div>
-<p class="why">Why it works: each year shifts the doomsday +1 (a common year is 52 weeks + 1 day), and each leap year shifts +2. The a, b, c terms just count those steps and the extra leap days.</p>
-<h3>The "odd + 11" shortcut</h3>
-<p>T=y; if T odd add 11; halve; if T odd add 11; then T = 7 − (T mod 7). Year's doomsday = (anchor + T) mod 7. Same answer — pick your favorite.</p>
-<p><b>Common mistake:</b> dropping the fours term <span class="mono">c</span> when the remainder b ≥ 4 — that's off by exactly one day.</p>`,
+    lesson:`<h3>A year's doomsday</h3>
+<p>The <b>doomsday</b> is the weekday that 4/4, 6/6, 8/8, … all land on in a given year. We'll stay in the <b>2000s</b>, where the starting point is <b>Tuesday</b>. To get a particular year's doomsday, you step forward from Tuesday by a number you work out from the last two digits of the year — wrapping back to Sunday after Saturday.</p>
+<h3>The recipe — take the last two digits and do three little counts</h3>
+<ol>
+<li>How many whole <b>12s</b> fit in it?</li>
+<li>What's <b>left over</b> after those 12s?</li>
+<li>How many <b>4s</b> fit inside that leftover?</li>
+</ol>
+<p>Add those three numbers. If the total is 7 or more, keep subtracting 7 until it's between 0 and 6. Then step that many days forward from <b>Tuesday</b> — that's the doomsday.</p>
+<h3>Walk through: 2027 → last two digits 27</h3>
+<div class="ex mono">whole 12s in 27 → 2  (that's 24)<br>leftover → 3<br>4s inside 3 → 0<br>2 + 3 + 0 = 5<br>5 days past Tue: Wed, Thu, Fri, Sat, <b>Sun</b><br>doomsday = Sunday</div>
+<h3>Walk through: 2066 → last two digits 66</h3>
+<div class="ex mono">whole 12s in 66 → 5  (that's 60)<br>leftover → 6<br>4s inside 6 → 1   ← easy to forget!<br>5 + 6 + 1 = 12 → subtract 7 → 5<br>5 days past Tue → <b>Sunday</b></div>
+<p>The thing people miss is the <b>third count</b> (the 4s inside the leftover). Whenever the leftover is 4 or more, it adds 1 — skip it and you're off by a day.</p>
+<p class="why">Why three counts? Each ordinary year bumps the doomsday one weekday forward, and each leap year bumps it two. Counting the 12s and the 4s is just a fast way to total up all those one- and two-day bumps since the year 2000.</p>`,
     gen(){
       const yr = 2000 + rnd(0,99);
       const a = dow(yr, 4, 4);
