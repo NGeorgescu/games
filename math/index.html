@@ -429,30 +429,47 @@ const TRICKS = [
         `Anchor of the ${yr}s = <b>${WD[a]}</b>` ]};
     } },
 
-  { id:"calYear", cat:"Calendar", name:"The year's doomsday", tag:"From the two-digit year", answerType:"weekday",
-    lesson:`<h3>A year's doomsday</h3>
-<p>The <b>doomsday</b> is the weekday that 4/4, 6/6, 8/8, … all land on in a given year. We'll stay in the <b>2000s</b>, where the starting point is <b>Tuesday</b>. To get a particular year's doomsday, you step forward from Tuesday by a number you work out from the last two digits of the year — wrapping back to Sunday after Saturday.</p>
-<h3>The recipe — take the last two digits and do three little counts</h3>
+  { id:"calYearNum", cat:"Calendar", name:"The year's number", tag:"Two-digit year → a number 0–6", answerType:"num",
+    lesson:`<h3>The year's number</h3>
+<p>Before you can find a year's doomsday weekday, you turn its <b>last two digits</b> into a single small number from <b>0 to 6</b>. This drill is just that step — no weekdays yet, only a number.</p>
+<h3>The recipe — three little counts</h3>
 <ol>
-<li>How many whole <b>12s</b> fit in it?</li>
+<li>How many whole <b>12s</b> fit in the two-digit year?</li>
 <li>What's <b>left over</b> after those 12s?</li>
 <li>How many <b>4s</b> fit inside that leftover?</li>
 </ol>
-<p>Add those three numbers. If the total is 7 or more, keep subtracting 7 until it's between 0 and 6. Then step that many days forward from <b>Tuesday</b> — that's the doomsday.</p>
-<h3>Walk through: 2027 → last two digits 27</h3>
-<div class="ex mono">whole 12s in 27 → 2  (that's 24)<br>leftover → 3<br>4s inside 3 → 0<br>2 + 3 + 0 = 5<br>5 days past Tue: Wed, Thu, Fri, Sat, <b>Sun</b><br>doomsday = Sunday</div>
+<p>Add those three numbers together. If the total is 7 or more, keep subtracting <b>7</b> until it sits between 0 and 6. That final value is the year's number.</p>
 <h3>Walk through: 2066 → last two digits 66</h3>
-<div class="ex mono">whole 12s in 66 → 5  (that's 60)<br>leftover → 6<br>4s inside 6 → 1   ← easy to forget!<br>5 + 6 + 1 = 12 → subtract 7 → 5<br>5 days past Tue → <b>Sunday</b></div>
+<div class="ex mono">whole 12s in 66 → 5  (that's 60)<br>leftover → 6<br>4s inside 6 → 1   ← easy to forget!<br>5 + 6 + 1 = 12<br>12 is 7 or more → subtract 7 → 5<br>the number is 5</div>
+<p>So <b>2066 → number 5</b>. (The next drill turns that 5 into a weekday.)</p>
 <p>The thing people miss is the <b>third count</b> (the 4s inside the leftover). Whenever the leftover is 4 or more, it adds 1 — skip it and you're off by a day.</p>
-<p class="why">Why three counts? Each ordinary year bumps the doomsday one weekday forward, and each leap year bumps it two. Counting the 12s and the 4s is just a fast way to total up all those one- and two-day bumps since the year 2000.</p>`,
+<p class="why">Why three counts? Each ordinary year bumps the doomsday one weekday forward, and each leap year bumps it two. Counting the 12s and the 4s is just a fast way to total all those one- and two-day bumps since the year 2000.</p>`,
+    gen(){
+      const yy = rnd(0,99), A = Math.floor(yy/12), b = yy%12, c = Math.floor(b/4), off = (A+b+c)%7;
+      return { q:`Year ${String(yy).padStart(2,"0")} → its doomsday number?`, a:off, steps:[
+        `whole 12s in ${yy} → ${A}`,
+        `leftover after those 12s → ${b}`,
+        `4s inside ${b} → ${c}`,
+        `${A} + ${b} + ${c} = ${A+b+c}${A+b+c>=7?` → subtract 7 → ${off}`:``}`,
+        `the number is <b>${off}</b>` ]};
+    } },
+
+  { id:"calYear", cat:"Calendar", name:"The year's doomsday", tag:"Year's number → weekday", answerType:"weekday",
+    lesson:`<h3>A year's doomsday</h3>
+<p>The <b>doomsday</b> is the weekday that 4/4, 6/6, 8/8, … all land on in a given year. You already know how to turn the last two digits into a <b>number from 0 to 6</b> (the previous drill). This step just combines it with the century.</p>
+<h3>The recipe</h3>
+<p>We'll stay in the <b>2000s</b>, where the anchor weekday is <b>Tuesday</b>. Take the year's number and step that many days <b>forward from Tuesday</b>, wrapping back to Sunday after Saturday. Where you land is the doomsday.</p>
+<h3>Walk through: 2066</h3>
+<div class="ex mono">2066 → its number is 5<br>start at Tuesday, step 5 days forward:<br>Wed (1), Thu (2), Fri (3), Sat (4), Sun (5)<br>doomsday = <b>Sunday</b></div>
+<p>So <b>number 5 → Sunday</b> for the 2000s.</p>
+<p class="why">Why Tuesday? It's the doomsday of the year 2000 itself. The year's number is exactly how many weekdays the doomsday has drifted since then, so adding it to Tuesday lands you on the right day.</p>`,
     gen(){
       const yr = 2000 + rnd(0,99);
       const a = dow(yr, 4, 4);
       const y = yr % 100, A = Math.floor(y/12), b = y%12, c = Math.floor(b/4), off = (A+b+c)%7;
       return { q:`Doomsday weekday of ${yr}?`, a, steps:[
-        `Two-digit year ${y}: 12s a = ${A}, remainder b = ${b}, fours c = ${c}`,
-        `offset = (${A} + ${b} + ${c}) mod 7 = ${off}`,
-        `2000s anchor Tuesday(2): (2 + ${off}) mod 7 = ${a} → <b>${WD[a]}</b>` ]};
+        `${y}'s number: ${A}+${b}+${c} = ${A+b+c}${A+b+c>=7?` → ${off}`:``}`,
+        `${off} days past Tuesday → <b>${WD[a]}</b>` ]};
     } },
 
   { id:"calFull", cat:"Calendar", name:"Any date → day of the week", tag:"Put it all together", answerType:"weekday",
