@@ -12,7 +12,8 @@
   .wrap{max-width:460px;margin:0 auto;padding:16px 16px 40px}
   h1{font-size:24px;margin:.1em 0}
   .sub{color:var(--muted);font-size:13px;line-height:1.55;margin:0 0 16px}
-  .cat{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.6px;margin:16px 0 6px}
+  .cat{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.6px;margin:16px 0 4px}
+  .catdesc{color:var(--muted);font-size:12.5px;line-height:1.5;margin:0 0 9px}
   a.tile,button.tile{display:block;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);
     border-radius:13px;padding:13px 14px;margin-bottom:9px;text-decoration:none;color:var(--ink);cursor:pointer}
   .tile b{font-size:16px}
@@ -568,9 +569,20 @@ const app = {
   init(){
     const list=$("trickList"); let lastCat="";
     const catOrder=["Cube roots","Fifth roots","Division","Calendar","2-digit multiplication"];
+    const CAT_DESC={
+      "Cube roots":"Read the cube root of a perfect cube straight off its digits — once the cubes 1–9 are automatic.",
+      "Fifth roots":"Even easier than cube roots: the units digit comes free. Learn the 5th powers, then read off the root.",
+      "Division":"Everything for dividing by 7 — quotient, remainder, and its 142857 repeating decimal.",
+      "Calendar":"The Doomsday method for the weekday of any date, built up one step at a time.",
+      "2-digit multiplication":"A toolbox of fast ways to multiply two-digit numbers — squaring, ×11, near-100, factoring and more."
+    };
     const ordered=[...TRICKS].sort((a,b)=>catOrder.indexOf(a.cat)-catOrder.indexOf(b.cat));
     ordered.forEach(t=>{
-      if(t.cat!==lastCat){ const h=document.createElement("div"); h.className="cat"; h.textContent=t.cat; list.appendChild(h); lastCat=t.cat; }
+      if(t.cat!==lastCat){
+        const h=document.createElement("div"); h.className="cat"; h.textContent=t.cat; list.appendChild(h);
+        if(CAT_DESC[t.cat]){ const p=document.createElement("p"); p.className="catdesc"; p.textContent=CAT_DESC[t.cat]; list.appendChild(p); }
+        lastCat=t.cat;
+      }
       const b=document.createElement("button"); b.className="tile";
       b.innerHTML=`<b>${t.name}</b><span>${t.tag}</span>`;
       b.onclick=()=>this.lesson(t.id);
