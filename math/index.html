@@ -459,7 +459,14 @@ const TRICKS = [
 <li>What's <b>left over</b> after those 12s?</li>
 <li>How many <b>4s</b> fit inside that leftover?</li>
 </ol>
-<p>Add those three numbers together. If the total is 7 or more, keep subtracting <b>7</b> until it sits between 0 and 6. That final value is the year's number. <span class="why">(The drill also accepts the un-reduced total — typing <b>12</b> counts the same as <b>5</b>.)</span></p>
+<h3>Multiples of 12 (for that first count)</h3>
+<table class="map mono">
+<tr><td>×12</td><td>12</td><td>24</td><td>36</td><td>48</td><td>60</td><td>72</td><td>84</td><td>96</td></tr>
+<tr><td>count</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td></tr>
+</table>
+<p>Find the biggest multiple of 12 that's ≤ your year; the count under it is the first number.</p>
+<p><b>Big-year shortcut:</b> 84 = 7×12, so you can <b>subtract 84</b> from the two-digit year with <b>no change</b> to the answer (99 → 15, 96 → 12). Subtracting 28 works too.</p>
+<p>Add the three counts. If the total is 7 or more, keep subtracting <b>7</b> until it sits between 0 and 6. That's the year's number. <span class="why">(The drill also accepts the un-reduced total — typing <b>12</b> counts the same as <b>5</b>.)</span></p>
 <h3>Walk through: 2066 → last two digits 66</h3>
 <div class="ex mono">whole 12s in 66 → 5  (that's 60)<br>leftover → 6<br>4s inside 6 → 1   ← easy to forget!<br>5 + 6 + 1 = 12<br>12 is 7 or more → subtract 7 → 5<br>the number is 5</div>
 <p>So <b>2066 → number 5</b>. (The next drill turns that 5 into a weekday.)</p>
@@ -491,6 +498,28 @@ const TRICKS = [
       return { q:`Doomsday weekday of ${yr}?`, a, steps:[
         `${y}'s number: ${A}+${b}+${c} = ${A+b+c}${A+b+c>=7?` → ${off}`:``}`,
         `${off} days past Tuesday → <b>${WD[a]}</b>` ]};
+    } },
+
+  { id:"calOffset", cat:"Calendar", name:"The day's offset", tag:"How far a date is from its month anchor", answerType:"num", mod:7,
+    lesson:`<h3>From the month's anchor to your day</h3>
+<p>You know each month's <b>doomsday date</b> (its anchor — Apr 4, May 9, Jun 6, …). The last piece is counting from that anchor to the day you actually want. That count, taken mod 7, is how far the day's weekday sits from the doomsday.</p>
+<p><b>Offset = (your day − the anchor date)</b>, then knock off 7s to land in 0–6. A date <i>before</i> the anchor goes negative — just add 7.</p>
+<table class="map mono">
+<tr><td>date</td><td>anchor</td><td>offset</td></tr>
+<tr><td>May 10</td><td>the 9th</td><td>+1</td></tr>
+<tr><td>Jun 3</td><td>the 6th</td><td>−3 → +4</td></tr>
+<tr><td>Dec 25</td><td>the 12th</td><td>+13 → +6</td></tr>
+</table>
+<p class="why">Once you have this offset, the date's weekday is just the year's doomsday stepped forward by it — that's the whole final assembly (next drill).</p>`,
+    gen(){
+      const DD=[,3,28,14,4,9,6,11,8,5,10,7,12];
+      const MON=["","January","February","March","April","May","June","July","August","September","October","November","December"];
+      const DIM=[,31,28,31,30,31,30,31,31,30,31,30,31];
+      const m=rnd(1,12), d=rnd(1,DIM[m]), anchor=DD[m], diff=d-anchor, off=((diff%7)+7)%7;
+      return { q:`${MON[m]} ${d} — how far past the ${anchor}th? (mod 7)`, a:off, steps:[
+        `${MON[m]}'s anchor is the ${anchor}th`,
+        `${d} − ${anchor} = ${diff}${(diff<0||diff>6)?` → +${off} (mod 7)`:``}`,
+        `offset = <b>+${off}</b>` ]};
     } },
 
   { id:"calFull", cat:"Calendar", name:"Any date → day of the week", tag:"Put it all together", answerType:"weekday",
