@@ -502,22 +502,27 @@ const TRICKS = [
 
   { id:"calOffset", cat:"Calendar", name:"The day's offset", tag:"How far a date is from its month anchor", answerType:"num", mod:7,
     lesson:`<h3>From the month's anchor to your day</h3>
-<p>You know each month's <b>doomsday date</b> (its anchor — Apr 4, May 9, Jun 6, …). The last piece is counting from that anchor to the day you actually want. That count, taken mod 7, is how far the day's weekday sits from the doomsday.</p>
-<p><b>Offset = (your day − the anchor date)</b>, then knock off 7s to land in 0–6. A date <i>before</i> the anchor goes negative — just add 7.</p>
+<p>You'll see <b>just a date</b>. Recall that month's <b>doomsday date</b> (its anchor — Apr 4, May 9, Jun 6, …), then count from the anchor to your day. That count, mod 7, is the <b>offset</b>: how far the day's weekday sits from the doomsday.</p>
+<p><b>Offset = your day − the anchor date</b>, wrapped to <b>+0 … +6</b>. A date just before the anchor is negative — a <b>−1</b> is the same as a <b>+6</b>, so add 7 to land in range.</p>
+<p>Jan and Feb shift in leap years (anchor <b>4</b> and <b>29</b>), so those come labelled "(leap year)".</p>
 <table class="map mono">
 <tr><td>date</td><td>anchor</td><td>offset</td></tr>
-<tr><td>May 10</td><td>the 9th</td><td>+1</td></tr>
-<tr><td>Jun 3</td><td>the 6th</td><td>−3 → +4</td></tr>
-<tr><td>Dec 25</td><td>the 12th</td><td>+13 → +6</td></tr>
+<tr><td>May 10</td><td>9</td><td>+1</td></tr>
+<tr><td>Jun 3</td><td>6</td><td>−3 → +4</td></tr>
+<tr><td>Dec 25</td><td>12</td><td>+13 → +6</td></tr>
 </table>
-<p class="why">Once you have this offset, the date's weekday is just the year's doomsday stepped forward by it — that's the whole final assembly (next drill).</p>`,
+<p class="why">Once you have this offset, the date's weekday is just the year's doomsday stepped forward by it — the whole final assembly (next drill).</p>`,
     gen(){
       const DD=[,3,28,14,4,9,6,11,8,5,10,7,12];
       const MON=["","January","February","March","April","May","June","July","August","September","October","November","December"];
       const DIM=[,31,28,31,30,31,30,31,31,30,31,30,31];
-      const m=rnd(1,12), d=rnd(1,DIM[m]), anchor=DD[m], diff=d-anchor, off=((diff%7)+7)%7;
-      return { q:`${MON[m]} ${d} — how far past the ${anchor}th? (mod 7)`, a:off, steps:[
-        `${MON[m]}'s anchor is the ${anchor}th`,
+      const pick=rnd(1,14); let m, leap=false, anchor, maxd;   // 1–12 common months, 13 leap Jan, 14 leap Feb
+      if(pick<=12){ m=pick; anchor=DD[m]; maxd=DIM[m]; }
+      else if(pick===13){ m=1; leap=true; anchor=4; maxd=31; }
+      else { m=2; leap=true; anchor=29; maxd=29; }
+      const d=rnd(1,maxd), suf=leap?" (leap year)":"", diff=d-anchor, off=((diff%7)+7)%7;
+      return { q:`${MON[m]} ${d}${suf}  →  +?`, a:off, steps:[
+        `${MON[m]}'s anchor is the ${anchor}th${leap?" (leap year)":""}`,
         `${d} − ${anchor} = ${diff}${(diff<0||diff>6)?` → +${off} (mod 7)`:``}`,
         `offset = <b>+${off}</b>` ]};
     } },
