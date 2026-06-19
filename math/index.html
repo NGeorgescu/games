@@ -467,7 +467,7 @@ const TRICKS = [
 </table>
 <p>Find the biggest multiple of 12 that's ≤ your year; the count under it is the first number.</p>
 <p><b>Big-year shortcut:</b> 84 = 7×12, so you can <b>subtract 84</b> from the two-digit year with <b>no change</b> to the answer (99 → 15, 96 → 12). Subtracting 28 works too.</p>
-<p>Add the three counts. If the total is 7 or more, keep subtracting <b>7</b> until it sits between 0 and 6. That's the year's number — tap it below (the buttons run 0 to +6).</p>
+<p>Add the three counts. If the total is 7 or more, keep subtracting <b>7</b> until it sits between 0 and 6. That's the year's number — tap it on the seven buttons below.</p>
 <h3>Walk through: 2066 → last two digits 66</h3>
 <div class="ex mono">whole 12s in 66 → 5  (that's 60)<br>leftover → 6<br>4s inside 6 → 1   ← easy to forget!<br>5 + 6 + 1 = 12<br>12 is 7 or more → subtract 7 → 5<br>the number is 5</div>
 <p>So <b>2066 → number 5</b>. (The next drill turns that 5 into a weekday.)</p>
@@ -504,7 +504,7 @@ const TRICKS = [
   { id:"calOffset", cat:"Calendar", name:"The day's offset", tag:"How far a date is from its month anchor", answerType:"mod7",
     lesson:`<h3>From the month's anchor to your day</h3>
 <p>You'll see <b>just a date</b>. Recall that month's <b>doomsday date</b> (its anchor — Apr 4, May 9, Jun 6, …), then count from the anchor to your day. That count, mod 7, is the <b>offset</b>: how far the day's weekday sits from the doomsday.</p>
-<p><b>Offset = your day − the anchor date</b>, wrapped to <b>+0 … +6</b>. A date just before the anchor is negative — a <b>−1</b> is the same as a <b>+6</b>, so add 7 to land in range.</p>
+<p><b>Offset = your day − the anchor date.</b> A date just before the anchor comes out negative — but the seven buttons pair each value with its twin, so a <b>−1</b> shares a button with <b>+6</b>: just tap whichever you worked out.</p>
 <p>Jan and Feb shift in leap years (anchor <b>4</b> and <b>29</b>), so those come labelled "(leap year)".</p>
 <table class="map mono">
 <tr><td>date</td><td>anchor</td><td>offset</td></tr>
