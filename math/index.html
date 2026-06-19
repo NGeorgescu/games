@@ -325,12 +325,22 @@ const TRICKS = [
         `Biggest 5th power ≤ ${lo} is ${a}⁵=${FIFTHS[a]} → tens digit <span class="mono">${a}</span>`,
         `Answer = <b>${r}</b>` ]}; } },
 
-  { id:"div7q", cat:"Division", name:"Divide by 7 — whole number", tag:"Quotient & remainder", answerType:"quotrem",
-    lesson:`<h3>The whole-number part</h3>
-      <p>To divide N by 7, find the biggest multiple of 7 that fits — that count is the <b>quotient</b>, and what's left over (0–6) is the <b>remainder</b>.</p>
+  { id:"div7small", cat:"Division", name:"Divide by 7 — small numbers", tag:"2-digit · quotient & remainder", answerType:"quotrem",
+    lesson:`<h3>Start small</h3>
+      <p>Warm up on 2-digit numbers. Find the biggest multiple of 7 that fits — that count is the <b>quotient</b> — and what's left over (0–6) is the <b>remainder</b>.</p>
       <div class="ex mono">47 ÷ 7 → 7×6 = 42, leftover 5<br>= <b>6 R 5</b></div>
-      <p>Enter <b>both</b>: type the quotient, then the remainder. The digits push left like an ATM — the last digit you type is always the remainder, shown as <span class="mono">Q R r</span>.</p>
-      <p>Hold on to that remainder — it's the whole key to the decimal (next trick): the leftover r decides the repeating digits.</p>`,
+      <p>Enter <b>both</b>: type the quotient, then the remainder. The digits push left like an ATM — the last digit you type is the remainder, shown as <span class="mono">Q R r</span>.</p>`,
+    gen(){ const N=rnd(10,99), q=(N/7|0), r=N%7;
+      return { q:`${N} ÷ 7 = ?`, a:`${q}${r}`, steps:[
+        `Biggest multiple of 7 ≤ ${N}: 7 × ${q} = <span class="mono">${7*q}</span>`,
+        `${N} − ${7*q} = remainder <span class="mono">${r}</span>`,
+        `Answer: <b>${q} R ${r}</b>` ]}; } },
+
+  { id:"div7q", cat:"Division", name:"Divide by 7 — large numbers", tag:"3–4 digit · quotient & remainder", answerType:"quotrem",
+    lesson:`<h3>Now go big</h3>
+      <p>Same idea on 3- and 4-digit numbers. Work <b>left to right</b>: carry a running remainder, and at each digit divide "carry×10 + next digit" by 7 — that quotient digit goes in the answer, the leftover carries on.</p>
+      <div class="ex mono">9999 ÷ 7<br>9→1 r2 · 29→4 r1 · 19→2 r5 · 59→8 r3<br>= <b>1428 R 3</b></div>
+      <p>The number you ever divide by 7 in a single step never exceeds 69, so it's always a one-glance step.</p>`,
     gen(){ const N=rnd(100,9999), q=(N/7|0), r=N%7;
       return { q:`${N} ÷ 7 = ?`, a:`${q}${r}`, steps:[
         `Biggest multiple of 7 ≤ ${N}: 7 × ${q} = <span class="mono">${7*q}</span>`,
@@ -358,6 +368,17 @@ const TRICKS = [
         `Remainder = ${N} − 7×${q} = <span class="mono">${r}</span>`,
         `Block = 142857 × ${r} = <span class="mono">${block}</span>`,
         `So ${N} ÷ 7 = <b>${q}.${block}</b>…` ]}; } },
+
+  { id:"div7all", cat:"Division", name:"Divide by 7 — all together", tag:"Quotient and the repeating decimal", answerType:"decimal",
+    lesson:`<h3>The whole thing</h3>
+      <p>Now do the lot: divide N by 7 and give the <b>quotient</b> and the <b>repeating decimal</b>. It's the three skills stacked — quotient + remainder (the small/large drills), then turn the remainder into its 6-digit block (the decimal drill).</p>
+      <div class="ex mono">30 ÷ 7 → 4 remainder 2<br>remainder 2 → block 285714<br>= <b>4.285714</b>…</div>
+      <p>Type the quotient, the <b>.</b> key, then the six repeating digits.</p>`,
+    gen(){ let N; do{ N=rnd(8,999); }while(N%7===0); const q=(N/7|0), r=N%7, block=142857*r;
+      return { q:`${N} ÷ 7 = ?`, a:`${q}.${block}`, steps:[
+        `${N} ÷ 7 → ${q} remainder ${r}`,
+        `remainder ${r} → 142857 × ${r} = <span class="mono">${block}</span>`,
+        `= <b>${q}.${block}</b>…` ]}; } },
 
   { id:"calDates", cat:"Calendar", name:"Doomsday dates of the months", tag:"Memorize the monthly anchors", answerType:"num",
     lesson:`<h3>What is a "doomsday"?</h3>
@@ -565,11 +586,13 @@ const app = {
     if(this.input===""){ a.textContent="—"; a.classList.add("empty"); }
     else { a.textContent=this.input; a.classList.remove("empty"); } },
 
-  press(d){ if(this.answered) return; if(this.input.length<7) this.input+=d; this.renderAns(); },
+  press(d){ if(this.answered) return; if(this.input.length<12) this.input+=d; this.renderAns(); },
+  pressDot(){ if(this.answered) return; if(this.input.length>0 && !this.input.includes(".") && this.input.length<12) this.input+="."; this.renderAns(); },
   del(){ if(this.answered) return; this.input=this.input.slice(0,-1); this.renderAns(); },
   check(){
     if(this.answered) return;
     if(this.cur.answerType==="quotrem"){ if(this.input.length<2) return; this.grade(this.input); }   // compare string "Qr"
+    else if(this.cur.answerType==="decimal"){ if(!this.input.includes(".")) return; this.grade(this.input); }   // compare "q.dddddd"
     else { if(this.input==="") return; this.grade(Number(this.input)); }
   },
   submitWeekday(i){ this.grade(i); },
@@ -581,7 +604,10 @@ const app = {
     if(ok){ this.correct++; this.streak++; this.best=Math.max(this.best,this.streak);
       fb.textContent = weekday ? "✓ "+WD[this.prob.a] : "✓ correct"; fb.className="fb ok"; }
     else { this.streak=0;
-      const want = weekday ? WD[this.prob.a] : qr ? (this.prob.a.slice(0,-1)+" R "+this.prob.a.slice(-1)) : commas(this.prob.a);
+      const want = weekday ? WD[this.prob.a]
+                 : qr ? (this.prob.a.slice(0,-1)+" R "+this.prob.a.slice(-1))
+                 : this.cur.answerType==="decimal" ? this.prob.a
+                 : commas(this.prob.a);
       fb.textContent = "✗ it's "+want+(weekday ? " — you tapped "+WD[value] : "");
       fb.className="fb bad"; }
     if(weekday){ const keys=$("keypad").querySelectorAll(".day");
@@ -604,13 +630,20 @@ const app = {
       WD.forEach((name,i)=>{ const k=document.createElement("div"); k.className="key day"; k.textContent=name; k.onclick=()=>this.submitWeekday(i); grid.appendChild(k); });
       pad.appendChild(grid);
     } else {
+      const dec = this.cur && this.cur.answerType==="decimal";
       const grid=document.createElement("div"); grid.className="pad";
       for(let n=1;n<=9;n++){ const k=document.createElement("div"); k.className="key"; k.textContent=n; k.onclick=()=>this.press(""+n); grid.appendChild(k); }
       const del=document.createElement("div"); del.className="key wide"; del.textContent="⌫"; del.onclick=()=>this.del();
       const zero=document.createElement("div"); zero.className="key"; zero.textContent="0"; zero.onclick=()=>this.press("0");
-      const chk=document.createElement("div"); chk.className="key check wide"; chk.textContent="Check"; chk.onclick=()=>this.check();
-      grid.appendChild(del); grid.appendChild(zero); grid.appendChild(chk);
-      pad.appendChild(grid); this.chkKey=chk;       // remember it so it can morph into "Next"
+      const chk=document.createElement("div"); chk.className="key check"; chk.textContent="Check"; chk.onclick=()=>this.check();
+      if(dec){                                       // 0 · . · ⌫  then a full-width Check
+        const dot=document.createElement("div"); dot.className="key"; dot.textContent="."; dot.onclick=()=>this.pressDot();
+        grid.appendChild(del); grid.appendChild(zero); grid.appendChild(dot);
+        chk.style.gridColumn="1 / -1"; grid.appendChild(chk);
+      } else {
+        chk.classList.add("wide"); grid.appendChild(del); grid.appendChild(zero); grid.appendChild(chk);
+      }
+      pad.appendChild(grid); this.chkKey=chk;        // remember it so it can morph into "Next"
     }
   }
 };
@@ -625,6 +658,7 @@ document.addEventListener("keydown", e=>{
   }
   if(app.answered){ if(e.key==="Enter") app.next(); return; }
   if(e.key>="0"&&e.key<="9") app.press(e.key);
+  else if(e.key===".") app.pressDot();
   else if(e.key==="Backspace"){ e.preventDefault(); app.del(); }
   else if(e.key==="Enter") app.check();
 });
