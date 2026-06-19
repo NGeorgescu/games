@@ -386,8 +386,10 @@ const TRICKS = [
     gen(){
       const DD=[,3,28,14,4,9,6,11,8,5,10,7,12];
       const MON=["","January","February","March","April","May","June","July","August","September","October","November","December"];
-      const m=rnd(1,12); let a=DD[m], why, suf="";
-      if(m<=2){ const leap=rnd(0,1)===1; suf = leap?" in a leap year":" in a common year";
+      const pick=rnd(1,14); let m, leap=false;     // 1–12 common months, 13 = leap Jan, 14 = leap Feb
+      if(pick<=12) m=pick; else { m = pick===13?1:2; leap=true; }
+      let a=DD[m], why, suf="";
+      if(m<=2){ suf = leap?" in a leap year":" in a common year";
         a = m===1 ? (leap?4:3) : (leap?29:28);
         why = m===1 ? (leap?`A leap year bumps January's anchor to the 4th.`:`January's common-year anchor is the 3rd.`)
                     : (leap?`February's anchor is its last day — the 29th in a leap year.`:`February's anchor is its last day — the 28th in a common year.`);
