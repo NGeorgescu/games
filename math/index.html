@@ -109,6 +109,7 @@ function show(id){ for(const s of ["home","lesson","practice"]) $(s).classList.a
 const rnd = (lo,hi) => lo + Math.floor(Math.random()*(hi-lo+1));
 const commas = n => n.toLocaleString("en-US");
 const WD = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const MOD7 = ["0","+1/−6","+2/−5","+3/−4","+4/−3","+5/−2","+6/−1"];   // 7-choice pad: value 0–6 with its negative twin
 // independent weekday grader (Zeller's congruence) → 0=Sun … 6=Sat
 function dow(y,m,d){
   if(m<3){ m+=12; y-=1; }
@@ -450,7 +451,7 @@ const TRICKS = [
         `Anchor of the ${yr}s = <b>${WD[a]}</b>` ]};
     } },
 
-  { id:"calYearNum", cat:"Calendar", name:"The year's number", tag:"Two-digit year → a number 0–6", answerType:"num", mod:7,
+  { id:"calYearNum", cat:"Calendar", name:"The year's number", tag:"Two-digit year → a number 0–6", answerType:"mod7",
     lesson:`<h3>The year's number</h3>
 <p>Before you can find a year's doomsday weekday, you turn its <b>last two digits</b> into a single small number from <b>0 to 6</b>. This drill is just that step — no weekdays yet, only a number.</p>
 <h3>The recipe — three little counts</h3>
@@ -466,7 +467,7 @@ const TRICKS = [
 </table>
 <p>Find the biggest multiple of 12 that's ≤ your year; the count under it is the first number.</p>
 <p><b>Big-year shortcut:</b> 84 = 7×12, so you can <b>subtract 84</b> from the two-digit year with <b>no change</b> to the answer (99 → 15, 96 → 12). Subtracting 28 works too.</p>
-<p>Add the three counts. If the total is 7 or more, keep subtracting <b>7</b> until it sits between 0 and 6. That's the year's number. <span class="why">(The drill also accepts the un-reduced total — typing <b>12</b> counts the same as <b>5</b>.)</span></p>
+<p>Add the three counts. If the total is 7 or more, keep subtracting <b>7</b> until it sits between 0 and 6. That's the year's number — tap it below (the buttons run 0 to +6).</p>
 <h3>Walk through: 2066 → last two digits 66</h3>
 <div class="ex mono">whole 12s in 66 → 5  (that's 60)<br>leftover → 6<br>4s inside 6 → 1   ← easy to forget!<br>5 + 6 + 1 = 12<br>12 is 7 or more → subtract 7 → 5<br>the number is 5</div>
 <p>So <b>2066 → number 5</b>. (The next drill turns that 5 into a weekday.)</p>
@@ -500,7 +501,7 @@ const TRICKS = [
         `${off} days past Tuesday → <b>${WD[a]}</b>` ]};
     } },
 
-  { id:"calOffset", cat:"Calendar", name:"The day's offset", tag:"How far a date is from its month anchor", answerType:"num", mod:7,
+  { id:"calOffset", cat:"Calendar", name:"The day's offset", tag:"How far a date is from its month anchor", answerType:"mod7",
     lesson:`<h3>From the month's anchor to your day</h3>
 <p>You'll see <b>just a date</b>. Recall that month's <b>doomsday date</b> (its anchor — Apr 4, May 9, Jun 6, …), then count from the anchor to your day. That count, mod 7, is the <b>offset</b>: how far the day's weekday sits from the doomsday.</p>
 <p><b>Offset = your day − the anchor date</b>, wrapped to <b>+0 … +6</b>. A date just before the anchor is negative — a <b>−1</b> is the same as a <b>+6</b>, so add 7 to land in range.</p>
@@ -633,18 +634,19 @@ const app = {
   grade(value){
     if(this.answered) return;
     this.answered=true; this.total++;
-    const weekday = this.cur.answerType==="weekday", qr = this.cur.answerType==="quotrem", fb=$("fb");
-    const ok = this.cur.mod ? (value % this.cur.mod === this.prob.a) : (value===this.prob.a);   // mod:7 → accept any congruent total (12 counts as 5)
+    const at = this.cur.answerType, weekday = at==="weekday", mod7 = at==="mod7", qr = at==="quotrem", pad = weekday||mod7, fb=$("fb");
+    const padLabel = v => weekday ? WD[v] : (v===0 ? "0" : "+"+v);
+    const ok = this.cur.mod ? (value % this.cur.mod === this.prob.a) : (value===this.prob.a);
     if(ok){ this.correct++; this.streak++; this.best=Math.max(this.best,this.streak);
-      fb.textContent = weekday ? "✓ "+WD[this.prob.a] : "✓ correct"; fb.className="fb ok"; }
+      fb.textContent = pad ? "✓ "+padLabel(this.prob.a) : "✓ correct"; fb.className="fb ok"; }
     else { this.streak=0;
-      const want = weekday ? WD[this.prob.a]
+      const want = pad ? padLabel(this.prob.a)
                  : qr ? (this.prob.a.slice(0,-1)+" R "+this.prob.a.slice(-1))
-                 : this.cur.answerType==="decimal" ? this.prob.a
+                 : at==="decimal" ? this.prob.a
                  : commas(this.prob.a);
-      fb.textContent = "✗ it's "+want+(weekday ? " — you tapped "+WD[value] : "");
+      fb.textContent = "✗ it's "+want+(pad ? " — you tapped "+padLabel(value) : "");
       fb.className="fb bad"; }
-    if(weekday){ const keys=$("keypad").querySelectorAll(".day");
+    if(pad){ const keys=$("keypad").querySelectorAll(".day");
       if(keys[this.prob.a]) keys[this.prob.a].classList.add("right");
       if(!ok && keys[value]) keys[value].classList.add("wrongkey"); }
     // only reveal the steps when you MISS — a correct answer keeps the layout still
@@ -657,11 +659,12 @@ const app = {
   },
   renderPad(){
     const pad=$("keypad"); pad.innerHTML=""; this.chkKey=null;
-    const weekday = this.cur && this.cur.answerType==="weekday";
-    $("ans").style.display = weekday ? "none" : "";
-    if(weekday){
+    const at = this.cur && this.cur.answerType, isPad = at==="weekday"||at==="mod7";
+    $("ans").style.display = isPad ? "none" : "";
+    if(isPad){
+      const labels = at==="weekday" ? WD : MOD7;
       const grid=document.createElement("div"); grid.className="daypad";
-      WD.forEach((name,i)=>{ const k=document.createElement("div"); k.className="key day"; k.textContent=name; k.onclick=()=>this.submitWeekday(i); grid.appendChild(k); });
+      labels.forEach((lbl,i)=>{ const k=document.createElement("div"); k.className="key day"; k.textContent=lbl; k.onclick=()=>this.submitWeekday(i); grid.appendChild(k); });
       pad.appendChild(grid);
     } else {
       const dec = this.cur && this.cur.answerType==="decimal";
@@ -685,7 +688,7 @@ app.init();
 // physical keyboard support (desktop)
 document.addEventListener("keydown", e=>{
   if($("practice").classList.contains("hidden")) return;
-  if(app.cur && app.cur.answerType==="weekday"){
+  if(app.cur && (app.cur.answerType==="weekday"||app.cur.answerType==="mod7")){
     if(!app.answered && e.key>="0" && e.key<="6") app.submitWeekday(Number(e.key));
     else if(e.key==="Enter" && app.answered) app.next();
     return;
