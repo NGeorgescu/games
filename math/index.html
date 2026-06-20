@@ -57,6 +57,8 @@
   .picknum:active{filter:brightness(.92)}
   .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:8px}
   .daypad{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:8px}
+  .daypad.methods{grid-template-columns:repeat(3,1fr)}
+  .daypad.methods .key{font-size:12.5px;padding:14px 2px}
   .key.day{font-size:15px;padding:16px 0}
   .key.right{background:#16462a;border-color:#2fe06a;color:#dffbe8}
   .key.wrongkey{background:#4a1d1d;border-color:#ff6b6b;color:#ffd9d9}
@@ -111,6 +113,18 @@ const rnd = (lo,hi) => lo + Math.floor(Math.random()*(hi-lo+1));
 const commas = n => n.toLocaleString("en-US");
 const WD = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const MOD7 = ["0","+1/−6","+2/−5","+3/−4","+4/−3","+5/−2","+6/−1"];   // 7-choice pad: value 0–6 with its negative twin
+const METHODS = ["Distribute","Round-up","Close","Diff-sq","Factor","Square"];   // which-method choice pad (indices 0–5)
+function facty(n){ for(let p=2;p<=9;p++){ const q=n/p; if(q===Math.floor(q) && q>=2 && q<=9) return true; } return n%11===0; }
+function classifyMul(x,y){   // returns the indices of the reasonable methods for x×y (any is accepted)
+  const a=[], ex=x%10, ey=y%10, tx=(x/10|0), ty=(y/10|0);
+  if(x===y) a.push(5);                                         // Square
+  if(ex>=8||ey>=8) a.push(1);                                  // Round-up (ends 8/9)
+  if(tx===ty && x!==y) a.push(2);                              // Close (same decade)
+  if((x+y)%2===0 && ((x+y)/2)%10===0 && x!==y) a.push(3);      // Diff-sq (round midpoint)
+  if(facty(x)||facty(y)) a.push(4);                            // Factor
+  if(!a.length) a.push(0);                                     // Distribute (default)
+  return a;
+}
 // independent weekday grader (Zeller's congruence) → 0=Sun … 6=Sat
 function dow(y,m,d){
   if(m<3){ m+=12; y-=1; }
@@ -145,6 +159,26 @@ const TRICKS = [
       <p><b>×4:</b> double twice. 7×4 → 14 → 28. &nbsp; <b>×8:</b> double three times.</p>
       <div class="ex mono">6 × 7 = 42 · 8 × 9 = 72 · 4 × 9 = 36</div>`,
     gen(){ const a=rnd(2,9), b=rnd(2,9); return { q:`${a} × ${b}`, a:a*b, steps:timesSteps(a,b) }; } },
+
+  { id:"mentaladd", cat:"2-digit multiplication", name:"Mental addition", tag:"Add a 2-digit to a 3-digit, left to right", answerType:"num",
+    lesson:`<h3>Add left to right</h3>
+      <p>Every 2×2 trick ends with one addition — usually a 3-digit number plus a 2-digit one. Do it <b>left to right</b>: add the tens first, then the ones, holding a running total. You start saying the answer sooner and hold less in your head.</p>
+      <div class="ex mono">314 + 59<br>+ 50 → 364<br>+ 9 → <b>373</b></div>
+      <p class="why">This is the hidden bottleneck: most people who feel "stuck" on 2×2 are really just slow at this step. Get it automatic and every method speeds up.</p>`,
+    gen(){ const a=rnd(100,899), b=rnd(11,99), t=Math.floor(b/10)*10, u=b%10;
+      return { q:`${a} + ${b} = ?`, a:a+b, steps:[
+        `tens first: ${a} + ${t} = <span class="mono">${a+t}</span>`,
+        `then ones: + ${u} = <b>${a+b}</b>` ]}; } },
+
+  { id:"complement", cat:"2-digit multiplication", name:"Complements", tag:"Distance to the next round 100", answerType:"num",
+    lesson:`<h3>Distance to the next round number</h3>
+      <p>A number's <b>complement</b> is how far it is from the next 100 (or 1000). It's the engine of the round-up and close-together tricks, and turns subtraction into addition.</p>
+      <p>Shortcut to 100: the tens digit pairs to <b>9</b>, the ones to <b>10</b>. So 88 → 12, 37 → 63.</p>
+      <div class="ex mono">100 − 88 = <b>12</b><br>1000 − 572 = <b>428</b></div>`,
+    gen(){ if(rnd(0,1)){ const n=rnd(11,99); return { q:`Complement of ${n} (to 100)?`, a:100-n, steps:[
+        `tens pairs to 9, ones to 10 → <b>${100-n}</b>` ]}; }
+      const n=rnd(101,989); return { q:`Complement of ${n} (to 1000)?`, a:1000-n, steps:[
+        `first two digits pair to 9, last to 10 → <b>${1000-n}</b>` ]}; } },
 
   { id:"tables", cat:"2-digit multiplication", name:"Times table for a number", tag:"Pick 11–20 and drill it up to N×N", picker:true },
 
@@ -242,6 +276,32 @@ const TRICKS = [
         `${F} = ${p} × ${q}`,
         `${M} × ${p} = <span class="mono">${M*p}</span>`,
         `× ${q} = <b>${M*p*q}</b>` ]}; } },
+
+  { id:"whichmethod", cat:"2-digit multiplication", name:"Which method?", tag:"Spot the fastest path — don't solve it", answerType:"method",
+    lesson:`<h3>Spot the fastest method</h3>
+      <p>The real wizard skill isn't any one trick — it's seeing instantly which one a pair calls for. Here you <b>don't solve it</b>; you just tap the method.</p>
+      <ul>
+        <li><b>Square</b> — the two numbers are equal.</li>
+        <li><b>Round-up</b> — a number ends in 8 or 9.</li>
+        <li><b>Close</b> — both sit in the same ten.</li>
+        <li><b>Diff-sq</b> — they straddle a round number evenly.</li>
+        <li><b>Factor</b> — one number splits into small factors (even, ×5, ×11…).</li>
+        <li><b>Distribute</b> — nothing special; the universal fallback.</li>
+      </ul>
+      <p class="why">If more than one fits, any reasonable choice is accepted — speed of recognition is the point.</p>`,
+    gen(){ const x=rnd(11,99), y=rnd(11,99), accept=classifyMul(x,y);
+      return { q:`${x} × ${y}  —  which method?`, a:accept[0], accept, steps:[
+        `Reasonable here: <b>${accept.map(i=>METHODS[i]).join(", ")}</b>` ]}; } },
+
+  { id:"mixed", cat:"2-digit multiplication", name:"Mixed challenge", tag:"Random 2×2 — choose your own method", answerType:"num",
+    lesson:`<h3>The real test</h3>
+      <p>Random two-digit pairs, no hints. Recognize the fastest method, then compute it — this is where the isolated tricks turn into real ability.</p>
+      <div class="ex mono">23 × 47 = <b>1081</b></div>
+      <p>Keep a left-to-right running total and call the answer as you go. On a miss, the steps name the method that fit best.</p>`,
+    gen(){ const x=rnd(11,99), y=rnd(11,99), m=classifyMul(x,y)[0];
+      return { q:`${x} × ${y} = ?`, a:x*y, steps:[
+        `fastest path here: <b>${METHODS[m]}</b>`,
+        `${x} × ${y} = <b>${commas(x*y)}</b>` ]}; } },
 
   { id:"cubes", cat:"Cube roots", name:"Cubes 1–9", tag:"Know your cubes (the cube-root toolkit)", answerType:"num",
     lesson:`<h3>Cube the single digits</h3>
@@ -585,7 +645,7 @@ const app = {
         lastCat=t.cat; idx=0;
       }
       idx++;
-      const num = t.cat==="2-digit multiplication" ? "" : `${idx}. `;   // number every section except the multiplication toolbox
+      const num = `${idx}. `;   // number every section
       const b=document.createElement("button"); b.className="tile";
       b.innerHTML=`<b>${num}${t.name}</b><span>${t.tag}</span>`;
       b.onclick=()=>this.lesson(t.id);
@@ -649,17 +709,20 @@ const app = {
   grade(value){
     if(this.answered) return;
     this.answered=true; this.total++;
-    const at = this.cur.answerType, weekday = at==="weekday", mod7 = at==="mod7", qr = at==="quotrem", pad = weekday||mod7, fb=$("fb");
-    const padLabel = v => weekday ? WD[v] : (v===0 ? "0" : "+"+v);
-    const ok = this.cur.mod ? (value % this.cur.mod === this.prob.a) : (value===this.prob.a);
+    const at = this.cur.answerType, weekday = at==="weekday", mod7 = at==="mod7", method = at==="method", qr = at==="quotrem", pad = weekday||mod7||method, fb=$("fb");
+    const padLabel = v => weekday ? WD[v] : method ? METHODS[v] : (v===0 ? "0" : "+"+v);
+    const ok = method ? (this.prob.accept||[this.prob.a]).includes(value)
+             : this.cur.mod ? (value % this.cur.mod === this.prob.a)
+             : (value===this.prob.a);
     if(ok){ this.correct++; this.streak++; this.best=Math.max(this.best,this.streak);
-      fb.textContent = pad ? "✓ "+padLabel(this.prob.a) : "✓ correct"; fb.className="fb ok"; }
+      fb.textContent = pad ? "✓ "+padLabel(value) : "✓ correct"; fb.className="fb ok"; }
     else { this.streak=0;
-      const want = pad ? padLabel(this.prob.a)
+      const want = method ? (this.prob.accept||[this.prob.a]).map(i=>METHODS[i]).join(" / ")
+                 : pad ? padLabel(this.prob.a)
                  : qr ? (this.prob.a.slice(0,-1)+" R "+this.prob.a.slice(-1))
                  : at==="decimal" ? this.prob.a
                  : commas(this.prob.a);
-      fb.textContent = "✗ it's "+want+(pad ? " — you tapped "+padLabel(value) : "");
+      fb.textContent = "✗ "+(method?"try ":"it's ")+want+(pad ? " — you tapped "+padLabel(value) : "");
       fb.className="fb bad"; }
     if(pad){ const keys=$("keypad").querySelectorAll(".day");
       if(keys[this.prob.a]) keys[this.prob.a].classList.add("right");
@@ -674,11 +737,11 @@ const app = {
   },
   renderPad(){
     const pad=$("keypad"); pad.innerHTML=""; this.chkKey=null;
-    const at = this.cur && this.cur.answerType, isPad = at==="weekday"||at==="mod7";
+    const at = this.cur && this.cur.answerType, isPad = at==="weekday"||at==="mod7"||at==="method";
     $("ans").style.display = isPad ? "none" : "";
     if(isPad){
-      const labels = at==="weekday" ? WD : MOD7;
-      const grid=document.createElement("div"); grid.className="daypad";
+      const labels = at==="weekday" ? WD : at==="method" ? METHODS : MOD7;
+      const grid=document.createElement("div"); grid.className = at==="method" ? "daypad methods" : "daypad";
       labels.forEach((lbl,i)=>{ const k=document.createElement("div"); k.className="key day"; k.textContent=lbl; k.onclick=()=>this.submitWeekday(i); grid.appendChild(k); });
       pad.appendChild(grid);
     } else {
@@ -703,8 +766,9 @@ app.init();
 // physical keyboard support (desktop)
 document.addEventListener("keydown", e=>{
   if($("practice").classList.contains("hidden")) return;
-  if(app.cur && (app.cur.answerType==="weekday"||app.cur.answerType==="mod7")){
-    if(!app.answered && e.key>="0" && e.key<="6") app.submitWeekday(Number(e.key));
+  if(app.cur && (app.cur.answerType==="weekday"||app.cur.answerType==="mod7"||app.cur.answerType==="method")){
+    const max = app.cur.answerType==="method" ? "5" : "6";
+    if(!app.answered && e.key>="0" && e.key<=max) app.submitWeekday(Number(e.key));
     else if(e.key==="Enter" && app.answered) app.next();
     return;
   }
