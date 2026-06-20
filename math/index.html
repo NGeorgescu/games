@@ -567,7 +567,7 @@ const app = {
   total:0, correct:0, streak:0, best:0,
 
   init(){
-    const list=$("trickList"); let lastCat="";
+    const list=$("trickList"); let lastCat="", idx=0;
     const catOrder=["Cube roots","Fifth roots","Division","Calendar","2-digit multiplication"];
     const CAT_DESC={
       "Cube roots":"e.g.  ∛ 250,047  =  63",
@@ -581,10 +581,12 @@ const app = {
       if(t.cat!==lastCat){
         const h=document.createElement("div"); h.className="cat"; h.textContent=t.cat; list.appendChild(h);
         if(CAT_DESC[t.cat]){ const p=document.createElement("p"); p.className="catdesc"; p.textContent=CAT_DESC[t.cat]; list.appendChild(p); }
-        lastCat=t.cat;
+        lastCat=t.cat; idx=0;
       }
+      idx++;
+      const num = t.cat==="2-digit multiplication" ? "" : `${idx}. `;   // number every section except the multiplication toolbox
       const b=document.createElement("button"); b.className="tile";
-      b.innerHTML=`<b>${t.name}</b><span>${t.tag}</span>`;
+      b.innerHTML=`<b>${num}${t.name}</b><span>${t.tag}</span>`;
       b.onclick=()=>this.lesson(t.id);
       list.appendChild(b);
     });
