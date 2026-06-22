@@ -300,13 +300,12 @@ function render(){
       const M=state.mull;
       html+=`<button class="btn ghost" style="width:100%;margin-top:4px" onclick="toggleMull()">${M.open?'▾':'▸'} Advanced: mana-base keep-rate calculator</button>`;
       if(M.open){
-        const letters=[...new Set((M.combos||'').toUpperCase().replace(/[^A-Z]/g,'').split(''))];
-        const LEG={L:'Land (Command Tower etc.)',R:'Rock (incl. Simian Spirit Guide)',D:'Depletion land (Sandstone/Ruins/Bog/Ebon)',I:'Investment ramp (Sol Ring, Mana Vault, Ragavan, tutors)',C:'Colored ritual (Dark Ritual, Rite)'};
+        const f=mullFieldsHTML();
         html+=`<div class="mullbox">
           <label class="note" style="display:block;margin:0 0 3px">Keepable opening-hand combos — space-separated; each letter = one card of that type (e.g. <code>LLR</code> = 2 lands + a rock):</label>
           <input type="text" value="${(M.combos||'').replace(/"/g,'&quot;')}" oninput="onMull('combos',this.value)" style="width:100%;font-family:ui-monospace,monospace;background:#171a21;border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:9px;font-size:14px">
-          <p class="note" style="margin:10px 0 4px">How many of each type are in your deck?${letters.length?letters.map(k=>` <b>${k}</b> = ${LEG[k]||'?'}`).join(' ·'):' — type some combos above first.'}</p>
-          <div class="mullgrid" style="grid-template-columns:repeat(${letters.length||1},1fr)">${letters.map(k=>`<label>${k}<input type="number" min="0" value="${M[k]||0}" oninput="onMull('${k}',this.value)"></label>`).join('')}</div>
+          <p class="note" id="mulllegend" style="margin:10px 0 4px">${f.legend}</p>
+          <div class="mullgrid" id="mullgrid" style="grid-template-columns:repeat(${f.cols},1fr)">${f.grid}</div>
           <div class="mullgrid2"><label>deck size<input type="number" min="1" value="${M.N}" oninput="onMull('N',this.value)"></label><label>hand size<input type="number" min="1" value="${M.h}" oninput="onMull('h',this.value)"></label></div>
           <div id="mullresult" class="mullresult"></div>
           <p class="note">Approximate: a hand is keepable if its mana-card counts contain any listed combo. Doesn't model specific anti-synergies (e.g. Sandstone + Simian Spirit Guide). “Ever-keep” = chance you find a keeper across London mulligans down to ~2.</p>
@@ -438,6 +437,19 @@ function acceptRate(counts, combos, N, h){
   const denom=comb(N,h); return denom>0 ? total/denom : 0;
 }
 function syncMullN(){ const want=state.cmd2?98:99; if(state.mull.N===98||state.mull.N===99) state.mull.N=want; }
+const MULL_LEG={L:'Land (Command Tower etc.)',R:'Rock (incl. Simian Spirit Guide)',D:'Depletion land (Sandstone/Ruins/Bog/Ebon)',I:'Investment ramp (Sol Ring, Mana Vault, Ragavan, tutors)',C:'Colored ritual (Dark Ritual, Rite)'};
+function mullLetters(){ return [...new Set((state.mull.combos||'').toUpperCase().replace(/[^A-Z]/g,'').split(''))]; }
+function mullFieldsHTML(){
+  const M=state.mull, letters=mullLetters();
+  const legend = 'How many of each type are in your deck?'+(letters.length?letters.map(k=>` <b>${k}</b> = ${MULL_LEG[k]||'?'}`).join(' ·'):' — type some combos above first.');
+  const grid = letters.map(k=>`<label>${k}<input type="number" min="0" value="${M[k]||0}" oninput="onMull('${k}',this.value)"></label>`).join('');
+  return {legend, grid, cols: letters.length||1};
+}
+function updateMullFields(){
+  const f=mullFieldsHTML();
+  const leg=$('#mulllegend'); if(leg) leg.innerHTML=f.legend;
+  const grid=$('#mullgrid'); if(grid){ grid.style.gridTemplateColumns='repeat('+f.cols+',1fr)'; grid.innerHTML=f.grid; }
+}
 function computeMull(){
   const el=$('#mullresult'); if(!el) return;
   const M=state.mull, combos=(M.combos||'').trim().split(/\s+/).filter(Boolean);
@@ -455,7 +467,7 @@ function computeMull(){
   if(marg.length) html+=`<div class="margrow">adding one more: `+marg.map(x=>`${NAMES[x.k]||x.k} <b>+${x.d.toFixed(1)}%</b>`).join('<span class="margsep">·</span>')+`</div>`;
   el.innerHTML=html;
 }
-function onMull(k,v){ state.mull[k]=v; save(); computeMull(); }
+function onMull(k,v){ state.mull[k]=v; save(); if(k==='combos') updateMullFields(); computeMull(); }
 function toggleMull(){ state.mull.open=!state.mull.open; save(); render(); }
 
 function resetAll(){
