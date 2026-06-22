@@ -79,6 +79,12 @@
     border-radius:9px;padding:8px;font-size:13px;font-weight:700;cursor:pointer}
   .staptoggle button.on{background:#16213a;border-color:#2c3e63;color:var(--accent)}
   .btn.ghost{background:#1c222c;color:var(--accent);border:1px solid #2c3543}
+  .hgbox{margin-top:8px;border:1px solid var(--line);border-radius:10px;padding:11px;background:#0e1117}
+  .hgline{font-size:13.5px;color:#cfd6e2;line-height:2}
+  .hgnum{width:46px;background:#171a21;border:1px solid var(--line);border-radius:7px;color:var(--ink);
+    font-size:15px;padding:4px 2px;text-align:center}
+  .hgresult{margin-top:9px;font-size:14px;text-align:center;background:#16213a;border:1px solid #2c3e63;border-radius:9px;padding:9px;color:#cfd6e2}
+  .hgresult b{font-size:21px;color:#7cc6ff}
   .mullbox{margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:11px;background:#0e1117}
   .mullgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}
   .mullgrid label,.mullgrid2 label{font-size:13px;color:var(--muted);text-align:center;font-weight:800;display:block}
@@ -152,10 +158,9 @@
 "use strict";
 const $ = s => document.querySelector(s);
 const WUBRG = ['w','u','b','r','g'];
-const GUILD = {wu:'azorius',wb:'orzhov',wr:'boros',wg:'selesnya',ub:'dimir',ur:'izzet',ug:'simic',br:'rakdos',bg:'golgari',rg:'gruul'};
 
 function defaultMull(){ return {L:17,R:4,I:4,N:99,h:7,combos:'LLL LLR LRI',open:false}; }
-let state = { cmd:'', cmd2:'', ci1:[], ci2:[], bg2:false, slot2q:null, colors:new Set(), done:{}, notes:'', deck:'', staplesMode:'commander', mull:defaultMull() };
+let state = { cmd:'', cmd2:'', ci1:[], ci2:[], bg2:false, slot2q:null, colors:new Set(), done:{}, notes:'', deck:'', staplesMode:'commander', hg:{k:2,copies:10}, mull:defaultMull() };
 let oneAwayHTML = '', staplesHTML = '';
 let deckCache = {key:null, names:null};
 function deckBoxHTML(){
@@ -187,10 +192,12 @@ function ddg(q){ return 'https://duckduckgo.com/?q='+enc(q); }
 function scry(q){ return 'https://scryfall.com/search?q='+enc(q+' f:c game:paper')+'&order=edhrec'; }
 // stax oracle fragments (researched + verified vs Scryfall API): high-precision tax / lock / denial pieces
 const STAX_TERMS = `(o:"cost {1} more to cast" or o:"cost {2} more to cast" or o:"can't cast more than one" or o:"can't untap" or o:"skip their untap" or (o:"activated abilities of" o:"can't be activated") or o:"would search a library" or o:"can't search" or (o:"spells with mana value" o:"can't be cast") or o:"searching their library" or o:"can't cast spells from anywhere")`;
+// good (untapped / conditionally-untapped) lands — same filter on Moxfield or Scryfall
+const UNTAPPED_LANDS = `t:land (-fo:"enters tapped" or fo:"if you don't, " or is:mdfc or fo:untap or fo:"tapped unless")`;
 function landsLink(){
-  const c = WUBRG.filter(x=>state.colors.has(x)).join('');
-  if(c.length===2 && GUILD[c]) return 'https://managathering.com/lands/duallands/'+GUILD[c]+'/';
-  return 'https://managathering.com/';
+  const mox=(state.deck||'').match(/moxfield\.com\/decks\/([A-Za-z0-9_-]+)/i);
+  if(mox) return 'https://moxfield.com/decks/'+mox[1]+'/search?q='+enc(UNTAPPED_LANDS+' order:edhrec direction:ascending');
+  return scry('id<='+ci()+' '+UNTAPPED_LANDS);   // scry adds f:c game:paper + order=edhrec
 }
 const MOX_STAPLES = 'https://moxfield.com/decks/0DDiZV77lkSqfVAm8eCllg';
 const FIND_MY_COMBOS = 'https://commanderspellbook.com/find-my-combos/';
@@ -257,7 +264,7 @@ function steps(){ return [
       abusable, repeatable version on Scryfall. Then fix the mana base with good untapped lands.</p>`,
     links:[['Scryfall · tutors in your colors', ()=>scry('id<='+ci()+' o:"search your library" -t:land')],
            ['Scryfall · mana rocks & dorks', ()=>scry('id<='+ci()+' (t:artifact or t:creature) o:" add " mv<=3')],
-           ['managathering · untapped duals', landsLink]] },
+           ['Good untapped lands '+(/moxfield\.com\/decks\//i.test(state.deck||'')?'(in your deck)':'(in your colors)'), landsLink]] },
 
   { t:"Check your mulligans",
     body:`<p>Tune toward a ~2-in-3 keepable-hand rate (looser or tighter depending how mull-sensitive the deck is).
@@ -275,12 +282,12 @@ function steps(){ return [
 
 /* ---------- render ---------- */
 function key(){ return 'bs:'+slug(state.cmd||'_'); }
-function save(){ localStorage.setItem(key(), JSON.stringify({done:state.done,notes:state.notes,deck:state.deck,colors:[...state.colors],cmd2:state.cmd2,ci1:state.ci1,ci2:state.ci2,bg2:state.bg2,staplesMode:state.staplesMode,mull:state.mull})); }
+function save(){ localStorage.setItem(key(), JSON.stringify({done:state.done,notes:state.notes,deck:state.deck,colors:[...state.colors],cmd2:state.cmd2,ci1:state.ci1,ci2:state.ci2,bg2:state.bg2,staplesMode:state.staplesMode,hg:state.hg,mull:state.mull})); }
 function load(){
-  state.done={}; state.notes=''; state.deck=''; state.cmd2=''; state.ci2=[]; state.bg2=false; state.staplesMode='commander'; state.mull=defaultMull(); oneAwayHTML=''; staplesHTML=''; deckCache={key:null,names:null};
+  state.done={}; state.notes=''; state.deck=''; state.cmd2=''; state.ci2=[]; state.bg2=false; state.staplesMode='commander'; state.hg={k:2,copies:10}; state.mull=defaultMull(); oneAwayHTML=''; staplesHTML=''; deckCache={key:null,names:null};
   try{ const o=JSON.parse(localStorage.getItem(key())||'{}');
     state.done=o.done||{}; state.notes=o.notes||''; state.deck=o.deck||'';
-    state.cmd2=o.cmd2||''; state.bg2=!!o.bg2; state.staplesMode=o.staplesMode||'commander'; if(o.ci2) state.ci2=o.ci2; if(o.ci1 && !(state.ci1||[]).length) state.ci1=o.ci1;
+    state.cmd2=o.cmd2||''; state.bg2=!!o.bg2; state.staplesMode=o.staplesMode||'commander'; if(o.hg) state.hg=o.hg; if(o.ci2) state.ci2=o.ci2; if(o.ci1 && !(state.ci1||[]).length) state.ci1=o.ci1;
     if(o.mull) state.mull=Object.assign(defaultMull(), o.mull);
     if(o.colors && state.colors.size===0){ state.colors=new Set(o.colors); paintPips(); }
   }catch(e){}
@@ -319,7 +326,14 @@ function render(){
         <div id="oneaway">${oneAwayHTML||''}</div>`;
     }
     if(s.auto==='mull'){
-      const M=state.mull;
+      const M=state.mull, H=state.hg, N=state.cmd2?98:99;
+      html+=`<div class="hgbox">
+        <div class="hgline">Chance to draw at least
+          <input type="number" min="1" class="hgnum" value="${H.k}" oninput="onHG('k',this.value)"> of
+          <input type="number" min="1" class="hgnum" value="${H.copies}" oninput="onHG('copies',this.value)">
+          copies in your opening 7 (from ${N}):</div>
+        <div id="hgresult" class="hgresult"></div>
+      </div>`;
       html+=`<button class="btn ghost" style="width:100%;margin-top:4px" onclick="toggleMull()">${M.open?'▾':'▸'} Advanced: mana-base keep-rate calculator</button>`;
       if(M.open){
         const f=mullFieldsHTML();
@@ -348,7 +362,7 @@ function render(){
   const total=S.length, n=Object.values(state.done).filter(Boolean).length;
   $('#bar').style.width=(100*n/total)+'%';
   $('#progtxt').textContent=n+' / '+total+' steps done';
-  computeMull();
+  computeHG(); computeMull();
 }
 function toggle(n){ state.done[n]=!state.done[n]; save(); render(); }
 function cardSearch(n){
@@ -467,8 +481,20 @@ async function findStaplesColors(box){
   staplesHTML=h; box.innerHTML=h;
 }
 
-/* ---------- step 9: mana-base keep-rate (multivariate hypergeometric) ---------- */
+/* ---------- step 9 ---------- */
 function comb(n,k){ if(k<0||k>n||n<0) return 0; k=Math.min(k,n-k); let r=1; for(let i=0;i<k;i++) r=r*(n-i)/(i+1); return r; }
+// basic hypergeometric: P(draw at least k of K copies) in n cards from a deck of N
+function hgAtLeast(N,K,n,k){ let p=0; for(let i=Math.max(k,0); i<=Math.min(K,n); i++) p+=comb(K,i)*comb(N-K,n-i); return comb(N,n)>0 ? p/comb(N,n) : 0; }
+function computeHG(){
+  const el=$('#hgresult'); if(!el) return;
+  const N=state.cmd2?98:99, n=7;
+  const K=Math.max(0,Math.min(N,+state.hg.copies||0)), k=Math.max(1,+state.hg.k||1);
+  if(K<1){ el.innerHTML='<b>—</b> enter how many copies are in your deck'; return; }
+  if(k>K){ el.innerHTML='<b>0.0%</b> you only run '+K+' cop'+(K===1?'y':'ies'); return; }
+  const p=hgAtLeast(N,K,n,k);
+  el.innerHTML=`<b>${(100*p).toFixed(1)}%</b> of opening 7s have ${k} or more of your ${K}`;
+}
+function onHG(f,v){ state.hg[f]=v; save(); computeHG(); }
 function acceptRate(counts, combos, N, h){
   const letters=[...new Set([].concat(Object.keys(counts), combos.join('').split('')))].filter(x=>/\S/.test(x)).sort();
   const idx={}; letters.forEach((ch,i)=>idx[ch]=i);
