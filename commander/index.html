@@ -198,6 +198,12 @@ function steps(){ return [
     links:[['Spellbook · '+(state.cmd2?(state.cmd||'cmdr 1'):'this commander'), csbCommander]]
       .concat(state.cmd2 ? [['Spellbook · '+state.cmd2, csbCommander2]] : []) },
 
+  { t:"Web-hunt for real decklists + primers",
+    body:`<p>Search the open web for high-power lists and primers. Moxfield search is good for finding decks with
+      write-ups.</p>`,
+    links:[['DuckDuckGo · "{cmd} cedh"', ()=>ddg(deckNames()+' cedh')],
+           ['Moxfield primers', ()=>ddg(deckNames()+' cedh primer site:moxfield.com')]] },
+
   { t:"Compare to what people actually run",
     body:`<p>See the combos the general population is putting in this deck.</p>`,
     links:[['EDHREC · combos for this deck', edhrecCombos]] },
@@ -213,12 +219,6 @@ function steps(){ return [
       straight to the <b>high-synergy cards</b> — the spicy, build-defining includes, not the generic staples.</p>`,
     links:[['EDHREC · optimized (b4)', ()=>edhrecBracket('optimized')],
            ['EDHREC · cEDH (b5)', ()=>edhrecBracket('cedh')]] },
-
-  { t:"Web-hunt for real decklists + primers",
-    body:`<p>Search the open web for high-power lists and primers. Moxfield search is good for finding decks with
-      write-ups.</p>`,
-    links:[['DuckDuckGo · "{cmd} cedh"', ()=>ddg(deckNames()+' cedh')],
-           ['Moxfield primers', ()=>ddg(deckNames()+' cedh primer site:moxfield.com')]] },
 
   { t:"Add the competitive staples you're missing",
     body:`<p>Paste your decklist or a Moxfield link below — it's <b>shared with step 7</b>, so you only paste once.
