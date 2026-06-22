@@ -230,7 +230,9 @@ function steps(){ return [
 
   { t:"Web-hunt for real decklists + primers",
     body:`<p>Search the open web for high-power lists and primers. Moxfield search is good for finding decks with
-      write-ups.</p>`,
+      write-ups.</p>
+      <p class="note">Don't worry if your deck isn't true cEDH — search "cedh" anyway. Plenty of people label
+      and write up bracket-4 decks as "cedh," so it's the best keyword for finding optimized lists either way.</p>`,
     links:[['DuckDuckGo · "{cmd} cedh"', ()=>ddg(deckNames()+' cedh')],
            ['Moxfield primers', ()=>ddg(deckNames()+' cedh primer site:moxfield.com')]] },
 
