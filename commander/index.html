@@ -114,7 +114,7 @@
   <div class="card">
     <label class="fld" for="cmd">Commander</label>
     <div class="acwrap">
-      <input type="text" id="cmd" placeholder="Start typing… e.g. Brimaz" autocapitalize="words" autocomplete="off">
+      <input type="text" id="cmd" placeholder="Start typing… e.g. Anje Falkenrath" autocapitalize="words" autocomplete="off">
       <div class="aclist" id="aclist"></div>
     </div>
     <div class="acwrap" style="margin-top:8px">
@@ -212,8 +212,10 @@ function steps(){ return [
            ['Moxfield primers', ()=>ddg(deckNames()+' cedh primer site:moxfield.com')]] },
 
   { t:"Compare to what people actually run",
-    body:`<p>See the combos the general population is putting in this deck.</p>`,
-    links:[['EDHREC · combos for this deck', edhrecCombos]] },
+    body:`<p>See the combos the general population is putting in this deck, plus the popular combos across your
+      colors generally.</p>`,
+    links:[['EDHREC · combos for this deck', edhrecCombos],
+           ['Spellbook · combos in these colors', csbColorCombos]] },
 
   { t:"Find the cards those combos lean on",
     body:`<p>Click around and spot the glue pieces — e.g. if a card shows up in every combo, search for
@@ -221,11 +223,15 @@ function steps(){ return [
     cardbox:true,
     links:[['Spellbook · combos in your colors', csbColorCombos]] },
 
-  { t:"Raid the bracket 4 / 5 lists",
-    body:`<p>What are people putting in their optimized (bracket 4) and cEDH (bracket 5) builds? These jump
-      straight to the <b>high-synergy cards</b> — the spicy, build-defining includes, not the generic staples.</p>`,
-    links:[['EDHREC · optimized (b4)', ()=>edhrecBracket('optimized')],
-           ['EDHREC · cEDH (b5)', ()=>edhrecBracket('cedh')]] },
+  { t:"Raid the bracket 4 (optimized) list",
+    body:`<p>What are people putting in optimized (bracket 4) builds? Jumps straight to the <b>high-synergy
+      cards</b> — the spicy, build-defining includes, not the generic staples.</p>`,
+    links:[['EDHREC · optimized (b4)', ()=>edhrecBracket('optimized')]] },
+
+  { t:"Raid the bracket 5 (cEDH) list",
+    body:`<p>And the cEDH (bracket 5) builds — the most competitive shells. Again straight to the high-synergy
+      cards that define those lists.</p>`,
+    links:[['EDHREC · cEDH (b5)', ()=>edhrecBracket('cedh')]] },
 
   { t:"Add the competitive staples you're missing",
     body:`<p>Paste your decklist or a Moxfield link below — it's <b>shared with step 7</b>, so you only paste once.
