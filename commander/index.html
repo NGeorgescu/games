@@ -74,6 +74,7 @@
     font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center}
   .oaname{flex:1;color:var(--accent);text-decoration:none;font-size:14px}
   .oahead{font-size:12px;color:var(--muted);margin-top:9px;line-height:1.5}
+  .deckwarn{margin-top:6px;color:#ff5252;font-weight:800;font-size:16px;line-height:1.4}
   .staptoggle{display:flex;gap:6px;margin-top:8px}
   .staptoggle button{flex:1;appearance:none;border:1px solid var(--line);background:#1c222c;color:var(--muted);
     border-radius:9px;padding:8px;font-size:13px;font-weight:700;cursor:pointer}
@@ -161,12 +162,23 @@ const WUBRG = ['w','u','b','r','g'];
 
 function defaultMull(){ return {L:17,R:4,I:4,N:99,h:7,combos:'LLL LLR LRI',open:false}; }
 let state = { cmd:'', cmd2:'', ci1:[], ci2:[], bg2:false, slot2q:null, colors:new Set(), done:{}, notes:'', deck:'', staplesMode:'commander', hg:{k:2,copies:10}, mull:defaultMull() };
-let oneAwayHTML = '', staplesHTML = '';
-let deckCache = {key:null, names:null};
+let oneAwayHTML = '', staplesHTML = '', deckWarning = '';
+let deckCache = {key:null, names:null, commanders:null};
 function deckBoxHTML(){
   return `<textarea class="deckbox" oninput="onDeck(this.value)" placeholder="Paste a Moxfield deck link, or your decklist (one card per line)…">${(state.deck||'').replace(/</g,'&lt;')}</textarea>
-    <div class="note" style="margin-top:4px">Shared between steps 6 &amp; 7 — paste once, both use it.</div>`;
+    <div class="deckwarn" style="display:${deckWarning?'block':'none'}">${deckWarning}</div>
+    <div class="note" style="margin-top:4px">Shared between the one-away &amp; staples steps — paste once, both use it.</div>`;
 }
+function computeDeckWarning(){
+  const dc=deckCache.commanders;
+  if(!dc || !dc.length){ deckWarning=''; return; }
+  const sel=[state.cmd,state.cmd2].filter(Boolean);
+  if(!sel.length){ deckWarning=''; return; }
+  const a=dc.map(normName).sort(), b=sel.map(normName).sort();
+  const match = a.length===b.length && a.every((x,i)=>x===b[i]);
+  deckWarning = match ? '' : `⚠ This Moxfield deck's commander${dc.length>1?'s':''} — ${dc.join(' + ')} — ${dc.length>1?"don't":"doesn't"} match the commander selected above (${sel.join(' + ')}). The results below still use the commander up top.`;
+}
+function refreshDeckWarning(){ computeDeckWarning(); document.querySelectorAll('.deckwarn').forEach(el=>{ el.innerHTML=deckWarning; el.style.display=deckWarning?'block':'none'; }); }
 
 /* ---------- url helpers ---------- */
 function slug(name){
@@ -280,7 +292,7 @@ function steps(){ return [
 function key(){ return 'bs:'+slug(state.cmd||'_'); }
 function save(){ localStorage.setItem(key(), JSON.stringify({done:state.done,notes:state.notes,deck:state.deck,colors:[...state.colors],cmd2:state.cmd2,ci1:state.ci1,ci2:state.ci2,bg2:state.bg2,staplesMode:state.staplesMode,hg:state.hg,mull:state.mull})); }
 function load(){
-  state.done={}; state.notes=''; state.deck=''; state.cmd2=''; state.ci2=[]; state.bg2=false; state.staplesMode='commander'; state.hg={k:2,copies:10}; state.mull=defaultMull(); oneAwayHTML=''; staplesHTML=''; deckCache={key:null,names:null};
+  state.done={}; state.notes=''; state.deck=''; state.cmd2=''; state.ci2=[]; state.bg2=false; state.staplesMode='commander'; state.hg={k:2,copies:10}; state.mull=defaultMull(); oneAwayHTML=''; staplesHTML=''; deckWarning=''; deckCache={key:null,names:null,commanders:null};
   try{ const o=JSON.parse(localStorage.getItem(key())||'{}');
     state.done=o.done||{}; state.notes=o.notes||''; state.deck=o.deck||'';
     state.cmd2=o.cmd2||''; state.bg2=!!o.bg2; state.staplesMode=o.staplesMode||'commander'; if(o.hg) state.hg=o.hg; if(o.ci2) state.ci2=o.ci2; if(o.ci1 && !(state.ci1||[]).length) state.ci1=o.ci1;
@@ -294,6 +306,7 @@ function onDeck(v){ state.deck=v; save(); document.querySelectorAll('.deckbox').
 function paintPips(){ document.querySelectorAll('.pip').forEach(p=>p.classList.toggle('on',state.colors.has(p.dataset.c))); }
 
 function render(){
+  computeDeckWarning();
   const S=steps(), box=$('#steps'); box.innerHTML='';
   S.forEach((s,i)=>{
     const n=i+1, done=!!state.done[n];
@@ -370,21 +383,22 @@ function cardSearch(n){
 function normName(s){ return s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,''); }
 function cleanCardLine(line){ return String(line).replace(/^\s*\d+\s*x?\s+/i,'').replace(/\s*\([^)]*\).*$/,'').split('//')[0].trim(); }
 async function resolveDeckNames(){
-  const raw=(state.deck||'').trim(); if(!raw) return [];
+  const raw=(state.deck||'').trim(); if(!raw){ deckCache={key:null,names:null,commanders:null}; return []; }
   const mox=raw.match(/moxfield\.com\/decks\/([A-Za-z0-9_-]+)/i);
   const cacheKey = mox ? 'mox:'+mox[1] : 'txt:'+raw;
   if(deckCache.key===cacheKey) return deckCache.names;
-  let names;
+  let names, commanders=null;
   if(mox){
     const r=await fetch('https://r.jina.ai/https://api.moxfield.com/v2/decks/all/'+mox[1]);
     if(!r.ok) throw new Error('moxfetch');
     const t=await r.text();
     const js=JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}')+1));
+    commanders=Object.keys(js.commanders||{});
     names=[].concat(...['commanders','mainboard','companions','signatureSpells'].map(k=>Object.keys(js[k]||{})));
     if(!names.length) throw new Error('empty');
   } else { names=raw.split('\n'); }
   names=names.map(cleanCardLine).filter(Boolean);
-  deckCache={key:cacheKey, names};
+  deckCache={key:cacheKey, names, commanders};
   return names;
 }
 
@@ -399,6 +413,7 @@ async function findOneAway(){
   catch(e){ oneAwayHTML='<div class="oahead">Couldn\'t load combo data for '+code+'. (Works on the live site; opening the file locally blocks the fetch.)</div>'; box.innerHTML=oneAwayHTML; return; }
   try{ names=await resolveDeckNames(); }
   catch(e){ oneAwayHTML='<div class="oahead">Couldn’t fetch that Moxfield deck — make sure it’s public, or paste the decklist text instead (Moxfield: ⋯ → Export).</div>'; box.innerHTML=oneAwayHTML; return; }
+  refreshDeckWarning();
   const idxByName=new Map(); bundle.cards.forEach((nm,i)=>idxByName.set(normName(nm),i));
   const deck=new Set();
   for(let nm of names){ const k=normName(nm); if(idxByName.has(k)) deck.add(idxByName.get(k)); }
@@ -444,6 +459,7 @@ async function findStaples(){
     try{ (await resolveDeckNames()).forEach(nm=>deckSet.add(normName(nm))); }
     catch(e){ deckNote=' (couldn’t read your deck — showing all top staples)'; }
   } else { deckNote=' (no deck pasted — showing all top staples)'; }
+  refreshDeckWarning();
   for(const cn of [state.cmd,state.cmd2]) if(cn) deckSet.add(normName(cn));
   const missing=[...map.values()].filter(v=>!deckSet.has(normName(v.name))).sort((a,b)=>b.pct-a.pct).slice(0,40);
   const where = used==='cedh'?'cEDH':used==='optimized'?'bracket-4':'all';
@@ -466,6 +482,7 @@ async function findStaplesColors(box){
   const mb=js.mainboard||{}, inCI=ci=>(ci||[]).every(c=>target.includes(c));
   let deckSet=new Set();
   if(state.deck.trim()){ try{(await resolveDeckNames()).forEach(n=>deckSet.add(normName(n)));}catch(e){} }
+  refreshDeckWarning();
   for(const cn of [state.cmd,state.cmd2]) if(cn) deckSet.add(normName(cn));
   const cards=[];
   for(const name in mb){ const c=mb[name].card||{}; if(!inCI(c.color_identity||[])) continue; if(deckSet.has(normName(name))) continue; cards.push({name, cmc:c.cmc||0}); }
