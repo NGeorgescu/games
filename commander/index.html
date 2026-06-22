@@ -93,7 +93,11 @@
       <input type="text" id="cmd" placeholder="Start typing… e.g. Brimaz" autocapitalize="words" autocomplete="off">
       <div class="aclist" id="aclist"></div>
     </div>
-    <label class="fld" style="margin-top:12px">Color identity <span style="text-transform:none;letter-spacing:0">(auto-filled — tap to override)</span></label>
+    <div class="acwrap" style="margin-top:8px">
+      <input type="text" id="cmd2" placeholder="+ Partner / Background (optional)" autocapitalize="words" autocomplete="off">
+      <div class="aclist" id="aclist2"></div>
+    </div>
+    <label class="fld" style="margin-top:12px">Color identity <span style="text-transform:none;letter-spacing:0">(union of your commanders — tap to override)</span></label>
     <div class="pips" id="pips">
       <div class="pip" data-c="w">W</div><div class="pip" data-c="u">U</div><div class="pip" data-c="b">B</div>
       <div class="pip" data-c="r">R</div><div class="pip" data-c="g">G</div>
@@ -127,7 +131,7 @@ const $ = s => document.querySelector(s);
 const WUBRG = ['w','u','b','r','g'];
 const GUILD = {wu:'azorius',wb:'orzhov',wr:'boros',wg:'selesnya',ub:'dimir',ur:'izzet',ug:'simic',br:'rakdos',bg:'golgari',rg:'gruul'};
 
-let state = { cmd:'', colors:new Set(), done:{}, notes:'', deck:'' };
+let state = { cmd:'', cmd2:'', ci1:[], ci2:[], colors:new Set(), done:{}, notes:'', deck:'' };
 let oneAwayHTML = '';
 
 /* ---------- url helpers ---------- */
@@ -138,11 +142,14 @@ function slug(name){
 function ci(){ const c = WUBRG.filter(x=>state.colors.has(x)).join(''); return c || 'c'; }
 function enc(s){ return encodeURIComponent(s); }
 const CSB = 'https://commanderspellbook.com/search/?q=';
+function deckSlug(){ const s=[slug(state.cmd)]; if(state.cmd2) s.push(slug(state.cmd2)); return s.filter(Boolean).sort().join('-'); }
+function deckNames(){ return state.cmd2 ? state.cmd+' '+state.cmd2 : state.cmd; }
 function csbCommander(){ return CSB + enc(state.cmd); }
+function csbCommander2(){ return CSB + enc(state.cmd2); }
 function csbCardInColors(card){ return CSB + enc('"'+card+'" ci:'+ci()); }
 function csbColorCombos(){ return CSB + enc('ci:'+ci()); }
-function edhrecCombos(){ return 'https://edhrec.com/combos/'+slug(state.cmd); }
-function edhrecBracket(kind){ return 'https://edhrec.com/commanders/'+slug(state.cmd)+'/'+kind+'#highsynergycards'; }
+function edhrecCombos(){ return 'https://edhrec.com/combos/'+deckSlug(); }
+function edhrecBracket(kind){ return 'https://edhrec.com/commanders/'+deckSlug()+'/'+kind+'#highsynergycards'; }
 function ddg(q){ return 'https://duckduckgo.com/?q='+enc(q); }
 function scry(q){ return 'https://scryfall.com/search?q='+enc(q); }
 function landsLink(){
@@ -159,7 +166,8 @@ function steps(){ return [
   { t:"Combos with your commander",
     body:`<p>Check Commander Spellbook for combos your commander is in or enables. Note the cards and add them to
       your list.</p>`,
-    links:[['Spellbook · this commander', csbCommander]] },
+    links:[['Spellbook · '+(state.cmd2?(state.cmd||'cmdr 1'):'this commander'), csbCommander]]
+      .concat(state.cmd2 ? [['Spellbook · '+state.cmd2, csbCommander2]] : []) },
 
   { t:"Find the cards those combos lean on",
     body:`<p>Click around and spot the glue pieces — e.g. if a card shows up in every combo, search for
@@ -180,8 +188,8 @@ function steps(){ return [
   { t:"Web-hunt for real decklists + primers",
     body:`<p>Search the open web for high-power lists and primers. Moxfield search is good for finding decks with
       write-ups.</p>`,
-    links:[['DuckDuckGo · "{cmd} cedh"', ()=>ddg(state.cmd+' cedh')],
-           ['Moxfield primers', ()=>ddg(state.cmd+' cedh primer site:moxfield.com')]] },
+    links:[['DuckDuckGo · "{cmd} cedh"', ()=>ddg(deckNames()+' cedh')],
+           ['Moxfield primers', ()=>ddg(deckNames()+' cedh primer site:moxfield.com')]] },
 
   { t:"Compare against cEDH staples",
     body:`<p>The weaker your commander, the more you lean on higher-cost, higher-value pieces so you don't get run
@@ -223,13 +231,15 @@ function steps(){ return [
 
 /* ---------- render ---------- */
 function key(){ return 'bs:'+slug(state.cmd||'_'); }
-function save(){ localStorage.setItem(key(), JSON.stringify({done:state.done,notes:state.notes,deck:state.deck,colors:[...state.colors]})); }
+function save(){ localStorage.setItem(key(), JSON.stringify({done:state.done,notes:state.notes,deck:state.deck,colors:[...state.colors],cmd2:state.cmd2,ci1:state.ci1,ci2:state.ci2})); }
 function load(){
-  state.done={}; state.notes=''; state.deck=''; oneAwayHTML='';
+  state.done={}; state.notes=''; state.deck=''; state.cmd2=''; state.ci2=[]; oneAwayHTML='';
   try{ const o=JSON.parse(localStorage.getItem(key())||'{}');
     state.done=o.done||{}; state.notes=o.notes||''; state.deck=o.deck||'';
+    state.cmd2=o.cmd2||''; if(o.ci2) state.ci2=o.ci2; if(o.ci1 && !(state.ci1||[]).length) state.ci1=o.ci1;
     if(o.colors && state.colors.size===0){ state.colors=new Set(o.colors); paintPips(); }
   }catch(e){}
+  const i2=$('#cmd2'); if(i2) i2.value=state.cmd2;
   $('#list').value=state.notes;
 }
 function onDeck(v){ state.deck=v; save(); }
@@ -256,7 +266,7 @@ function render(){
     if(s.links && s.links.length){
       html+='<div class="links">'+s.links.map((l,j)=>{
         const href=(typeof l[1]==='function')?l[1]():l[1];
-        const lbl=l[0].replace('{cmd}', state.cmd||'commander');
+        const lbl=l[0].replace('{cmd}', deckNames()||'commander');
         const w=l[0].toLowerCase().includes('staples')?'':'';
         return `<a class="lnk" id="lnk${n}_${j}" href="${href}" target="_blank" rel="noopener">${lbl}</a>`;
       }).join('')+'</div>';
@@ -280,7 +290,7 @@ function cardSearch(n){
 function normName(s){ return s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,''); }
 async function findOneAway(){
   const box=$('#oneaway');
-  const code = WUBRG.filter(x=>state.colors.has(x)).join('') || 'C';
+  const code = (WUBRG.filter(x=>state.colors.has(x)).join('') || 'c').toUpperCase();
   if(!state.deck.trim()){ oneAwayHTML='<div class="oahead">Paste a decklist above first.</div>'; box.innerHTML=oneAwayHTML; return; }
   oneAwayHTML='<div class="oahead">Loading combo data…</div>'; box.innerHTML=oneAwayHTML;
   let bundle;
@@ -293,7 +303,7 @@ async function findOneAway(){
     if(!line) continue;
     const k=normName(line); if(idxByName.has(k)) deck.add(idxByName.get(k));
   }
-  const ck=normName(state.cmd); if(idxByName.has(ck)) deck.add(idxByName.get(ck));
+  for(const cn of [state.cmd, state.cmd2]){ const ck=normName(cn||''); if(ck && idxByName.has(ck)) deck.add(idxByName.get(ck)); }
   const tally=new Map(); let already=0;
   for(const combo of bundle.combos){
     let miss=-1, n=0;
@@ -315,45 +325,50 @@ function resetAll(){
   state.done={}; state.notes=''; $('#list').value=''; save(); render();
 }
 
-/* ---------- commander autocomplete (Scryfall) ---------- */
+/* ---------- commander autocomplete (Scryfall), slot 1 = commander, slot 2 = partner/background ---------- */
 const PIPHEX={w:'#f7f3d6',u:'#9bd0ff',b:'#b9a7c9',r:'#ff9a86',g:'#9fe0a8'};
-let acTimer=null, acItems=[];
-function setCommander(name, colorIdentity){
-  state.cmd=name; $('#cmd').value=name;
-  state.colors=new Set((colorIdentity||[]).map(c=>c.toLowerCase()));
-  paintPips(); $('#aclist').innerHTML=''; acItems=[];
-  load(); render(); save();
+const AC={1:{el:'aclist',in:'cmd',q:'is:commander',timer:null,items:[]},
+          2:{el:'aclist2',in:'cmd2',q:'(is:commander or type:background)',timer:null,items:[]}};
+function recolor(){ state.colors=new Set([...(state.ci1||[]),...(state.ci2||[])].map(c=>c.toLowerCase())); paintPips(); }
+function setCommander(slot, name, ci){
+  if(slot===1){ state.cmd=name; $('#cmd').value=name; state.ci1=ci||[]; }
+  else { state.cmd2=name; $('#cmd2').value=name; state.ci2=ci||[]; }
+  $('#'+AC[slot].el).innerHTML=''; AC[slot].items=[];
+  if(slot===1) load();          // restore saved checklist/notes/partner for this commander
+  recolor(); render(); save();
 }
-async function lookup(q){
+async function lookup(slot,q){
   try{
-    const url='https://api.scryfall.com/cards/search?order=edhrec&unique=cards&q='+encodeURIComponent('is:commander '+q);
+    const url='https://api.scryfall.com/cards/search?order=edhrec&unique=cards&q='+encodeURIComponent(AC[slot].q+' '+q);
     const r=await fetch(url);
-    if(!r.ok){ $('#aclist').innerHTML=''; return; }
+    if(!r.ok){ $('#'+AC[slot].el).innerHTML=''; return; }
     const j=await r.json();
-    acItems=(j.data||[]).slice(0,12).map(c=>({name:c.name, ci:c.color_identity||[]}));
-    renderAC();
-  }catch(e){ $('#aclist').innerHTML=''; }
+    AC[slot].items=(j.data||[]).slice(0,12).map(c=>({name:c.name, ci:c.color_identity||[]}));
+    renderAC(slot);
+  }catch(e){ $('#'+AC[slot].el).innerHTML=''; }
 }
-function renderAC(){
-  $('#aclist').innerHTML=acItems.map((c,i)=>{
+function renderAC(slot){
+  $('#'+AC[slot].el).innerHTML=AC[slot].items.map((c,i)=>{
     const pips=c.ci.length
       ? c.ci.map(x=>`<span class="acpip" style="background:${PIPHEX[x.toLowerCase()]||'#555'}"></span>`).join('')
       : '<span class="acci">colorless</span>';
-    return `<div class="acitem" onclick="pick(${i})"><span class="acname">${c.name.replace(/</g,'&lt;')}</span>${pips}</div>`;
+    return `<div class="acitem" onclick="pick(${slot},${i})"><span class="acname">${c.name.replace(/</g,'&lt;')}</span>${pips}</div>`;
   }).join('');
 }
-function pick(i){ const c=acItems[i]; if(c) setCommander(c.name, c.ci); }
-
-/* ---------- wiring ---------- */
-$('#cmd').addEventListener('input', e=>{
-  state.cmd=e.target.value;
-  clearTimeout(acTimer);
-  const q=e.target.value.trim();
-  if(q.length<2){ $('#aclist').innerHTML=''; render(); return; }
-  acTimer=setTimeout(()=>lookup(q), 250);
-  render();
-});
-document.addEventListener('click', e=>{ if(!e.target.closest('.acwrap')) $('#aclist').innerHTML=''; });
+function pick(slot,i){ const c=AC[slot].items[i]; if(c) setCommander(slot, c.name, c.ci); }
+function wireSlot(slot){
+  $('#'+AC[slot].in).addEventListener('input', e=>{
+    const v=e.target.value;
+    if(slot===1) state.cmd=v; else { state.cmd2=v; if(!v.trim()){ state.ci2=[]; recolor(); } }
+    clearTimeout(AC[slot].timer);
+    const q=v.trim();
+    if(q.length<2){ $('#'+AC[slot].el).innerHTML=''; render(); return; }
+    AC[slot].timer=setTimeout(()=>lookup(slot,q), 250);
+    render();
+  });
+}
+wireSlot(1); wireSlot(2);
+document.addEventListener('click', e=>{ if(!e.target.closest('.acwrap')){ $('#aclist').innerHTML=''; $('#aclist2').innerHTML=''; } });
 $('#list').addEventListener('input', e=>{ state.notes=e.target.value; save(); });
 document.querySelectorAll('.pip').forEach(p=>p.addEventListener('click',()=>{
   const c=p.dataset.c; state.colors.has(c)?state.colors.delete(c):state.colors.add(c);
