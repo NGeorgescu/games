@@ -141,11 +141,10 @@
   <button class="btn reset" style="width:100%" onclick="resetAll()">Reset checklist &amp; notes for this commander</button>
 
   <div class="foot">
-    Links generated from the patterns in the guide. Verified live: EDHREC slug, managathering dual-lands path.
-    Commander Spellbook / EDHREC / DuckDuckGo / AetherHub / Moxfield-staples links use the example URLs you gave;
-    Scryfall queries are editable starting points — tweak the syntax to taste.
-    Step 7's one-away finder runs entirely in your browser on a snapshot of the Commander Spellbook combo
-    database (v5.4.10, 2026-06-22) — it fetches only the bundle for your commander's colors.
+    Every link is built from your commander and color identity. The bracket and staples views pull live EDHREC
+    data; the one-away finder runs entirely in your browser on a snapshot of the Commander Spellbook combo
+    database (v5.4.10, 2026-06-22), fetching only the bundle for your colors. Scryfall queries are editable
+    starting points — tweak the syntax to taste.
   </div>
 </div>
 
@@ -235,8 +234,8 @@ function steps(){ return [
 
   { t:"Find what you're one-away from",
     body:`<p>Paste a <b>Moxfield deck link</b> (it'll fetch the list for you) or your decklist text, one card per
-      line — <b>shared with step 7</b>. This computes which single cards would complete the most combos in your
-      colors — ranked. No copy-paste tallying, no upload.</p>
+      line — <b>shared with the staples step</b>. This computes which single cards would complete the most combos
+      in your colors — ranked. No copy-paste tallying, no upload.</p>
       <p class="note"><b>Wincons:</b> these combos are your finishers — lock in a small, focused set that (A) fits
       your gameplan and (B) wins along different axes (stax-locked, instant-speed, etc.) rather than jamming every
       line you can.</p>`,
@@ -244,8 +243,8 @@ function steps(){ return [
     links:[['Cross-check on Spellbook · Find My Combos', ()=>FIND_MY_COMBOS]] },
 
   { t:"Add the competitive staples you're missing",
-    body:`<p>Paste your decklist or a Moxfield link below — it's <b>shared with step 6</b>, so you only paste once.
-      This pulls what cEDH decks of your commander actually run (live EDHREC data) and lists the most-played cards
+    body:`<p>Paste your decklist or a Moxfield link below — it's <b>shared with the one-away step</b>, so you only
+      paste once. This pulls what cEDH decks of your commander actually run (live EDHREC data) and lists the most-played cards
       you're <b>not</b> on yet, ranked by the % of competitive decks that play them. The weaker your commander, the
       more of these you'll want to keep pace.</p>`,
     auto:'staples',
@@ -254,8 +253,8 @@ function steps(){ return [
 
   { t:"Fill out the deck",
     body:`<p>Plug the gaps. Combo-piece heavy on artifacts/enchantments → add the matching tutors. Commander makes
-      no mana → more ramp. Doesn't draw → add engines. Needs an enabler type → grab the most abusable version on
-      Scryfall (artifact creatures beat Phyrexians here). Then fix the mana base with good untapped lands.</p>`,
+      no mana → more ramp. Doesn't draw → add engines. Needs a particular card type to function → grab its most
+      abusable, repeatable version on Scryfall. Then fix the mana base with good untapped lands.</p>`,
     links:[['Scryfall · tutors in your colors', ()=>scry('id<='+ci()+' o:"search your library" -t:land')],
            ['Scryfall · mana rocks & dorks', ()=>scry('id<='+ci()+' (t:artifact or t:creature) o:" add " mv<=3')],
            ['managathering · untapped duals', landsLink]] },
@@ -267,9 +266,10 @@ function steps(){ return [
     links:[['AetherHub · hypergeometric', ()=>HYPERGEO]] },
 
   { t:"Goldfish — can it win fast?",
-    body:`<p>You want to be winning well under turn 6. If you can't, add stax to slow the table (Rule of Law effects,
-      Phyrexian Censor, Blind Obedience, Null Rod). A longer game is OK only if you're a real resource/control deck
-      — hard without oodles of free interaction in your colors.</p>`,
+    body:`<p>You want to be winning well under turn 6. If you can't, add stax to slow the table — tax effects,
+      prison pieces (Rule-of-Law style), and mana/ability denial (use the search below for ones in your colors).
+      A longer game is OK only if you're a real resource/control deck — hard without oodles of free interaction
+      in your colors.</p>`,
     links:[['Scryfall · stax pieces in your colors', ()=>scry('id<='+ci()+' '+STAX_TERMS)]] },
 ];}
 
