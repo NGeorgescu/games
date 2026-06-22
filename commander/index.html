@@ -157,7 +157,7 @@ const WUBRG = ['w','u','b','r','g'];
 
 function defaultMull(){ return {L:17,R:4,I:4,N:99,h:7,combos:'LLL LLR LRI',open:false}; }
 let state = { cmd:'', cmd2:'', ci1:[], ci2:[], bg2:false, slot2q:null, colors:new Set(), done:{}, notes:'', deck:'', staplesMode:'commander', hg:{k:2,copies:10}, mull:defaultMull() };
-let oneAwayHTML = '', staplesHTML = '', deckWarning = '';
+let oneAwayHTML = '', staplesHTML = '', deckWarning = '', winHTML = '';
 let deckCache = {key:null, names:null, commanders:null, deckCI:null};
 function deckBoxHTML(){
   return `<textarea class="deckbox" oninput="onDeck(this.value)" placeholder="Paste a Moxfield deck link, or your decklist (one card per line)…">${(state.deck||'').replace(/</g,'&lt;')}</textarea>
@@ -238,6 +238,12 @@ function steps(){ return [
            ['EDHREC · cEDH (b5)', ()=>edhrecBracket('cedh')],
            ['EDHTop16 · tournaments', edhtop16Link]] },
 
+  { t:"See the winningest cards",
+    body:`<p>Cards that statistically <b>over-perform</b> in EDHTop16 tournament results for your commander —
+      weighted by how deep each deck finished and how big the event was (a top-4 in a 64-player counts like a win
+      in a 16-player). Score 1.00 = the commander's average; higher = decks running it place better.</p>`,
+    auto:'winning' },
+
   { t:"Find the cards those combos lean on",
     body:`<p>Click around and spot the glue pieces — e.g. if a card shows up in every combo, look up <i>which
       combos that specific card enables in your colors</i>:</p>`,
@@ -287,7 +293,7 @@ function steps(){ return [
 function key(){ return 'bs:'+slug(state.cmd||'_'); }
 function save(){ localStorage.setItem(key(), JSON.stringify({done:state.done,notes:state.notes,deck:state.deck,colors:[...state.colors],cmd2:state.cmd2,ci1:state.ci1,ci2:state.ci2,bg2:state.bg2,staplesMode:state.staplesMode,hg:state.hg,mull:state.mull})); }
 function load(){
-  state.done={}; state.notes=''; state.deck=''; state.cmd2=''; state.ci2=[]; state.bg2=false; state.staplesMode='commander'; state.hg={k:2,copies:10}; state.mull=defaultMull(); oneAwayHTML=''; staplesHTML=''; deckWarning=''; deckCache={key:null,names:null,commanders:null,deckCI:null};
+  state.done={}; state.notes=''; state.deck=''; state.cmd2=''; state.ci2=[]; state.bg2=false; state.staplesMode='commander'; state.hg={k:2,copies:10}; state.mull=defaultMull(); oneAwayHTML=''; staplesHTML=''; deckWarning=''; winHTML=''; deckCache={key:null,names:null,commanders:null,deckCI:null};
   try{ const o=JSON.parse(localStorage.getItem(key())||'{}');
     state.done=o.done||{}; state.notes=o.notes||''; state.deck=o.deck||'';
     state.cmd2=o.cmd2||''; state.bg2=!!o.bg2; state.staplesMode=o.staplesMode||'commander'; if(o.hg) state.hg=o.hg; if(o.ci2) state.ci2=o.ci2; if(o.ci1 && !(state.ci1||[]).length) state.ci1=o.ci1;
@@ -327,6 +333,10 @@ function render(){
       html+=deckBoxHTML();
       html+=`<button class="btn" style="width:100%;margin-top:8px" onclick="findOneAway()">Find cards I'm one away from</button>
         <div id="oneaway">${oneAwayHTML||''}</div>`;
+    }
+    if(s.auto==='winning'){
+      html+=`<button class="btn" style="width:100%;margin-top:4px" onclick="findWinners()">Show winningest cards (EDHTop16)</button>
+        <div id="winout">${winHTML||''}</div>`;
     }
     if(s.auto==='mull'){
       const M=state.mull, H=state.hg, N=state.cmd2?98:99;
@@ -437,6 +447,21 @@ async function findOneAway(){
     }).join('')+'</div>'; }
   oneAwayHTML=h; box.innerHTML=h;
 }
+/* ---------- winningest cards (precomputed EDHTop16 bundles) ---------- */
+function winKey(){ const ns=[state.cmd]; if(state.cmd2) ns.push(state.cmd2); return slug(ns.filter(Boolean).sort().join(' / ')); }
+async function findWinners(){
+  const box=$('#winout'); if(!box) return;
+  if(!state.cmd){ winHTML='<div class="oahead">Pick a commander first.</div>'; box.innerHTML=winHTML; return; }
+  winHTML='<div class="oahead">Loading EDHTop16 tournament data…</div>'; box.innerHTML=winHTML;
+  let d;
+  try{ const r=await fetch('data/win/'+winKey()+'.json'); if(!r.ok) throw 0; d=await r.json(); }
+  catch(e){ winHTML='<div class="oahead">Not enough tournament data for this commander — needs ≥20 entries in 16+ player post-ban events on EDHTop16. (Most off-meta commanders won\'t have this.)</div>'; box.innerHTML=winHTML; return; }
+  const cmdName=[state.cmd,state.cmd2].filter(Boolean).join(' + ').replace(/</g,'&lt;');
+  let h=`<div class="oahead">Cards that over-perform in EDHTop16 results for <b>${cmdName}</b> — ${d.e} entries, 16+ players, post-ban. Score = how much better decks running it finish vs this commander's average (1.00 = average).</div>`;
+  h+='<div class="oalist">'+d.c.map(([name,n,lift])=>`<div class="oarow"><span class="oacnt">${lift.toFixed(2)}</span><a class="oaname" href="${scry('!"'+name.replace(/"/g,'')+'"')}" target="_blank" rel="noopener">${name.replace(/</g,'&lt;')}</a><span style="color:var(--muted);font-size:12px;flex:0 0 auto">${n} decks</span></div>`).join('')+'</div>';
+  winHTML=h; box.innerHTML=h;
+}
+
 /* ---------- step 6: competitive staples you're missing (EDHREC statistical data) ---------- */
 function setStaplesMode(m){ if(state.staplesMode===m) return; state.staplesMode=m; staplesHTML=''; save(); render(); }
 async function findStaples(){
