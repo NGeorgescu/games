@@ -152,7 +152,7 @@ const $ = s => document.querySelector(s);
 const WUBRG = ['w','u','b','r','g'];
 const GUILD = {wu:'azorius',wb:'orzhov',wr:'boros',wg:'selesnya',ub:'dimir',ur:'izzet',ug:'simic',br:'rakdos',bg:'golgari',rg:'gruul'};
 
-function defaultMull(){ return {L:17,R:4,D:4,I:4,C:2,N:99,h:7,combos:'DL DR LLR LLC LLI LRC LRI LRR RRR RRC RRI LIC RIC',open:false}; }
+function defaultMull(){ return {L:17,R:4,I:4,N:99,h:7,combos:'LLL LLR LRI',open:false}; }
 let state = { cmd:'', cmd2:'', ci1:[], ci2:[], bg2:false, slot2q:null, colors:new Set(), done:{}, notes:'', deck:'', staplesMode:'commander', mull:defaultMull() };
 let oneAwayHTML = '', staplesHTML = '';
 let deckCache = {key:null, names:null};
