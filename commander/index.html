@@ -142,7 +142,7 @@ function csbCommander(){ return CSB + enc(state.cmd); }
 function csbCardInColors(card){ return CSB + enc('"'+card+'" ci:'+ci()); }
 function csbColorCombos(){ return CSB + enc('ci:'+ci()); }
 function edhrecCombos(){ return 'https://edhrec.com/combos/'+slug(state.cmd); }
-function edhrecBracket(kind){ return 'https://edhrec.com/commanders/'+slug(state.cmd)+'/'+kind; }
+function edhrecBracket(kind){ return 'https://edhrec.com/commanders/'+slug(state.cmd)+'/'+kind+'#highsynergycards'; }
 function ddg(q){ return 'https://duckduckgo.com/?q='+enc(q); }
 function scry(q){ return 'https://scryfall.com/search?q='+enc(q); }
 function landsLink(){
@@ -172,7 +172,8 @@ function steps(){ return [
     links:[['EDHREC · combos for this deck', edhrecCombos]] },
 
   { t:"Raid the bracket 4 / 5 lists",
-    body:`<p>What are people putting in their optimized (bracket 4) and cEDH (bracket 5) builds?</p>`,
+    body:`<p>What are people putting in their optimized (bracket 4) and cEDH (bracket 5) builds? These jump
+      straight to the <b>high-synergy cards</b> — the spicy, build-defining includes, not the generic staples.</p>`,
     links:[['EDHREC · optimized (b4)', ()=>edhrecBracket('optimized')],
            ['EDHREC · cEDH (b5)', ()=>edhrecBracket('cedh')]] },
 
