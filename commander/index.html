@@ -178,8 +178,8 @@ function deckSlug(){
   return state.bg2 ? a+'-'+b : [a,b].sort().join('-');   // EDHREC: background goes last; partners sort alphabetically
 }
 function deckNames(){ return state.cmd2 ? state.cmd+' '+state.cmd2 : state.cmd; }
-function csbCommander(){ return CSB + enc(state.cmd); }
-function csbCommander2(){ return CSB + enc(state.cmd2); }
+function csbCommander(){ return CSB + enc('"'+state.cmd+'" ci:'+ci()); }
+function csbCommander2(){ return CSB + enc('"'+state.cmd2+'" ci:'+ci()); }
 function csbCardInColors(card){ return CSB + enc('"'+card+'" ci:'+ci()); }
 function csbColorCombos(){ return CSB + enc('ci:'+ci()); }
 function edhrecCombos(){ return 'https://edhrec.com/combos/'+deckSlug(); }
