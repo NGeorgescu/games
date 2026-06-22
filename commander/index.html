@@ -204,9 +204,9 @@ function steps(){ return [
            ['Spellbook · all combos in your colors', csbColorCombos]] },
 
   { t:"Find what you're one-away from",
-    body:`<p>Paste your "finished" decklist (one card per line — a Moxfield/Archidekt export pastes fine). This
-      computes, right here, which single cards would complete the most combos in your colors — ranked. No copy-paste
-      tallying, no upload.</p>`,
+    body:`<p>Paste a <b>Moxfield deck link</b> (it'll fetch the list for you) or your decklist text, one card per
+      line. This computes, right here, which single cards would complete the most combos in your colors — ranked.
+      No copy-paste tallying, no upload.</p>`,
     auto:'oneaway',
     links:[['Cross-check on Spellbook · Find My Combos', ()=>FIND_MY_COMBOS]] },
 
@@ -264,7 +264,7 @@ function render(){
         <button onclick="cardSearch(${n})">Search</button></div>`;
     }
     if(s.auto==='oneaway'){
-      html+=`<textarea id="deckbox" oninput="onDeck(this.value)" placeholder="Paste your decklist, one card per line…">${(state.deck||'').replace(/</g,'&lt;')}</textarea>
+      html+=`<textarea id="deckbox" oninput="onDeck(this.value)" placeholder="Paste a Moxfield deck link, or your decklist (one card per line)…">${(state.deck||'').replace(/</g,'&lt;')}</textarea>
         <button class="btn" style="width:100%;margin-top:8px" onclick="findOneAway()">Find cards I'm one away from</button>
         <div id="oneaway">${oneAwayHTML||''}</div>`;
     }
@@ -303,8 +303,21 @@ async function findOneAway(){
   catch(e){ oneAwayHTML='<div class="oahead">Couldn\'t load combo data for '+code+'. (Works on the live site; opening the file locally blocks the fetch.)</div>'; box.innerHTML=oneAwayHTML; return; }
   const idxByName=new Map(); bundle.cards.forEach((nm,i)=>idxByName.set(normName(nm),i));
   const deck=new Set();
-  for(let line of state.deck.split('\n')){
-    line=line.replace(/^\s*\d+\s*x?\s+/i,'').replace(/\s*\([^)]*\).*$/,'').split('//')[0].trim();
+  let names;
+  const mox=state.deck.match(/moxfield\.com\/decks\/([A-Za-z0-9_-]+)/i);
+  if(mox){
+    oneAwayHTML='<div class="oahead">Fetching deck from Moxfield…</div>'; box.innerHTML=oneAwayHTML;
+    try{
+      const r=await fetch('https://r.jina.ai/https://api.moxfield.com/v2/decks/all/'+mox[1]);
+      if(!r.ok) throw 0;
+      const t=await r.text();
+      const js=JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}')+1));
+      names=[].concat(...['commanders','mainboard','companions','signatureSpells'].map(k=>Object.keys(js[k]||{})));
+      if(!names.length) throw 0;
+    }catch(e){ oneAwayHTML='<div class="oahead">Couldn’t fetch that Moxfield deck — make sure it’s public, or paste the decklist text instead (Moxfield: ⋯ → Export).</div>'; box.innerHTML=oneAwayHTML; return; }
+  } else { names=state.deck.split('\n'); }
+  for(let line of names){
+    line=String(line).replace(/^\s*\d+\s*x?\s+/i,'').replace(/\s*\([^)]*\).*$/,'').split('//')[0].trim();
     if(!line) continue;
     const k=normName(line); if(idxByName.has(k)) deck.add(idxByName.get(k));
   }
