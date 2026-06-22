@@ -196,7 +196,7 @@ function csbColorCombos(){ return CSB + enc('ci:'+ci()); }
 function edhrecCombos(){ return 'https://edhrec.com/combos/'+deckSlug(); }
 function edhrecBracket(kind){ return 'https://edhrec.com/commanders/'+deckSlug()+'/'+kind+'#highsynergycards'; }
 function ddg(q){ return 'https://duckduckgo.com/?q='+enc(q); }
-function edhtop16Link(){ return state.cmd2 ? ddg(deckNames()+' site:edhtop16.com') : 'https://edhtop16.com/commander/'+enc(state.cmd); }
+function edhtop16Link(){ const ns=[state.cmd]; if(state.cmd2) ns.push(state.cmd2); return 'https://edhtop16.com/commander/'+enc(ns.filter(Boolean).sort().join(' / ')); }   // EDHTop16: alphabetical full names joined by ' / '
 function mtgtop8Link(){ return ddg(deckNames()+' site:mtgtop8.com'); }
 function scry(q){ return 'https://scryfall.com/search?q='+enc(q+' f:c game:paper')+'&order=edhrec'; }
 // stax oracle fragments (researched + verified vs Scryfall API): high-precision tax / lock / denial pieces
