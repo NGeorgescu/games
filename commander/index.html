@@ -151,7 +151,9 @@ function csbColorCombos(){ return CSB + enc('ci:'+ci()); }
 function edhrecCombos(){ return 'https://edhrec.com/combos/'+deckSlug(); }
 function edhrecBracket(kind){ return 'https://edhrec.com/commanders/'+deckSlug()+'/'+kind+'#highsynergycards'; }
 function ddg(q){ return 'https://duckduckgo.com/?q='+enc(q); }
-function scry(q){ return 'https://scryfall.com/search?q='+enc(q); }
+function scry(q){ return 'https://scryfall.com/search?q='+enc(q+' f:c game:paper'); }
+// stax oracle fragments (researched + verified vs Scryfall API): high-precision tax / lock / denial pieces
+const STAX_TERMS = `(o:"cost {1} more to cast" or o:"cost {2} more to cast" or o:"can't cast more than one" or o:"can't untap" or o:"skip their untap" or (o:"activated abilities of" o:"can't be activated") or o:"would search a library" or o:"can't search" or (o:"spells with mana value" o:"can't be cast") or o:"searching their library" or o:"can't cast spells from anywhere")`;
 function landsLink(){
   const c = WUBRG.filter(x=>state.colors.has(x)).join('');
   if(c.length===2 && GUILD[c]) return 'https://managathering.com/lands/duallands/'+GUILD[c]+'/';
@@ -191,11 +193,14 @@ function steps(){ return [
     links:[['DuckDuckGo · "{cmd} cedh"', ()=>ddg(deckNames()+' cedh')],
            ['Moxfield primers', ()=>ddg(deckNames()+' cedh primer site:moxfield.com')]] },
 
-  { t:"Compare against cEDH staples",
-    body:`<p>The weaker your commander, the more you lean on higher-cost, higher-value pieces so you don't get run
-      over in a b4 pod. Cross-check a staples list and look up combos among the cards you're adding.</p>`,
+  { t:"Add the cEDH staples you're missing",
+    body:`<p>Open a known cEDH staples list and scan it for the high-value, color-agnostic pieces your colors can
+      run but your deck doesn't yet — free interaction (Force of Will, Fierce Guardianship, Deflecting Swat),
+      fast mana (Mana Crypt, the Moxen, Jeweled Lotus), efficient tutors. The weaker your commander, the more of
+      these you need to keep pace in a bracket-4 pod. Add the ones that fit, then re-run step 7.</p>
+      <p class="note">Thinking about a specific staple? Type it below to see what combos it unlocks in your colors.</p>`,
     cardbox:true,
-    links:[['cEDH staples (example list)', ()=>MOX_STAPLES],
+    links:[['Open a cEDH staples list', ()=>MOX_STAPLES],
            ['Spellbook · all combos in your colors', csbColorCombos]] },
 
   { t:"Find what you're one-away from",
@@ -226,7 +231,7 @@ function steps(){ return [
     body:`<p>You want to be winning well under turn 6. If you can't, add stax to slow the table (Rule of Law effects,
       Phyrexian Censor, Blind Obedience, Null Rod). A longer game is OK only if you're a real resource/control deck
       — hard without oodles of free interaction in your colors.</p>`,
-    links:[['Scryfall · stax pieces in your colors', ()=>scry('id<='+ci()+' (o:"each player" or o:"spend mana" or o:"additional cost") (t:enchantment or t:artifact)')]] },
+    links:[['Scryfall · stax pieces in your colors', ()=>scry('id<='+ci()+' '+STAX_TERMS)]] },
 ];}
 
 /* ---------- render ---------- */
