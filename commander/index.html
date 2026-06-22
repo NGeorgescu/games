@@ -72,6 +72,10 @@
     font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center}
   .oaname{flex:1;color:var(--accent);text-decoration:none;font-size:14px}
   .oahead{font-size:12px;color:var(--muted);margin-top:9px;line-height:1.5}
+  .staptoggle{display:flex;gap:6px;margin-top:8px}
+  .staptoggle button{flex:1;appearance:none;border:1px solid var(--line);background:#1c222c;color:var(--muted);
+    border-radius:9px;padding:8px;font-size:13px;font-weight:700;cursor:pointer}
+  .staptoggle button.on{background:#16213a;border-color:#2c3e63;color:var(--accent)}
   .btn.ghost{background:#1c222c;color:var(--accent);border:1px solid #2c3543}
   .mullbox{margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:11px;background:#0e1117}
   .mullgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}
@@ -149,7 +153,7 @@ const WUBRG = ['w','u','b','r','g'];
 const GUILD = {wu:'azorius',wb:'orzhov',wr:'boros',wg:'selesnya',ub:'dimir',ur:'izzet',ug:'simic',br:'rakdos',bg:'golgari',rg:'gruul'};
 
 function defaultMull(){ return {L:17,R:4,D:4,I:4,C:2,N:99,h:7,combos:'DL DR LLR LLC LLI LRC LRI LRR RRR RRC RRI LIC RIC',open:false}; }
-let state = { cmd:'', cmd2:'', ci1:[], ci2:[], bg2:false, slot2q:null, colors:new Set(), done:{}, notes:'', deck:'', mull:defaultMull() };
+let state = { cmd:'', cmd2:'', ci1:[], ci2:[], bg2:false, slot2q:null, colors:new Set(), done:{}, notes:'', deck:'', staplesMode:'commander', mull:defaultMull() };
 let oneAwayHTML = '', staplesHTML = '';
 let deckCache = {key:null, names:null};
 function deckBoxHTML(){
@@ -262,12 +266,12 @@ function steps(){ return [
 
 /* ---------- render ---------- */
 function key(){ return 'bs:'+slug(state.cmd||'_'); }
-function save(){ localStorage.setItem(key(), JSON.stringify({done:state.done,notes:state.notes,deck:state.deck,colors:[...state.colors],cmd2:state.cmd2,ci1:state.ci1,ci2:state.ci2,bg2:state.bg2,mull:state.mull})); }
+function save(){ localStorage.setItem(key(), JSON.stringify({done:state.done,notes:state.notes,deck:state.deck,colors:[...state.colors],cmd2:state.cmd2,ci1:state.ci1,ci2:state.ci2,bg2:state.bg2,staplesMode:state.staplesMode,mull:state.mull})); }
 function load(){
-  state.done={}; state.notes=''; state.deck=''; state.cmd2=''; state.ci2=[]; state.bg2=false; state.mull=defaultMull(); oneAwayHTML=''; staplesHTML=''; deckCache={key:null,names:null};
+  state.done={}; state.notes=''; state.deck=''; state.cmd2=''; state.ci2=[]; state.bg2=false; state.staplesMode='commander'; state.mull=defaultMull(); oneAwayHTML=''; staplesHTML=''; deckCache={key:null,names:null};
   try{ const o=JSON.parse(localStorage.getItem(key())||'{}');
     state.done=o.done||{}; state.notes=o.notes||''; state.deck=o.deck||'';
-    state.cmd2=o.cmd2||''; state.bg2=!!o.bg2; if(o.ci2) state.ci2=o.ci2; if(o.ci1 && !(state.ci1||[]).length) state.ci1=o.ci1;
+    state.cmd2=o.cmd2||''; state.bg2=!!o.bg2; state.staplesMode=o.staplesMode||'commander'; if(o.ci2) state.ci2=o.ci2; if(o.ci1 && !(state.ci1||[]).length) state.ci1=o.ci1;
     if(o.mull) state.mull=Object.assign(defaultMull(), o.mull);
     if(o.colors && state.colors.size===0){ state.colors=new Set(o.colors); paintPips(); }
   }catch(e){}
@@ -291,8 +295,13 @@ function render(){
         <button onclick="cardSearch(${n})">Combos →</button></div>`;
     }
     if(s.auto==='staples'){
+      const sm=state.staplesMode;
       html+=deckBoxHTML();
-      html+=`<button class="btn" style="width:100%;margin-top:8px" onclick="findStaples()">Find competitive staples I'm missing</button>
+      html+=`<div class="staptoggle">
+          <button class="${sm==='commander'?'on':''}" onclick="setStaplesMode('commander')">This commander</button>
+          <button class="${sm==='colors'?'on':''}" onclick="setStaplesMode('colors')">These colors</button>
+        </div>
+        <button class="btn" style="width:100%;margin-top:8px" onclick="findStaples()">Find competitive staples I'm missing</button>
         <div id="staplesout">${staplesHTML||''}</div>`;
     }
     if(s.auto==='oneaway'){
@@ -306,12 +315,12 @@ function render(){
       if(M.open){
         const f=mullFieldsHTML();
         html+=`<div class="mullbox">
-          <label class="note" style="display:block;margin:0 0 3px">Keepable opening-hand combos — space-separated; each letter = one card of that type (e.g. <code>LLR</code> = 2 lands + a rock):</label>
+          <label class="note" style="display:block;margin:0 0 3px">Keepable opening-hand combos — space-separated; each letter is a card type you define, repeated = how many you need (e.g. <code>LLR</code> = two L + one R):</label>
           <input type="text" value="${(M.combos||'').replace(/"/g,'&quot;')}" oninput="onMull('combos',this.value)" style="width:100%;font-family:ui-monospace,monospace;background:#171a21;border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:9px;font-size:14px">
           <p class="note" id="mulllegend" style="margin:10px 0 4px">${f.legend}</p>
           <div class="mullgrid" id="mullgrid" style="grid-template-columns:repeat(${f.cols},1fr)">${f.grid}</div>
           <div id="mullresult" class="mullresult"></div>
-          <p class="note">7-card opener from your library (${state.cmd2?98:99} cards). Approximate: a hand is keepable if its mana-card counts contain any listed combo; doesn't model specific anti-synergies (e.g. Sandstone + Simian Spirit Guide). “Ever-keep” = chance you find a keeper across London mulligans down to ~2.</p>
+          <p class="note">7-card opener from your library (${state.cmd2?98:99} cards). Approximate: a hand is keepable if its card-type counts contain any listed combo; it doesn't model anti-synergies between specific cards. “Ever-keep” = chance you find a keeper across London mulligans down to ~2.</p>
         </div>`;
       }
     }
@@ -392,8 +401,10 @@ async function findOneAway(){
   oneAwayHTML=h; box.innerHTML=h;
 }
 /* ---------- step 6: competitive staples you're missing (EDHREC statistical data) ---------- */
+function setStaplesMode(m){ if(state.staplesMode===m) return; state.staplesMode=m; staplesHTML=''; save(); render(); }
 async function findStaples(){
   const box=$('#staplesout');
+  if(state.staplesMode==='colors') return findStaplesColors(box);
   if(!state.cmd){ staplesHTML='<div class="oahead">Pick a commander first.</div>'; box.innerHTML=staplesHTML; return; }
   staplesHTML='<div class="oahead">Loading competitive data from EDHREC…</div>'; box.innerHTML=staplesHTML;
   let data=null, used='';
@@ -422,6 +433,30 @@ async function findStaples(){
   else { h+='<div class="oalist">'+missing.map(v=>`<div class="oarow"><span class="oacnt">${v.pct.toFixed(0)}%</span><a class="oaname" href="${scry('!"'+v.name.replace(/"/g,'')+'"')}" target="_blank" rel="noopener">${v.name.replace(/</g,'&lt;')}</a></div>`).join('')+'</div>'; }
   staplesHTML=h; box.innerHTML=h;
 }
+// "these colors" view: filter a maintained cEDH staples list to your color identity
+async function findStaplesColors(box){
+  staplesHTML='<div class="oahead">Loading cEDH staples for your colors…</div>'; box.innerHTML=staplesHTML;
+  const target=WUBRG.filter(x=>state.colors.has(x)).map(c=>c.toUpperCase());
+  let js;
+  try{
+    const id=MOX_STAPLES.match(/decks\/([A-Za-z0-9_-]+)/)[1];
+    const r=await fetch('https://r.jina.ai/https://api.moxfield.com/v2/decks/all/'+id);
+    if(!r.ok) throw 0;
+    const t=await r.text(); js=JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}')+1));
+  }catch(e){ staplesHTML='<div class="oahead">Couldn’t load the staples list right now — try again in a moment.</div>'; box.innerHTML=staplesHTML; return; }
+  const mb=js.mainboard||{}, inCI=ci=>(ci||[]).every(c=>target.includes(c));
+  let deckSet=new Set();
+  if(state.deck.trim()){ try{(await resolveDeckNames()).forEach(n=>deckSet.add(normName(n)));}catch(e){} }
+  for(const cn of [state.cmd,state.cmd2]) if(cn) deckSet.add(normName(cn));
+  const cards=[];
+  for(const name in mb){ const c=mb[name].card||{}; if(!inCI(c.color_identity||[])) continue; if(deckSet.has(normName(name))) continue; cards.push({name, cmc:c.cmc||0}); }
+  cards.sort((a,b)=>a.name.localeCompare(b.name));
+  const clabel=target.length?target.join(''):'colorless';
+  let h=`<div class="oahead">cEDH staples that fit your colors (${clabel}) and aren't in your list — from a maintained staples list. Number = mana value.</div>`;
+  if(!cards.length){ h+='<div class="oahead">Nothing missing — you\'re on all the in-color staples.</div>'; }
+  else h+='<div class="oalist">'+cards.slice(0,60).map(c=>`<div class="oarow"><span class="oacnt">${c.cmc}</span><a class="oaname" href="${scry('!"'+c.name.replace(/"/g,'')+'"')}" target="_blank" rel="noopener">${c.name.replace(/</g,'&lt;')}</a></div>`).join('')+'</div>';
+  staplesHTML=h; box.innerHTML=h;
+}
 
 /* ---------- step 9: mana-base keep-rate (multivariate hypergeometric) ---------- */
 function comb(n,k){ if(k<0||k>n||n<0) return 0; k=Math.min(k,n-k); let r=1; for(let i=0;i<k;i++) r=r*(n-i)/(i+1); return r; }
@@ -439,11 +474,10 @@ function acceptRate(counts, combos, N, h){
   (function rec(pos,rem){ if(pos===K-1){ parts[pos]=rem; evalComp(); return; } for(let v=0;v<=rem;v++){ parts[pos]=v; rec(pos+1,rem-v); } })(0,h);
   const denom=comb(N,h); return denom>0 ? total/denom : 0;
 }
-const MULL_LEG={L:'Land (Command Tower etc.)',R:'Rock (incl. Simian Spirit Guide)',D:'Depletion land (Sandstone/Ruins/Bog/Ebon)',I:'Investment ramp (Sol Ring, Mana Vault, Ragavan, tutors)',C:'Colored ritual (Dark Ritual, Rite)'};
 function mullLetters(){ return [...new Set((state.mull.combos||'').toUpperCase().replace(/[^A-Z]/g,'').split(''))]; }
 function mullFieldsHTML(){
   const M=state.mull, letters=mullLetters();
-  const legend = 'How many of each type are in your deck?'+(letters.length?letters.map(k=>` <b>${k}</b> = ${MULL_LEG[k]||'?'}`).join(' ·'):' — type some combos above first.');
+  const legend = letters.length ? 'How many cards of each type are in your deck?' : 'Type some combos above first.';
   const grid = letters.map(k=>`<label>${k}<input type="number" min="0" value="${M[k]||0}" oninput="onMull('${k}',this.value)"></label>`).join('');
   return {legend, grid, cols: letters.length||1};
 }
@@ -462,11 +496,10 @@ function computeMull(){
   if(letters.reduce((a,k)=>a+counts[k],0)>N){ el.innerHTML='<b>—</b><div class="mullsub">mana cards exceed deck size</div>'; return; }
   const p=acceptRate(counts, combos, N, h), pct=100*p;
   const everPct=100*(1-Math.pow(1-p,7));
-  const verdict = pct>=63?'comfortable':pct>=50?'okay':'shaky — add lands/rocks';
-  const NAMES={L:'land',R:'rock',D:'depletion',I:'investment',C:'ritual'};
+  const verdict = pct>=63?'comfortable':pct>=50?'okay':'shaky — add mana sources';
   const marg=letters.map(k=>{ const c2=Object.assign({},counts); c2[k]++; return {k,d:100*(acceptRate(c2,combos,N,h)-p)}; }).filter(x=>x.d>0.05).sort((a,b)=>b.d-a.d);
   let html=`<b>${pct.toFixed(1)}%</b><div class="mullsub">keep on the first hand · <b style="display:inline;font-size:inherit;color:#7ee0a3">${everPct.toFixed(1)}%</b> ever-keep (mull to ~2) · ${verdict}</div>`;
-  if(marg.length) html+=`<div class="margttl">adding one more:</div><table class="margtbl"><tbody>`+marg.map(x=>`<tr><td><b>${x.k}</b> <span class="margname">${NAMES[x.k]||''}</span></td><td>+${x.d.toFixed(1)}%</td></tr>`).join('')+`</tbody></table>`;
+  if(marg.length) html+=`<div class="margttl">adding one more:</div><table class="margtbl"><tbody>`+marg.map(x=>`<tr><td><b>${x.k}</b></td><td>+${x.d.toFixed(1)}%</td></tr>`).join('')+`</tbody></table>`;
   el.innerHTML=html;
 }
 function onMull(k,v){ state.mull[k]=v; save(); if(k==='combos') updateMullFields(); computeMull(); }
