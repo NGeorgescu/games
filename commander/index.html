@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Broken &amp; Sweaty — degen commander builder</title>
+<style>
+  :root{ --bg:#0e1014; --panel:#171a21; --ink:#eef1f6; --muted:#9aa3b2; --line:#262b35; --accent:#7cc6ff;
+    --w:#f7f3d6; --u:#9bd0ff; --b:#b9a7c9; --r:#ff9a86; --g:#9fe0a8; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-text-size-adjust:100%}
+  .wrap{max-width:520px;margin:0 auto;padding:20px 16px 56px}
+  h1{font-size:25px;margin:0 0 2px}
+  .sub{color:var(--muted);font-size:13px;line-height:1.55;margin:0 0 16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
+  label.fld{display:block;font-size:12px;color:var(--muted);margin:0 0 5px;text-transform:uppercase;letter-spacing:.04em}
+  input[type=text]{width:100%;background:#0e1117;border:1px solid var(--line);border-radius:10px;color:var(--ink);
+    font-size:16px;padding:11px 12px;outline:none}
+  input[type=text]:focus{border-color:var(--accent)}
+  .pips{display:flex;gap:8px;margin-top:10px}
+  .pip{flex:1;height:42px;border-radius:10px;border:2px solid var(--line);background:#0e1117;color:var(--muted);
+    font-weight:800;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;user-select:none}
+  .pip[data-c=w].on{background:var(--w);color:#222;border-color:var(--w)}
+  .pip[data-c=u].on{background:var(--u);color:#06243a;border-color:var(--u)}
+  .pip[data-c=b].on{background:var(--b);color:#1a0f24;border-color:var(--b)}
+  .pip[data-c=r].on{background:var(--r);color:#3a0f06;border-color:var(--r)}
+  .pip[data-c=g].on{background:var(--g);color:#063a1f;border-color:var(--g)}
+  .progwrap{height:9px;background:var(--line);border-radius:999px;overflow:hidden;margin:6px 0 2px}
+  .progbar{height:100%;background:linear-gradient(90deg,#7ee0a3,#7cc6ff);width:0;transition:width .2s}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 14px;margin-bottom:11px}
+  .step.done{opacity:.62}
+  .step.done .stitle{text-decoration:line-through}
+  .shead{display:flex;align-items:flex-start;gap:10px;cursor:pointer}
+  .sno{flex:0 0 auto;width:26px;height:26px;border-radius:7px;background:#0e1117;border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:var(--accent)}
+  .stitle{font-weight:700;font-size:16px;line-height:1.3;flex:1}
+  .chk{flex:0 0 auto;width:24px;height:24px;border-radius:6px;border:2px solid var(--line);background:#0e1117;
+    display:flex;align-items:center;justify-content:center;font-size:15px;color:#7ee0a3}
+  .step.done .chk{background:#16462a;border-color:#2fe06a}
+  .sbody{font-size:13.5px;color:#cfd6e2;line-height:1.6;margin:9px 0 0;padding-left:36px}
+  .sbody p{margin:0 0 8px}
+  .links{display:flex;flex-wrap:wrap;gap:7px;margin:9px 0 2px}
+  a.lnk{display:inline-block;background:#1c222c;border:1px solid #2c3543;border-radius:9px;padding:8px 11px;
+    font-size:13px;font-weight:600;color:var(--accent);text-decoration:none}
+  a.lnk:active{background:#222a36}
+  a.lnk.warn{color:#ffd07c;border-color:#5a4a20}
+  .mini{display:flex;gap:7px;margin:8px 0 2px}
+  .mini input{flex:1}
+  .mini button,.btn{appearance:none;border:0;border-radius:9px;padding:9px 13px;font-size:13px;font-weight:700;
+    background:var(--accent);color:#06243a;cursor:pointer;white-space:nowrap}
+  .note{font-size:12px;color:var(--muted);line-height:1.5;margin-top:7px}
+  pre{background:#0b0e13;border:1px solid var(--line);border-radius:10px;padding:11px;overflow:auto;
+    font-size:11.5px;line-height:1.45;margin:8px 0 0;color:#cfe3d6}
+  textarea{width:100%;min-height:120px;background:#0e1117;border:1px solid var(--line);border-radius:10px;
+    color:var(--ink);font-size:14px;padding:11px;resize:vertical;line-height:1.5;font-family:ui-monospace,monospace}
+  .warnbox{background:#1d160f;border:1px solid #5a4a20;border-radius:14px;padding:13px 14px;margin-bottom:12px}
+  .warnbox h3{margin:0 0 6px;font-size:15px;color:#ffd07c}
+  .warnbox p{margin:0;font-size:13px;color:#e7d8be;line-height:1.6}
+  .foot{color:#5a6473;font-size:12px;margin-top:18px;text-align:center;line-height:1.6}
+  .foot a{color:#5a6473}
+  .reset{background:transparent;border:1px solid var(--line);color:var(--muted);font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Broken &amp; Sweaty</h1>
+  <p class="sub">Turn any low-color, off-meta commander into a degen-power deck. Drop in your commander and
+  its color identity — every research link below pre-fills. Work the steps top to bottom.</p>
+
+  <div class="card">
+    <label class="fld" for="cmd">Commander</label>
+    <input type="text" id="cmd" placeholder="e.g. Brimaz, Blight of Oreskos" autocapitalize="words" autocomplete="off">
+    <label class="fld" style="margin-top:12px">Color identity</label>
+    <div class="pips" id="pips">
+      <div class="pip" data-c="w">W</div><div class="pip" data-c="u">U</div><div class="pip" data-c="b">B</div>
+      <div class="pip" data-c="r">R</div><div class="pip" data-c="g">G</div>
+    </div>
+  </div>
+
+  <div class="progwrap"><div class="progbar" id="bar"></div></div>
+  <div class="note" id="progtxt" style="text-align:center;margin-bottom:12px">0 / 11 steps done</div>
+
+  <div class="warnbox">
+    <h3>Step 0 — reality check first</h3>
+    <p>Some of what your commander naturally wants you to do is a slow, non-degen strategy. Tribal or proliferate
+    are fine bracket-2 (maybe pushed to bracket-3) plans — but cat tribal or proliferating poison tokens gets run
+    over in a real pod. Treat any "build-around" text as flavor text if it's slow. Find the fastest, most abusable
+    line your colors allow (sac loops, altars, stax + a tight combo) and build toward <i>that</i>.</p>
+  </div>
+
+  <div id="steps"></div>
+
+  <div class="card">
+    <label class="fld" for="list">Your running card list / scratchpad</label>
+    <textarea id="list" placeholder="Jot combo pieces, enablers, staples as you find them. Saved automatically in this browser."></textarea>
+  </div>
+
+  <button class="btn reset" style="width:100%" onclick="resetAll()">Reset checklist &amp; notes for this commander</button>
+
+  <div class="foot">
+    Links generated from the patterns in the guide. Verified live: EDHREC slug, managathering dual-lands path.
+    Commander Spellbook / EDHREC / DuckDuckGo / AetherHub / Moxfield-staples links use the example URLs you gave;
+    Scryfall queries are editable starting points — tweak the syntax to taste.
+  </div>
+</div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const WUBRG = ['w','u','b','r','g'];
+const GUILD = {wu:'azorius',wb:'orzhov',wr:'boros',wg:'selesnya',ub:'dimir',ur:'izzet',ug:'simic',br:'rakdos',bg:'golgari',rg:'gruul'};
+
+let state = { cmd:'', colors:new Set(), done:{}, notes:'' };
+
+/* ---------- url helpers ---------- */
+function slug(name){
+  return name.normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .toLowerCase().replace(/['’.]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+}
+function ci(){ const c = WUBRG.filter(x=>state.colors.has(x)).join(''); return c || 'c'; }
+function enc(s){ return encodeURIComponent(s); }
+const CSB = 'https://commanderspellbook.com/search/?q=';
+function csbCommander(){ return CSB + enc(state.cmd); }
+function csbCardInColors(card){ return CSB + enc('"'+card+'" ci:'+ci()); }
+function csbColorCombos(){ return CSB + enc('ci:'+ci()); }
+function edhrecCombos(){ return 'https://edhrec.com/combos/'+slug(state.cmd); }
+function edhrecBracket(kind){ return 'https://edhrec.com/commanders/'+slug(state.cmd)+'/'+kind; }
+function ddg(q){ return 'https://duckduckgo.com/?q='+enc(q); }
+function scry(q){ return 'https://scryfall.com/search?q='+enc(q); }
+function landsLink(){
+  const c = WUBRG.filter(x=>state.colors.has(x)).join('');
+  if(c.length===2 && GUILD[c]) return 'https://managathering.com/lands/duallands/'+GUILD[c]+'/';
+  return 'https://managathering.com/';
+}
+const MOX_STAPLES = 'https://moxfield.com/decks/0DDiZV77lkSqfVAm8eCllg';
+const FIND_MY_COMBOS = 'https://commanderspellbook.com/find-my-combos/';
+const HYPERGEO = 'https://aetherhub.com/Apps/HyperGeometric';
+
+/* ---------- the steps ---------- */
+const PY_TALLY =
+`# Paste each "Find My Combos" page's "almost there" section into combos.txt
+# (copy, paste, next page, copy, paste ...). Then run this.
+import re, collections
+text = open('combos.txt').read()
+# CSB marks cards you don't own as "(not in this deck)" — adjust if the wording differs
+missing = re.findall(r'(.+?)\\s*\\(not in this deck\\)', text)
+c = collections.Counter(m.strip().splitlines()[-1] for m in missing)
+for card, n in c.most_common():
+    print(f'{n:3}  {card}')`;
+
+function steps(){ return [
+  { t:"Combos with your commander",
+    body:`<p>Check Commander Spellbook for combos your commander is in or enables. Note the cards and add them to
+      your list.</p>`,
+    links:[['Spellbook · this commander', csbCommander]] },
+
+  { t:"Find the cards those combos lean on",
+    body:`<p>Click around and spot the glue pieces — e.g. if a card shows up in every combo, search for
+      <i>combos that card enables in your colors</i>. Look up a card:</p>`,
+    cardbox:true,
+    links:[['Spellbook · combos in your colors', csbColorCombos]] },
+
+  { t:"Compare to what people actually run",
+    body:`<p>See the combos the general population is putting in this deck.</p>`,
+    links:[['EDHREC · combos for this deck', edhrecCombos]] },
+
+  { t:"Raid the bracket 4 / 5 lists",
+    body:`<p>What are people putting in their optimized (bracket 4) and cEDH (bracket 5) builds?</p>`,
+    links:[['EDHREC · optimized (b4)', ()=>edhrecBracket('optimized')],
+           ['EDHREC · cEDH (b5)', ()=>edhrecBracket('cedh')]] },
+
+  { t:"Web-hunt for real decklists + primers",
+    body:`<p>Search the open web for high-power lists and primers. Moxfield search is good for finding decks with
+      write-ups.</p>`,
+    links:[['DuckDuckGo · "{cmd} cedh"', ()=>ddg(state.cmd+' cedh')],
+           ['Moxfield primers', ()=>ddg(state.cmd+' cedh primer site:moxfield.com')]] },
+
+  { t:"Compare against cEDH staples",
+    body:`<p>The weaker your commander, the more you lean on higher-cost, higher-value pieces so you don't get run
+      over in a b4 pod. Cross-check a staples list and look up combos among the cards you're adding.</p>`,
+    cardbox:true,
+    links:[['cEDH staples (example list)', ()=>MOX_STAPLES],
+           ['Spellbook · all combos in your colors', csbColorCombos]] },
+
+  { t:"Find My Combos — what you're one-away from",
+    body:`<p>Paste your "finished" deck into Find My Combos. CSB has no "almost there" export, so do it by hand:
+      copy each page's near-miss section into a text file, then tally the "not in this deck" lines to see which
+      single cards complete the most combos.</p>`,
+    links:[['Spellbook · Find My Combos', ()=>FIND_MY_COMBOS]],
+    pre:PY_TALLY },
+
+  { t:"Fill out the deck",
+    body:`<p>Plug the gaps. Combo-piece heavy on artifacts/enchantments → add the matching tutors. Commander makes
+      no mana → more ramp. Doesn't draw → add engines. Needs an enabler type → grab the most abusable version on
+      Scryfall (artifact creatures beat Phyrexians here). Then fix the mana base with good untapped lands.</p>`,
+    links:[['Scryfall · tutors in your colors', ()=>scry('id<='+ci()+' o:"search your library" (t:artifact or t:creature)')],
+           ['Scryfall · mana rocks', ()=>scry('id<='+ci()+' t:artifact o:"add" mv<=3')],
+           ['managathering · untapped duals', landsLink]] },
+
+  { t:"Check your mulligans",
+    body:`<p>Tune toward a ~2-in-3 keepable-hand rate (looser or tighter depending how mull-sensitive the deck is).
+      Use a hypergeometric calculator to get the odds of an acceptable opener.</p>`,
+    links:[['AetherHub · hypergeometric', ()=>HYPERGEO]] },
+
+  { t:"Lock in tight, sensible wincons",
+    body:`<p>A small, focused set of wincons that (A) fit your gameplan and (B) ideally win along different axes —
+      stax-locked, instant-speed, etc.</p>` },
+
+  { t:"Goldfish — can it win fast?",
+    body:`<p>You want to be winning well under turn 6. If you can't, add stax to slow the table (Rule of Law effects,
+      Phyrexian Censor, Blind Obedience, Null Rod). A longer game is OK only if you're a real resource/control deck
+      — hard without oodles of free interaction in your colors.</p>`,
+    links:[['Scryfall · stax pieces in your colors', ()=>scry('id<='+ci()+' (o:"each player" or o:"spend mana" or o:"additional cost") (t:enchantment or t:artifact)')]] },
+];}
+
+/* ---------- render ---------- */
+function key(){ return 'bs:'+slug(state.cmd||'_'); }
+function save(){ localStorage.setItem(key(), JSON.stringify({done:state.done,notes:state.notes,colors:[...state.colors]})); }
+function load(){
+  state.done={}; state.notes='';
+  try{ const o=JSON.parse(localStorage.getItem(key())||'{}');
+    state.done=o.done||{}; state.notes=o.notes||'';
+    if(o.colors && state.colors.size===0){ state.colors=new Set(o.colors); paintPips(); }
+  }catch(e){}
+  $('#list').value=state.notes;
+}
+function paintPips(){ document.querySelectorAll('.pip').forEach(p=>p.classList.toggle('on',state.colors.has(p.dataset.c))); }
+
+function render(){
+  const S=steps(), box=$('#steps'); box.innerHTML='';
+  S.forEach((s,i)=>{
+    const n=i+1, done=!!state.done[n];
+    const el=document.createElement('div'); el.className='step'+(done?' done':'');
+    let html=`<div class="shead" onclick="toggle(${n})">
+        <div class="sno">${n}</div><div class="stitle">${s.t}</div>
+        <div class="chk">${done?'✓':''}</div></div>
+      <div class="sbody">${s.body||''}`;
+    if(s.cardbox){
+      html+=`<div class="mini"><input type="text" id="cardin${n}" placeholder="card name…" autocomplete="off">
+        <button onclick="cardSearch(${n})">Search</button></div>`;
+    }
+    if(s.links && s.links.length){
+      html+='<div class="links">'+s.links.map((l,j)=>{
+        const href=(typeof l[1]==='function')?l[1]():l[1];
+        const lbl=l[0].replace('{cmd}', state.cmd||'commander');
+        const w=l[0].toLowerCase().includes('staples')?'':'';
+        return `<a class="lnk" id="lnk${n}_${j}" href="${href}" target="_blank" rel="noopener">${lbl}</a>`;
+      }).join('')+'</div>';
+    }
+    if(s.pre){ html+=`<pre>${s.pre.replace(/</g,'&lt;')}</pre>`; }
+    html+='</div>';
+    el.innerHTML=html; box.appendChild(el);
+  });
+  const total=S.length, n=Object.values(state.done).filter(Boolean).length;
+  $('#bar').style.width=(100*n/total)+'%';
+  $('#progtxt').textContent=n+' / '+total+' steps done';
+}
+function toggle(n){ state.done[n]=!state.done[n]; save(); render(); }
+function cardSearch(n){
+  const v=$('#cardin'+n).value.trim(); if(!v) return;
+  window.open(csbCardInColors(v),'_blank','noopener');
+  window.open(scry('id<='+ci()+' "'+v+'"'),'_blank','noopener');
+}
+function resetAll(){
+  if(!confirm('Clear the checklist and notes for "'+(state.cmd||'this commander')+'"?')) return;
+  state.done={}; state.notes=''; $('#list').value=''; save(); render();
+}
+
+/* ---------- wiring ---------- */
+$('#cmd').addEventListener('input', e=>{ state.cmd=e.target.value; load(); render(); });
+$('#list').addEventListener('input', e=>{ state.notes=e.target.value; save(); });
+document.querySelectorAll('.pip').forEach(p=>p.addEventListener('click',()=>{
+  const c=p.dataset.c; state.colors.has(c)?state.colors.delete(c):state.colors.add(c);
+  paintPips(); save(); render();
+}));
+
+load(); render();
+</script>
+</body>
+</html>
