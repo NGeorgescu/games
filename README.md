@@ -11,7 +11,7 @@ Small browser games, each a self-contained static page served via GitHub Pages.
 | **Hue Sense** — named-color quiz (Place · drill/lightning · Fine modes) | [play →](https://ngeorgescu.github.io/games/colors/) | [`colors/`](colors/) |
 | **Grid Memory** — memorize a shuffled 5×5 grid of 1–25, then replace them | [play →](https://ngeorgescu.github.io/games/grid/) | [`grid/`](grid/) |
 | **Mental Math** — learn &amp; drill mental-arithmetic tricks (×11, squaring, cube/fifth roots, …) | [play →](https://ngeorgescu.github.io/games/math/) | [`math/`](math/) |
-| **Broken &amp; Sweaty** — degen commander builder; enter a Magic commander + colors, get every research link pre-filled into a checklist | [play →](https://ngeorgescu.github.io/games/commander/) | [`commander/`](commander/) |
+| **COMBO** — Commander Off-Meta Brewing Optimizer; enter a Magic commander + colors, get every research link pre-filled into a checklist | [play →](https://ngeorgescu.github.io/games/commander/) | [`commander/`](commander/) |
 | **Chess repertoire explorer** | [play →](https://ngeorgescu.github.io/games/chess/repertoire.html) | [`chess/`](chess/) |
 
 ## Adding a game
