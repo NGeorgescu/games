@@ -233,24 +233,24 @@ function steps(){ return [
       cards that define those lists.</p>`,
     links:[['EDHREC · cEDH (b5)', ()=>edhrecBracket('cedh')]] },
 
-  { t:"Add the competitive staples you're missing",
-    body:`<p>Paste your decklist or a Moxfield link below — it's <b>shared with step 7</b>, so you only paste once.
-      This pulls what cEDH decks of your commander actually run (live EDHREC data) and lists the most-played cards
-      you're <b>not</b> on yet, ranked by the % of competitive decks that play them. The weaker your commander, the
-      more of these you'll want to keep pace.</p>`,
-    auto:'staples',
-    links:[['Browse a full cEDH staples list', ()=>MOX_STAPLES],
-           ['Spellbook · all combos in your colors', csbColorCombos]] },
-
   { t:"Find what you're one-away from",
     body:`<p>Paste a <b>Moxfield deck link</b> (it'll fetch the list for you) or your decklist text, one card per
-      line — <b>shared with step 6</b>. This computes which single cards would complete the most combos in your
+      line — <b>shared with step 7</b>. This computes which single cards would complete the most combos in your
       colors — ranked. No copy-paste tallying, no upload.</p>
       <p class="note"><b>Wincons:</b> these combos are your finishers — lock in a small, focused set that (A) fits
       your gameplan and (B) wins along different axes (stax-locked, instant-speed, etc.) rather than jamming every
       line you can.</p>`,
     auto:'oneaway',
     links:[['Cross-check on Spellbook · Find My Combos', ()=>FIND_MY_COMBOS]] },
+
+  { t:"Add the competitive staples you're missing",
+    body:`<p>Paste your decklist or a Moxfield link below — it's <b>shared with step 6</b>, so you only paste once.
+      This pulls what cEDH decks of your commander actually run (live EDHREC data) and lists the most-played cards
+      you're <b>not</b> on yet, ranked by the % of competitive decks that play them. The weaker your commander, the
+      more of these you'll want to keep pace.</p>`,
+    auto:'staples',
+    links:[['Browse a full cEDH staples list', ()=>MOX_STAPLES],
+           ['Spellbook · all combos in your colors', csbColorCombos]] },
 
   { t:"Fill out the deck",
     body:`<p>Plug the gaps. Combo-piece heavy on artifacts/enchantments → add the matching tutors. Commander makes
