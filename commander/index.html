@@ -74,6 +74,15 @@
     font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center}
   .oaname{flex:1;color:var(--accent);text-decoration:none;font-size:14px}
   .oahead{font-size:12px;color:var(--muted);margin-top:9px;line-height:1.5}
+  .rrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:9px 11px;border-bottom:1px solid var(--line)}
+  .rrow:last-child{border-bottom:0}
+  .rrow .oaname{flex:1 1 auto;min-width:130px}
+  .rbadges{display:flex;flex-wrap:wrap;gap:5px}
+  .rbadge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}
+  .rbadge.combo{background:#16321f;color:#7ee0a3}
+  .rbadge.win{background:#16243f;color:#7cc6ff}
+  .rbadge.pct{background:#271f3b;color:#c3a7e0}
+  .rbadge.syn{background:#37280f;color:#ffce85}
   .deckwarn{margin-top:6px;color:#ff5252;font-weight:800;font-size:16px;line-height:1.4}
   .staptoggle{display:flex;gap:6px;margin-top:8px}
   .staptoggle button{flex:1;appearance:none;border:1px solid var(--line);background:#1c222c;color:var(--muted);
@@ -157,12 +166,12 @@ const WUBRG = ['w','u','b','r','g'];
 
 function defaultMull(){ return {L:17,R:4,I:4,N:99,h:7,combos:'LLL LLR LRI',open:false}; }
 let state = { cmd:'', cmd2:'', ci1:[], ci2:[], bg2:false, slot2q:null, colors:new Set(), done:{}, notes:'', deck:'', staplesMode:'commander', hg:{k:2,copies:10}, mull:defaultMull() };
-let oneAwayHTML = '', staplesHTML = '', deckWarning = '', winHTML = '';
+let oneAwayHTML = '', staplesHTML = '', deckWarning = '', winHTML = '', recHTML = '';
 let deckCache = {key:null, names:null, commanders:null, deckCI:null};
 function deckBoxHTML(){
   return `<textarea class="deckbox" oninput="onDeck(this.value)" placeholder="Paste a Moxfield deck link, or your decklist (one card per line)…">${(state.deck||'').replace(/</g,'&lt;')}</textarea>
     <div class="deckwarn" style="display:${deckWarning?'block':'none'}">${deckWarning}</div>
-    <div class="note" style="margin-top:4px">Shared between the one-away &amp; staples steps — paste once, both use it.</div>`;
+    <div class="note" style="margin-top:4px">Shared across the deck-analysis steps — paste once, they all use it.</div>`;
 }
 function computeDeckWarning(){
   const dc=deckCache.commanders;
@@ -268,6 +277,12 @@ function steps(){ return [
     links:[['Browse a full cEDH staples list', ()=>MOX_STAPLES],
            ['Spellbook · all combos in your colors', csbColorCombos]] },
 
+  { t:"★ What to add — all signals combined",
+    body:`<p>Paste your decklist (shared above) for one ranked list of cards <b>not in your deck yet</b>, merged
+      across every signal: combo finishers you're <b>one-away</b> from, EDHTop16 <b>winning</b> cards, and EDHREC
+      <b>high-synergy</b> &amp; <b>cEDH inclusion</b>. Cards backed by more signals rank higher.</p>`,
+    auto:'recs' },
+
   { t:"Fill out the deck",
     body:`<p>Plug the gaps. Combo-piece heavy on artifacts/enchantments → add the matching tutors. Commander makes
       no mana → more ramp. Doesn't draw → add engines. Needs a particular card type to function → grab its most
@@ -293,7 +308,7 @@ function steps(){ return [
 function key(){ return 'bs:'+slug(state.cmd||'_'); }
 function save(){ localStorage.setItem(key(), JSON.stringify({done:state.done,notes:state.notes,deck:state.deck,colors:[...state.colors],cmd2:state.cmd2,ci1:state.ci1,ci2:state.ci2,bg2:state.bg2,staplesMode:state.staplesMode,hg:state.hg,mull:state.mull})); }
 function load(){
-  state.done={}; state.notes=''; state.deck=''; state.cmd2=''; state.ci2=[]; state.bg2=false; state.staplesMode='commander'; state.hg={k:2,copies:10}; state.mull=defaultMull(); oneAwayHTML=''; staplesHTML=''; deckWarning=''; winHTML=''; deckCache={key:null,names:null,commanders:null,deckCI:null};
+  state.done={}; state.notes=''; state.deck=''; state.cmd2=''; state.ci2=[]; state.bg2=false; state.staplesMode='commander'; state.hg={k:2,copies:10}; state.mull=defaultMull(); oneAwayHTML=''; staplesHTML=''; deckWarning=''; winHTML=''; recHTML=''; deckCache={key:null,names:null,commanders:null,deckCI:null};
   try{ const o=JSON.parse(localStorage.getItem(key())||'{}');
     state.done=o.done||{}; state.notes=o.notes||''; state.deck=o.deck||'';
     state.cmd2=o.cmd2||''; state.bg2=!!o.bg2; state.staplesMode=o.staplesMode||'commander'; if(o.hg) state.hg=o.hg; if(o.ci2) state.ci2=o.ci2; if(o.ci1 && !(state.ci1||[]).length) state.ci1=o.ci1;
@@ -337,6 +352,11 @@ function render(){
     if(s.auto==='winning'){
       html+=`<button class="btn" style="width:100%;margin-top:4px" onclick="findWinners()">Show winningest cards (EDHTop16)</button>
         <div id="winout">${winHTML||''}</div>`;
+    }
+    if(s.auto==='recs'){
+      html+=deckBoxHTML();
+      html+=`<button class="btn" style="width:100%;margin-top:8px" onclick="findRecs()">Build my recommendations</button>
+        <div id="recout">${recHTML||''}</div>`;
     }
     if(s.auto==='mull'){
       const M=state.mull, H=state.hg, N=state.cmd2?98:99;
@@ -460,6 +480,60 @@ async function findWinners(){
   let h=`<div class="oahead">Cards that over-perform in EDHTop16 results for <b>${cmdName}</b> — ${d.e} entries, 16+ players, post-ban. Score = how much better decks running it finish vs this commander's average (1.00 = average).</div>`;
   h+='<div class="oalist">'+d.c.map(([name,n,lift])=>`<div class="oarow"><span class="oacnt">${lift.toFixed(2)}</span><a class="oaname" href="${scry('!"'+name.replace(/"/g,'')+'"')}" target="_blank" rel="noopener">${name.replace(/</g,'&lt;')}</a><span style="color:var(--muted);font-size:12px;flex:0 0 auto">${n} decks</span></div>`).join('')+'</div>';
   winHTML=h; box.innerHTML=h;
+}
+
+/* ---------- unified recommendations: merge one-away + winningest + EDHREC high-synergy/inclusion ---------- */
+async function findRecs(){
+  const box=$('#recout'); if(!box) return;
+  if(!state.cmd){ recHTML='<div class="oahead">Pick a commander first.</div>'; box.innerHTML=recHTML; return; }
+  if(!state.deck.trim()){ recHTML='<div class="oahead">Paste your decklist or Moxfield link above first.</div>'; box.innerHTML=recHTML; return; }
+  recHTML='<div class="oahead">Gathering recommendations from every signal…</div>'; box.innerHTML=recHTML;
+  let names;
+  try{ names=await resolveDeckNames(); }
+  catch(e){ recHTML='<div class="oahead">Couldn’t read that deck — make sure the Moxfield link is public, or paste the list as text.</div>'; box.innerHTML=recHTML; return; }
+  refreshDeckWarning();
+  const deckSet=new Set(names.map(normName));
+  for(const cn of [state.cmd,state.cmd2]) if(cn) deckSet.add(normName(cn));
+  const rec=new Map();
+  function add(name,key,val){ const k=normName(name); if(!k||deckSet.has(k)) return; let r=rec.get(k); if(!r){ r={name,src:new Set()}; rec.set(k,r); } if(key==='pct') r.pct=Math.max(r.pct||0,val); else r[key]=val; r.src.add(key); }
+  // 1. one-away combo finishers (local bundle, union identity)
+  try{
+    const cu=unionCI(), code=(WUBRG.filter(x=>cu.has(x)).join('')||'c').toUpperCase();
+    const b=await fetch('data/'+code+'.json').then(r=>r.ok?r.json():null);
+    if(b){
+      const idx=new Map(); b.cards.forEach((nm,i)=>idx.set(normName(nm),i));
+      const dset=new Set(); names.forEach(nm=>{const k=normName(nm); if(idx.has(k))dset.add(idx.get(k));});
+      for(const cn of [state.cmd,state.cmd2]){const k=normName(cn||''); if(idx.has(k))dset.add(idx.get(k));}
+      const tally=new Map();
+      for(const combo of b.combos){ let miss=-1,c=0; for(const i of combo){ if(!dset.has(i)){c++;miss=i;if(c>1)break;} } if(c===1) tally.set(miss,(tally.get(miss)||0)+1); }
+      for(const [i,cnt] of tally) add(b.cards[i],'combos',cnt);
+    }
+  }catch(e){}
+  // 2. winningest (precomputed EDHTop16 bundle)
+  try{ const w=await fetch('data/win/'+winKey()+'.json').then(r=>r.ok?r.json():null); if(w) for(const [nm,n,lift] of w.c) add(nm,'lift',lift); }catch(e){}
+  // 3. EDHREC cEDH/optimized: high-synergy + inclusion %
+  try{
+    let data=null;
+    for(const page of ['cedh','optimized','']){ const r=await fetch('https://json.edhrec.com/pages/commanders/'+deckSlug()+(page?'/'+page:'')+'.json'); if(r.ok){ data=await r.json(); break; } }
+    if(data){
+      const cl=(data.container&&data.container.json_dict&&data.container.json_dict.cardlists)||[];
+      for(const list of cl){ const hs=/high synergy/i.test(list.header||''); for(const cv of (list.cardviews||[])){ add(cv.name,'pct', cv.potential_decks?100*cv.num_decks/cv.potential_decks:0); if(hs) add(cv.name,'hs',true); } }
+    }
+  }catch(e){}
+  // rank: per-signal strength, with a bonus for cross-signal agreement
+  const score=r=> ((r.combos||0)*0.9 + Math.max(0,((r.lift||1)-1))*9 + (r.pct||0)*0.025 + (r.hs?0.8:0)) * (1+0.3*(r.src.size-1));
+  const rows=[...rec.values()].sort((a,b)=>score(b)-score(a)).slice(0,40);
+  if(!rows.length){ recHTML='<div class="oahead">No recommendations beyond what you already run — tight list.</div>'; box.innerHTML=recHTML; return; }
+  let h=`<div class="oahead">Cards <b>not in your deck</b>, merged across all signals (combo finishers · EDHTop16 winning · EDHREC high-synergy &amp; cEDH inclusion). More signals → higher rank.</div>`;
+  h+='<div class="oalist">'+rows.map(r=>{
+    const b=[];
+    if(r.combos) b.push(`<span class="rbadge combo">${r.combos} combo${r.combos>1?'s':''}</span>`);
+    if(r.lift) b.push(`<span class="rbadge win">win ${r.lift.toFixed(2)}</span>`);
+    if(r.pct) b.push(`<span class="rbadge pct">${r.pct.toFixed(0)}% cEDH</span>`);
+    if(r.hs) b.push(`<span class="rbadge syn">high-synergy</span>`);
+    return `<div class="rrow"><a class="oaname" href="${scry('!"'+r.name.replace(/"/g,'')+'"')}" target="_blank" rel="noopener">${r.name.replace(/</g,'&lt;')}</a><div class="rbadges">${b.join('')}</div></div>`;
+  }).join('')+'</div>';
+  recHTML=h; box.innerHTML=h;
 }
 
 /* ---------- step 6: competitive staples you're missing (EDHREC statistical data) ---------- */
