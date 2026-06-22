@@ -82,9 +82,13 @@
   .mullresult{margin-top:10px;font-size:14px;text-align:center;background:#16213a;border:1px solid #2c3e63;border-radius:9px;padding:10px}
   .mullresult b{font-size:23px;color:#7cc6ff;display:block;margin-bottom:2px}
   .mullsub{font-size:13px;color:#cfd6e2}
-  .margrow{font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:7px;margin-top:8px;line-height:1.9}
-  .margrow b{display:inline;font-size:12px;color:#7ee0a3}
-  .margsep{margin:0 5px;opacity:.4}
+  .margttl{font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:8px;margin-top:9px}
+  .margtbl{border-collapse:collapse;margin:5px auto 0;font-size:13px}
+  .margtbl td{padding:3px 0}
+  .margtbl td:first-child{text-align:left;padding-right:18px;color:var(--ink)}
+  .margtbl td:first-child b{display:inline;font-size:13px;color:#7cc6ff}
+  .margname{color:var(--muted);font-size:12px}
+  .margtbl td:last-child{text-align:right;color:#7ee0a3;font-weight:800}
   .warnbox{background:#1d160f;border:1px solid #5a4a20;border-radius:14px;padding:13px 14px;margin-bottom:12px}
   .warnbox h3{margin:0 0 6px;font-size:15px;color:#ffd07c}
   .warnbox p{margin:0;font-size:13px;color:#e7d8be;line-height:1.6}
@@ -306,9 +310,8 @@ function render(){
           <input type="text" value="${(M.combos||'').replace(/"/g,'&quot;')}" oninput="onMull('combos',this.value)" style="width:100%;font-family:ui-monospace,monospace;background:#171a21;border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:9px;font-size:14px">
           <p class="note" id="mulllegend" style="margin:10px 0 4px">${f.legend}</p>
           <div class="mullgrid" id="mullgrid" style="grid-template-columns:repeat(${f.cols},1fr)">${f.grid}</div>
-          <div class="mullgrid2"><label>deck size<input type="number" min="1" value="${M.N}" oninput="onMull('N',this.value)"></label><label>hand size<input type="number" min="1" value="${M.h}" oninput="onMull('h',this.value)"></label></div>
           <div id="mullresult" class="mullresult"></div>
-          <p class="note">Approximate: a hand is keepable if its mana-card counts contain any listed combo. Doesn't model specific anti-synergies (e.g. Sandstone + Simian Spirit Guide). “Ever-keep” = chance you find a keeper across London mulligans down to ~2.</p>
+          <p class="note">7-card opener from your library (${state.cmd2?98:99} cards). Approximate: a hand is keepable if its mana-card counts contain any listed combo; doesn't model specific anti-synergies (e.g. Sandstone + Simian Spirit Guide). “Ever-keep” = chance you find a keeper across London mulligans down to ~2.</p>
         </div>`;
       }
     }
@@ -436,7 +439,6 @@ function acceptRate(counts, combos, N, h){
   (function rec(pos,rem){ if(pos===K-1){ parts[pos]=rem; evalComp(); return; } for(let v=0;v<=rem;v++){ parts[pos]=v; rec(pos+1,rem-v); } })(0,h);
   const denom=comb(N,h); return denom>0 ? total/denom : 0;
 }
-function syncMullN(){ const want=state.cmd2?98:99; if(state.mull.N===98||state.mull.N===99) state.mull.N=want; }
 const MULL_LEG={L:'Land (Command Tower etc.)',R:'Rock (incl. Simian Spirit Guide)',D:'Depletion land (Sandstone/Ruins/Bog/Ebon)',I:'Investment ramp (Sol Ring, Mana Vault, Ragavan, tutors)',C:'Colored ritual (Dark Ritual, Rite)'};
 function mullLetters(){ return [...new Set((state.mull.combos||'').toUpperCase().replace(/[^A-Z]/g,'').split(''))]; }
 function mullFieldsHTML(){
@@ -453,7 +455,7 @@ function updateMullFields(){
 function computeMull(){
   const el=$('#mullresult'); if(!el) return;
   const M=state.mull, combos=(M.combos||'').trim().split(/\s+/).filter(Boolean);
-  const N=+M.N||99, h=+M.h||7;
+  const N = state.cmd2 ? 98 : 99, h = 7;   // command zone of 2 (partner/background) leaves a 98-card library
   if(!combos.length){ el.innerHTML='<b>—</b><div class="mullsub">add at least one combo above</div>'; return; }
   const letters=[...new Set(combos.join('').toUpperCase().split(''))].filter(x=>/[A-Z]/.test(x));
   const counts={}; letters.forEach(k=>counts[k]=+M[k]||0);
@@ -464,7 +466,7 @@ function computeMull(){
   const NAMES={L:'land',R:'rock',D:'depletion',I:'investment',C:'ritual'};
   const marg=letters.map(k=>{ const c2=Object.assign({},counts); c2[k]++; return {k,d:100*(acceptRate(c2,combos,N,h)-p)}; }).filter(x=>x.d>0.05).sort((a,b)=>b.d-a.d);
   let html=`<b>${pct.toFixed(1)}%</b><div class="mullsub">keep on the first hand · <b style="display:inline;font-size:inherit;color:#7ee0a3">${everPct.toFixed(1)}%</b> ever-keep (mull to ~2) · ${verdict}</div>`;
-  if(marg.length) html+=`<div class="margrow">adding one more: `+marg.map(x=>`${NAMES[x.k]||x.k} <b>+${x.d.toFixed(1)}%</b>`).join('<span class="margsep">·</span>')+`</div>`;
+  if(marg.length) html+=`<div class="margttl">adding one more:</div><table class="margtbl"><tbody>`+marg.map(x=>`<tr><td><b>${x.k}</b> <span class="margname">${NAMES[x.k]||''}</span></td><td>+${x.d.toFixed(1)}%</td></tr>`).join('')+`</tbody></table>`;
   el.innerHTML=html;
 }
 function onMull(k,v){ state.mull[k]=v; save(); if(k==='combos') updateMullFields(); computeMull(); }
@@ -479,7 +481,7 @@ function resetAll(){
 const PIPHEX={w:'#f7f3d6',u:'#9bd0ff',b:'#b9a7c9',r:'#ff9a86',g:'#9fe0a8'};
 const AC={1:{el:'aclist',in:'cmd',timer:null,items:[]},
           2:{el:'aclist2',in:'cmd2',timer:null,items:[]}};
-function recolor(){ state.colors=new Set([...(state.ci1||[]),...(state.ci2||[])].map(c=>c.toLowerCase())); paintPips(); syncMullN(); }
+function recolor(){ state.colors=new Set([...(state.ci1||[]),...(state.ci2||[])].map(c=>c.toLowerCase())); paintPips(); }
 // classify a commander's partner ability (from Scryfall keywords/oracle/type) -> slot-2 search fragments
 function partnerSpec(card){
   const kw=card.kw||[], oracle=card.oracle||'', tl=card.tl||'', frags=[];
