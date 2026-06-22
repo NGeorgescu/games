@@ -19,6 +19,16 @@
   input[type=text]{width:100%;background:#0e1117;border:1px solid var(--line);border-radius:10px;color:var(--ink);
     font-size:16px;padding:11px 12px;outline:none}
   input[type=text]:focus{border-color:var(--accent)}
+  .acwrap{position:relative}
+  .aclist{position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--panel);border:1px solid var(--line);
+    border-radius:10px;z-index:30;max-height:300px;overflow:auto;box-shadow:0 10px 28px rgba(0,0,0,.5)}
+  .aclist:empty{display:none}
+  .acitem{display:flex;align-items:center;gap:10px;padding:11px 12px;cursor:pointer;border-bottom:1px solid var(--line)}
+  .acitem:last-child{border-bottom:0}
+  .acitem:active{background:#222a36}
+  .acname{flex:1;font-size:14px}
+  .acci{font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--muted)}
+  .acpip{display:inline-block;width:13px;height:13px;border-radius:50%;margin-left:3px;vertical-align:middle}
   .pips{display:flex;gap:8px;margin-top:10px}
   .pip{flex:1;height:42px;border-radius:10px;border:2px solid var(--line);background:#0e1117;color:var(--muted);
     font-weight:800;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;user-select:none}
@@ -55,6 +65,13 @@
     font-size:11.5px;line-height:1.45;margin:8px 0 0;color:#cfe3d6}
   textarea{width:100%;min-height:120px;background:#0e1117;border:1px solid var(--line);border-radius:10px;
     color:var(--ink);font-size:14px;padding:11px;resize:vertical;line-height:1.5;font-family:ui-monospace,monospace}
+  .oalist{margin-top:10px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .oarow{display:flex;align-items:center;gap:10px;padding:8px 11px;border-bottom:1px solid var(--line)}
+  .oarow:last-child{border-bottom:0}
+  .oacnt{flex:0 0 auto;min-width:30px;height:24px;padding:0 7px;border-radius:6px;background:#16321f;color:#7ee0a3;
+    font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center}
+  .oaname{flex:1;color:var(--accent);text-decoration:none;font-size:14px}
+  .oahead{font-size:12px;color:var(--muted);margin-top:9px;line-height:1.5}
   .warnbox{background:#1d160f;border:1px solid #5a4a20;border-radius:14px;padding:13px 14px;margin-bottom:12px}
   .warnbox h3{margin:0 0 6px;font-size:15px;color:#ffd07c}
   .warnbox p{margin:0;font-size:13px;color:#e7d8be;line-height:1.6}
@@ -66,13 +83,17 @@
 <body>
 <div class="wrap">
   <h1>Broken &amp; Sweaty</h1>
-  <p class="sub">Turn any low-color, off-meta commander into a degen-power deck. Drop in your commander and
-  its color identity — every research link below pre-fills. Work the steps top to bottom.</p>
+  <p class="sub">Turn any low-color, off-meta commander into a degen-power deck. Start typing your commander,
+  pick it from the list — its color identity auto-fills from Scryfall and every research link below pre-fills.
+  Work the steps top to bottom.</p>
 
   <div class="card">
     <label class="fld" for="cmd">Commander</label>
-    <input type="text" id="cmd" placeholder="e.g. Brimaz, Blight of Oreskos" autocapitalize="words" autocomplete="off">
-    <label class="fld" style="margin-top:12px">Color identity</label>
+    <div class="acwrap">
+      <input type="text" id="cmd" placeholder="Start typing… e.g. Brimaz" autocapitalize="words" autocomplete="off">
+      <div class="aclist" id="aclist"></div>
+    </div>
+    <label class="fld" style="margin-top:12px">Color identity <span style="text-transform:none;letter-spacing:0">(auto-filled — tap to override)</span></label>
     <div class="pips" id="pips">
       <div class="pip" data-c="w">W</div><div class="pip" data-c="u">U</div><div class="pip" data-c="b">B</div>
       <div class="pip" data-c="r">R</div><div class="pip" data-c="g">G</div>
@@ -81,14 +102,6 @@
 
   <div class="progwrap"><div class="progbar" id="bar"></div></div>
   <div class="note" id="progtxt" style="text-align:center;margin-bottom:12px">0 / 11 steps done</div>
-
-  <div class="warnbox">
-    <h3>Step 0 — reality check first</h3>
-    <p>Some of what your commander naturally wants you to do is a slow, non-degen strategy. Tribal or proliferate
-    are fine bracket-2 (maybe pushed to bracket-3) plans — but cat tribal or proliferating poison tokens gets run
-    over in a real pod. Treat any "build-around" text as flavor text if it's slow. Find the fastest, most abusable
-    line your colors allow (sac loops, altars, stax + a tight combo) and build toward <i>that</i>.</p>
-  </div>
 
   <div id="steps"></div>
 
@@ -103,6 +116,8 @@
     Links generated from the patterns in the guide. Verified live: EDHREC slug, managathering dual-lands path.
     Commander Spellbook / EDHREC / DuckDuckGo / AetherHub / Moxfield-staples links use the example URLs you gave;
     Scryfall queries are editable starting points — tweak the syntax to taste.
+    Step 7's one-away finder runs entirely in your browser on a snapshot of the Commander Spellbook combo
+    database (v5.4.10, 2026-06-22) — it fetches only the bundle for your commander's colors.
   </div>
 </div>
 
@@ -112,7 +127,8 @@ const $ = s => document.querySelector(s);
 const WUBRG = ['w','u','b','r','g'];
 const GUILD = {wu:'azorius',wb:'orzhov',wr:'boros',wg:'selesnya',ub:'dimir',ur:'izzet',ug:'simic',br:'rakdos',bg:'golgari',rg:'gruul'};
 
-let state = { cmd:'', colors:new Set(), done:{}, notes:'' };
+let state = { cmd:'', colors:new Set(), done:{}, notes:'', deck:'' };
+let oneAwayHTML = '';
 
 /* ---------- url helpers ---------- */
 function slug(name){
@@ -139,17 +155,6 @@ const FIND_MY_COMBOS = 'https://commanderspellbook.com/find-my-combos/';
 const HYPERGEO = 'https://aetherhub.com/Apps/HyperGeometric';
 
 /* ---------- the steps ---------- */
-const PY_TALLY =
-`# Paste each "Find My Combos" page's "almost there" section into combos.txt
-# (copy, paste, next page, copy, paste ...). Then run this.
-import re, collections
-text = open('combos.txt').read()
-# CSB marks cards you don't own as "(not in this deck)" — adjust if the wording differs
-missing = re.findall(r'(.+?)\\s*\\(not in this deck\\)', text)
-c = collections.Counter(m.strip().splitlines()[-1] for m in missing)
-for card, n in c.most_common():
-    print(f'{n:3}  {card}')`;
-
 function steps(){ return [
   { t:"Combos with your commander",
     body:`<p>Check Commander Spellbook for combos your commander is in or enables. Note the cards and add them to
@@ -184,12 +189,12 @@ function steps(){ return [
     links:[['cEDH staples (example list)', ()=>MOX_STAPLES],
            ['Spellbook · all combos in your colors', csbColorCombos]] },
 
-  { t:"Find My Combos — what you're one-away from",
-    body:`<p>Paste your "finished" deck into Find My Combos. CSB has no "almost there" export, so do it by hand:
-      copy each page's near-miss section into a text file, then tally the "not in this deck" lines to see which
-      single cards complete the most combos.</p>`,
-    links:[['Spellbook · Find My Combos', ()=>FIND_MY_COMBOS]],
-    pre:PY_TALLY },
+  { t:"Find what you're one-away from",
+    body:`<p>Paste your "finished" decklist (one card per line — a Moxfield/Archidekt export pastes fine). This
+      computes, right here, which single cards would complete the most combos in your colors — ranked. No copy-paste
+      tallying, no upload.</p>`,
+    auto:'oneaway',
+    links:[['Cross-check on Spellbook · Find My Combos', ()=>FIND_MY_COMBOS]] },
 
   { t:"Fill out the deck",
     body:`<p>Plug the gaps. Combo-piece heavy on artifacts/enchantments → add the matching tutors. Commander makes
@@ -217,15 +222,16 @@ function steps(){ return [
 
 /* ---------- render ---------- */
 function key(){ return 'bs:'+slug(state.cmd||'_'); }
-function save(){ localStorage.setItem(key(), JSON.stringify({done:state.done,notes:state.notes,colors:[...state.colors]})); }
+function save(){ localStorage.setItem(key(), JSON.stringify({done:state.done,notes:state.notes,deck:state.deck,colors:[...state.colors]})); }
 function load(){
-  state.done={}; state.notes='';
+  state.done={}; state.notes=''; state.deck=''; oneAwayHTML='';
   try{ const o=JSON.parse(localStorage.getItem(key())||'{}');
-    state.done=o.done||{}; state.notes=o.notes||'';
+    state.done=o.done||{}; state.notes=o.notes||''; state.deck=o.deck||'';
     if(o.colors && state.colors.size===0){ state.colors=new Set(o.colors); paintPips(); }
   }catch(e){}
   $('#list').value=state.notes;
 }
+function onDeck(v){ state.deck=v; save(); }
 function paintPips(){ document.querySelectorAll('.pip').forEach(p=>p.classList.toggle('on',state.colors.has(p.dataset.c))); }
 
 function render(){
@@ -240,6 +246,11 @@ function render(){
     if(s.cardbox){
       html+=`<div class="mini"><input type="text" id="cardin${n}" placeholder="card name…" autocomplete="off">
         <button onclick="cardSearch(${n})">Search</button></div>`;
+    }
+    if(s.auto==='oneaway'){
+      html+=`<textarea id="deckbox" oninput="onDeck(this.value)" placeholder="Paste your decklist, one card per line…">${(state.deck||'').replace(/</g,'&lt;')}</textarea>
+        <button class="btn" style="width:100%;margin-top:8px" onclick="findOneAway()">Find cards I'm one away from</button>
+        <div id="oneaway">${oneAwayHTML||''}</div>`;
     }
     if(s.links && s.links.length){
       html+='<div class="links">'+s.links.map((l,j)=>{
@@ -263,13 +274,85 @@ function cardSearch(n){
   window.open(csbCardInColors(v),'_blank','noopener');
   window.open(scry('id<='+ci()+' "'+v+'"'),'_blank','noopener');
 }
+
+/* ---------- step 7: one-away finder (local, from CSB combo bundles) ---------- */
+function normName(s){ return s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,''); }
+async function findOneAway(){
+  const box=$('#oneaway');
+  const code = WUBRG.filter(x=>state.colors.has(x)).join('') || 'C';
+  if(!state.deck.trim()){ oneAwayHTML='<div class="oahead">Paste a decklist above first.</div>'; box.innerHTML=oneAwayHTML; return; }
+  oneAwayHTML='<div class="oahead">Loading combo data…</div>'; box.innerHTML=oneAwayHTML;
+  let bundle;
+  try{ const r=await fetch('data/'+code+'.json'); if(!r.ok) throw 0; bundle=await r.json(); }
+  catch(e){ oneAwayHTML='<div class="oahead">Couldn\'t load combo data for '+code+'. (Works on the live site; opening the file locally blocks the fetch.)</div>'; box.innerHTML=oneAwayHTML; return; }
+  const idxByName=new Map(); bundle.cards.forEach((nm,i)=>idxByName.set(normName(nm),i));
+  const deck=new Set();
+  for(let line of state.deck.split('\n')){
+    line=line.replace(/^\s*\d+\s*x?\s+/i,'').replace(/\s*\([^)]*\).*$/,'').split('//')[0].trim();
+    if(!line) continue;
+    const k=normName(line); if(idxByName.has(k)) deck.add(idxByName.get(k));
+  }
+  const ck=normName(state.cmd); if(idxByName.has(ck)) deck.add(idxByName.get(ck));
+  const tally=new Map(); let already=0;
+  for(const combo of bundle.combos){
+    let miss=-1, n=0;
+    for(const idx of combo){ if(!deck.has(idx)){ n++; miss=idx; if(n>1) break; } }
+    if(n===0) already++;
+    else if(n===1) tally.set(miss,(tally.get(miss)||0)+1);
+  }
+  const ranked=[...tally.entries()].sort((a,b)=>b[1]-a[1]||a[0]-b[0]).slice(0,30);
+  let h=`<div class="oahead">From the Commander Spellbook combo database (v${bundle.v}). You already complete <b>${already}</b> combo${already===1?'':'s'} with this list. The number on each card = how many <i>more</i> combos it would finish.</div>`;
+  if(!ranked.length){ h+='<div class="oahead">No one-away combos found — either this list already completes everything it can in your colors, or paste more of the deck.</div>'; }
+  else { h+='<div class="oalist">'+ranked.map(([idx,cnt])=>{
+      const nm=bundle.cards[idx];
+      return `<div class="oarow"><span class="oacnt">${cnt}</span><a class="oaname" href="${csbCardInColors(nm)}" target="_blank" rel="noopener">${nm.replace(/</g,'&lt;')}</a></div>`;
+    }).join('')+'</div>'; }
+  oneAwayHTML=h; box.innerHTML=h;
+}
 function resetAll(){
   if(!confirm('Clear the checklist and notes for "'+(state.cmd||'this commander')+'"?')) return;
   state.done={}; state.notes=''; $('#list').value=''; save(); render();
 }
 
+/* ---------- commander autocomplete (Scryfall) ---------- */
+const PIPHEX={w:'#f7f3d6',u:'#9bd0ff',b:'#b9a7c9',r:'#ff9a86',g:'#9fe0a8'};
+let acTimer=null, acItems=[];
+function setCommander(name, colorIdentity){
+  state.cmd=name; $('#cmd').value=name;
+  state.colors=new Set((colorIdentity||[]).map(c=>c.toLowerCase()));
+  paintPips(); $('#aclist').innerHTML=''; acItems=[];
+  load(); render(); save();
+}
+async function lookup(q){
+  try{
+    const url='https://api.scryfall.com/cards/search?order=edhrec&unique=cards&q='+encodeURIComponent('is:commander '+q);
+    const r=await fetch(url);
+    if(!r.ok){ $('#aclist').innerHTML=''; return; }
+    const j=await r.json();
+    acItems=(j.data||[]).slice(0,12).map(c=>({name:c.name, ci:c.color_identity||[]}));
+    renderAC();
+  }catch(e){ $('#aclist').innerHTML=''; }
+}
+function renderAC(){
+  $('#aclist').innerHTML=acItems.map((c,i)=>{
+    const pips=c.ci.length
+      ? c.ci.map(x=>`<span class="acpip" style="background:${PIPHEX[x.toLowerCase()]||'#555'}"></span>`).join('')
+      : '<span class="acci">colorless</span>';
+    return `<div class="acitem" onclick="pick(${i})"><span class="acname">${c.name.replace(/</g,'&lt;')}</span>${pips}</div>`;
+  }).join('');
+}
+function pick(i){ const c=acItems[i]; if(c) setCommander(c.name, c.ci); }
+
 /* ---------- wiring ---------- */
-$('#cmd').addEventListener('input', e=>{ state.cmd=e.target.value; load(); render(); });
+$('#cmd').addEventListener('input', e=>{
+  state.cmd=e.target.value;
+  clearTimeout(acTimer);
+  const q=e.target.value.trim();
+  if(q.length<2){ $('#aclist').innerHTML=''; render(); return; }
+  acTimer=setTimeout(()=>lookup(q), 250);
+  render();
+});
+document.addEventListener('click', e=>{ if(!e.target.closest('.acwrap')) $('#aclist').innerHTML=''; });
 $('#list').addEventListener('input', e=>{ state.notes=e.target.value; save(); });
 document.querySelectorAll('.pip').forEach(p=>p.addEventListener('click',()=>{
   const c=p.dataset.c; state.colors.has(c)?state.colors.delete(c):state.colors.add(c);
