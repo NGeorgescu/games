@@ -495,6 +495,18 @@ function setCommander(slot, it){
   $('#'+AC[slot].el).innerHTML=''; AC[slot].items=[];
   if(slot===1){ load(); applyPartnerSpec(it); }   // restore saved state, then (re)configure slot 2
   recolor(); render(); save();
+  if(slot===1) refreshBg2();                      // a restored partner may need its background flag re-derived
+}
+// re-derive whether the second commander is a Background (fixes stale saves predating the bg2 flag)
+async function refreshBg2(){
+  const nm=state.cmd2; if(!nm) return;
+  try{
+    const r=await fetch('https://api.scryfall.com/cards/named?exact='+encodeURIComponent(nm));
+    if(!r.ok) return;
+    const c=await r.json();
+    const bg=/\bBackground\b/.test(c.type_line||'');
+    if(bg!==state.bg2){ state.bg2=bg; save(); render(); }
+  }catch(e){}
 }
 async function lookup(slot,q){
   try{
@@ -537,7 +549,7 @@ document.querySelectorAll('.pip').forEach(p=>p.addEventListener('click',()=>{
   paintPips(); save(); render();
 }));
 
-load(); render();
+load(); render(); refreshBg2();
 </script>
 </body>
 </html>
