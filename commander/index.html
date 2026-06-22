@@ -196,6 +196,8 @@ function csbColorCombos(){ return CSB + enc('ci:'+ci()); }
 function edhrecCombos(){ return 'https://edhrec.com/combos/'+deckSlug(); }
 function edhrecBracket(kind){ return 'https://edhrec.com/commanders/'+deckSlug()+'/'+kind+'#highsynergycards'; }
 function ddg(q){ return 'https://duckduckgo.com/?q='+enc(q); }
+function edhtop16Link(){ return state.cmd2 ? ddg(deckNames()+' site:edhtop16.com') : 'https://edhtop16.com/commander/'+enc(state.cmd); }
+function mtgtop8Link(){ return ddg(deckNames()+' site:mtgtop8.com'); }
 function scry(q){ return 'https://scryfall.com/search?q='+enc(q+' f:c game:paper')+'&order=edhrec'; }
 // stax oracle fragments (researched + verified vs Scryfall API): high-precision tax / lock / denial pieces
 const STAX_TERMS = `(o:"cost {1} more to cast" or o:"cost {2} more to cast" or o:"can't cast more than one" or o:"can't untap" or o:"skip their untap" or (o:"activated abilities of" o:"can't be activated") or o:"would search a library" or o:"can't search" or (o:"spells with mana value" o:"can't be cast") or o:"searching their library" or o:"can't cast spells from anywhere")`;
@@ -231,10 +233,12 @@ function steps(){ return [
            ['Spellbook · combos in these colors', csbColorCombos]] },
 
   { t:"Raid the bracket 4 / 5 lists",
-    body:`<p>What are people putting in optimized (bracket 4) and cEDH (bracket 5) builds? Both jump straight to
-      the <b>high-synergy cards</b> — the spicy, build-defining includes, not the generic staples.</p>`,
+    body:`<p>What are people putting in optimized (bracket 4) and cEDH (bracket 5) builds? The EDHREC links jump
+      straight to the <b>high-synergy cards</b>; EDHTop16 and mtgtop8 show actual tournament results.</p>`,
     links:[['EDHREC · optimized (b4)', ()=>edhrecBracket('optimized')],
-           ['EDHREC · cEDH (b5)', ()=>edhrecBracket('cedh')]] },
+           ['EDHREC · cEDH (b5)', ()=>edhrecBracket('cedh')],
+           ['EDHTop16 · tournaments', edhtop16Link],
+           ['mtgtop8 · lists', mtgtop8Link]] },
 
   { t:"Find the cards those combos lean on",
     body:`<p>Click around and spot the glue pieces — e.g. if a card shows up in every combo, look up <i>which
