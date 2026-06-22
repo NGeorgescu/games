@@ -72,6 +72,15 @@
     font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center}
   .oaname{flex:1;color:var(--accent);text-decoration:none;font-size:14px}
   .oahead{font-size:12px;color:var(--muted);margin-top:9px;line-height:1.5}
+  .btn.ghost{background:#1c222c;color:var(--accent);border:1px solid #2c3543}
+  .mullbox{margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:11px;background:#0e1117}
+  .mullgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}
+  .mullgrid label,.mullgrid2 label{font-size:13px;color:var(--muted);text-align:center;font-weight:800;display:block}
+  .mullgrid input,.mullgrid2 input{width:100%;margin-top:3px;background:#171a21;border:1px solid var(--line);
+    border-radius:8px;color:var(--ink);font-size:15px;padding:8px 4px;text-align:center}
+  .mullgrid2{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}
+  .mullresult{margin-top:10px;font-size:14px;text-align:center;background:#16213a;border:1px solid #2c3e63;border-radius:9px;padding:10px}
+  .mullresult b{font-size:23px;color:#7cc6ff;display:block;margin-bottom:2px}
   .warnbox{background:#1d160f;border:1px solid #5a4a20;border-radius:14px;padding:13px 14px;margin-bottom:12px}
   .warnbox h3{margin:0 0 6px;font-size:15px;color:#ffd07c}
   .warnbox p{margin:0;font-size:13px;color:#e7d8be;line-height:1.6}
@@ -131,7 +140,8 @@ const $ = s => document.querySelector(s);
 const WUBRG = ['w','u','b','r','g'];
 const GUILD = {wu:'azorius',wb:'orzhov',wr:'boros',wg:'selesnya',ub:'dimir',ur:'izzet',ug:'simic',br:'rakdos',bg:'golgari',rg:'gruul'};
 
-let state = { cmd:'', cmd2:'', ci1:[], ci2:[], slot2q:null, colors:new Set(), done:{}, notes:'', deck:'' };
+function defaultMull(){ return {L:17,R:4,D:4,I:4,C:2,N:99,h:7,combos:'DL DR LLR LLC LLI LRC LRI LRR RRR RRC RRI LIC RIC',open:false}; }
+let state = { cmd:'', cmd2:'', ci1:[], ci2:[], slot2q:null, colors:new Set(), done:{}, notes:'', deck:'', mull:defaultMull() };
 let oneAwayHTML = '';
 
 /* ---------- url helpers ---------- */
@@ -220,7 +230,8 @@ function steps(){ return [
 
   { t:"Check your mulligans",
     body:`<p>Tune toward a ~2-in-3 keepable-hand rate (looser or tighter depending how mull-sensitive the deck is).
-      Use a hypergeometric calculator to get the odds of an acceptable opener.</p>`,
+      Use the calculator below — or a generic hypergeometric tool — to get the odds of an acceptable opener.</p>`,
+    auto:'mull',
     links:[['AetherHub · hypergeometric', ()=>HYPERGEO]] },
 
   { t:"Lock in tight, sensible wincons",
@@ -236,12 +247,13 @@ function steps(){ return [
 
 /* ---------- render ---------- */
 function key(){ return 'bs:'+slug(state.cmd||'_'); }
-function save(){ localStorage.setItem(key(), JSON.stringify({done:state.done,notes:state.notes,deck:state.deck,colors:[...state.colors],cmd2:state.cmd2,ci1:state.ci1,ci2:state.ci2})); }
+function save(){ localStorage.setItem(key(), JSON.stringify({done:state.done,notes:state.notes,deck:state.deck,colors:[...state.colors],cmd2:state.cmd2,ci1:state.ci1,ci2:state.ci2,mull:state.mull})); }
 function load(){
-  state.done={}; state.notes=''; state.deck=''; state.cmd2=''; state.ci2=[]; oneAwayHTML='';
+  state.done={}; state.notes=''; state.deck=''; state.cmd2=''; state.ci2=[]; state.mull=defaultMull(); oneAwayHTML='';
   try{ const o=JSON.parse(localStorage.getItem(key())||'{}');
     state.done=o.done||{}; state.notes=o.notes||''; state.deck=o.deck||'';
     state.cmd2=o.cmd2||''; if(o.ci2) state.ci2=o.ci2; if(o.ci1 && !(state.ci1||[]).length) state.ci1=o.ci1;
+    if(o.mull) state.mull=Object.assign(defaultMull(), o.mull);
     if(o.colors && state.colors.size===0){ state.colors=new Set(o.colors); paintPips(); }
   }catch(e){}
   const i2=$('#cmd2'); if(i2) i2.value=state.cmd2;
@@ -268,6 +280,21 @@ function render(){
         <button class="btn" style="width:100%;margin-top:8px" onclick="findOneAway()">Find cards I'm one away from</button>
         <div id="oneaway">${oneAwayHTML||''}</div>`;
     }
+    if(s.auto==='mull'){
+      const M=state.mull;
+      html+=`<button class="btn ghost" style="width:100%;margin-top:4px" onclick="toggleMull()">${M.open?'▾':'▸'} Advanced: mana-base keep-rate calculator</button>`;
+      if(M.open){
+        html+=`<div class="mullbox">
+          <p class="note" style="margin-top:0">How many of each mana-card type are in your 99? <b>L</b>and (Command Tower etc.) · <b>R</b>ock (incl. Simian Spirit Guide) · <b>D</b>epletion land (Sandstone/Ruins/Bog/Ebon) · <b>I</b>nvestment ramp (Sol Ring, Mana Vault, Ragavan, tutors) · <b>C</b>olored ritual (Dark Ritual, Rite).</p>
+          <div class="mullgrid">${['L','R','D','I','C'].map(k=>`<label>${k}<input type="number" min="0" value="${M[k]}" oninput="onMull('${k}',this.value)"></label>`).join('')}</div>
+          <label class="note" style="display:block;margin:9px 0 3px">Keepable opening-hand combos (space-separated; each letter = one card of that type):</label>
+          <input type="text" value="${M.combos.replace(/"/g,'&quot;')}" oninput="onMull('combos',this.value)" style="width:100%;font-family:ui-monospace,monospace;background:#171a21;border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:9px;font-size:14px">
+          <div class="mullgrid2"><label>deck size<input type="number" min="1" value="${M.N}" oninput="onMull('N',this.value)"></label><label>hand size<input type="number" min="1" value="${M.h}" oninput="onMull('h',this.value)"></label></div>
+          <div id="mullresult" class="mullresult"></div>
+          <p class="note">Approximate: a hand counts as keepable if its mana-card counts contain any listed combo. It doesn't model specific anti-synergies (e.g. Sandstone + Simian Spirit Guide). Aim for ~2-in-3, looser or tighter by how mull-sensitive the deck is.</p>
+        </div>`;
+      }
+    }
     if(s.links && s.links.length){
       html+='<div class="links">'+s.links.map((l,j)=>{
         const href=(typeof l[1]==='function')?l[1]():l[1];
@@ -283,6 +310,7 @@ function render(){
   const total=S.length, n=Object.values(state.done).filter(Boolean).length;
   $('#bar').style.width=(100*n/total)+'%';
   $('#progtxt').textContent=n+' / '+total+' steps done';
+  computeMull();
 }
 function toggle(n){ state.done[n]=!state.done[n]; save(); render(); }
 function cardSearch(n){
@@ -338,6 +366,36 @@ async function findOneAway(){
     }).join('')+'</div>'; }
   oneAwayHTML=h; box.innerHTML=h;
 }
+/* ---------- step 9: mana-base keep-rate (multivariate hypergeometric) ---------- */
+function comb(n,k){ if(k<0||k>n||n<0) return 0; k=Math.min(k,n-k); let r=1; for(let i=0;i<k;i++) r=r*(n-i)/(i+1); return r; }
+function acceptRate(counts, combos, N, h){
+  const letters=[...new Set([].concat(Object.keys(counts), combos.join('').split('')))].filter(x=>/\S/.test(x)).sort();
+  const idx={}; letters.forEach((ch,i)=>idx[ch]=i);
+  const ns=letters.map(ch=>counts[ch]||0);
+  const O=N-ns.reduce((a,b)=>a+b,0);
+  const req=combos.map(t=>{ const m={}; for(const ch of t) m[ch]=(m[ch]||0)+1; return m; });
+  const K=letters.length+1, parts=new Array(K); let total=0;
+  function evalComp(){
+    if(!req.some(q=>Object.keys(q).every(ch=>parts[idx[ch]]>=q[ch]))) return;
+    let w=comb(O, parts[K-1]); for(let i=0;i<letters.length;i++) w*=comb(ns[i], parts[i]); total+=w;
+  }
+  (function rec(pos,rem){ if(pos===K-1){ parts[pos]=rem; evalComp(); return; } for(let v=0;v<=rem;v++){ parts[pos]=v; rec(pos+1,rem-v); } })(0,h);
+  const denom=comb(N,h); return denom>0 ? total/denom : 0;
+}
+function computeMull(){
+  const el=$('#mullresult'); if(!el) return;
+  const M=state.mull, combos=(M.combos||'').trim().split(/\s+/).filter(Boolean);
+  const N=+M.N||99, h=+M.h||7;
+  if(!combos.length){ el.innerHTML='<b>—</b>add at least one combo above'; return; }
+  const counts={L:+M.L||0,R:+M.R||0,D:+M.D||0,I:+M.I||0,C:+M.C||0};
+  if(Object.values(counts).reduce((a,b)=>a+b,0)>N){ el.innerHTML='<b>—</b>mana cards exceed deck size'; return; }
+  const p=acceptRate(counts, combos, N, h), pct=100*p;
+  const verdict = pct>=63?'comfortable':pct>=55?'okay':'shaky — add lands/rocks';
+  el.innerHTML=`<b>${pct.toFixed(1)}%</b>keepable openers &nbsp;·&nbsp; ≈ 1 in ${p>0?(1/p).toFixed(1):'∞'} &nbsp;·&nbsp; ${verdict}`;
+}
+function onMull(k,v){ state.mull[k]=v; save(); computeMull(); }
+function toggleMull(){ state.mull.open=!state.mull.open; save(); render(); }
+
 function resetAll(){
   if(!confirm('Clear the checklist and notes for "'+(state.cmd||'this commander')+'"?')) return;
   state.done={}; state.notes=''; $('#list').value=''; save(); render();
