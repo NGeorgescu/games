@@ -81,6 +81,10 @@
   .mullgrid2{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}
   .mullresult{margin-top:10px;font-size:14px;text-align:center;background:#16213a;border:1px solid #2c3e63;border-radius:9px;padding:10px}
   .mullresult b{font-size:23px;color:#7cc6ff;display:block;margin-bottom:2px}
+  .mullsub{font-size:13px;color:#cfd6e2}
+  .margrow{font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:7px;margin-top:8px;line-height:1.9}
+  .margrow b{display:inline;font-size:12px;color:#7ee0a3}
+  .margsep{margin:0 5px;opacity:.4}
   .warnbox{background:#1d160f;border:1px solid #5a4a20;border-radius:14px;padding:13px 14px;margin-bottom:12px}
   .warnbox h3{margin:0 0 6px;font-size:15px;color:#ffd07c}
   .warnbox p{margin:0;font-size:13px;color:#e7d8be;line-height:1.6}
@@ -142,7 +146,12 @@ const GUILD = {wu:'azorius',wb:'orzhov',wr:'boros',wg:'selesnya',ub:'dimir',ur:'
 
 function defaultMull(){ return {L:17,R:4,D:4,I:4,C:2,N:99,h:7,combos:'DL DR LLR LLC LLI LRC LRI LRR RRR RRC RRI LIC RIC',open:false}; }
 let state = { cmd:'', cmd2:'', ci1:[], ci2:[], slot2q:null, colors:new Set(), done:{}, notes:'', deck:'', mull:defaultMull() };
-let oneAwayHTML = '';
+let oneAwayHTML = '', staplesHTML = '';
+let deckCache = {key:null, names:null};
+function deckBoxHTML(){
+  return `<textarea class="deckbox" oninput="onDeck(this.value)" placeholder="Paste a Moxfield deck link, or your decklist (one card per line)…">${(state.deck||'').replace(/</g,'&lt;')}</textarea>
+    <div class="note" style="margin-top:4px">Shared between steps 6 &amp; 7 — paste once, both use it.</div>`;
+}
 
 /* ---------- url helpers ---------- */
 function slug(name){
@@ -161,7 +170,7 @@ function csbColorCombos(){ return CSB + enc('ci:'+ci()); }
 function edhrecCombos(){ return 'https://edhrec.com/combos/'+deckSlug(); }
 function edhrecBracket(kind){ return 'https://edhrec.com/commanders/'+deckSlug()+'/'+kind+'#highsynergycards'; }
 function ddg(q){ return 'https://duckduckgo.com/?q='+enc(q); }
-function scry(q){ return 'https://scryfall.com/search?q='+enc(q+' f:c game:paper'); }
+function scry(q){ return 'https://scryfall.com/search?q='+enc(q+' f:c game:paper')+'&order=edhrec'; }
 // stax oracle fragments (researched + verified vs Scryfall API): high-precision tax / lock / denial pieces
 const STAX_TERMS = `(o:"cost {1} more to cast" or o:"cost {2} more to cast" or o:"can't cast more than one" or o:"can't untap" or o:"skip their untap" or (o:"activated abilities of" o:"can't be activated") or o:"would search a library" or o:"can't search" or (o:"spells with mana value" o:"can't be cast") or o:"searching their library" or o:"can't cast spells from anywhere")`;
 function landsLink(){
@@ -203,20 +212,22 @@ function steps(){ return [
     links:[['DuckDuckGo · "{cmd} cedh"', ()=>ddg(deckNames()+' cedh')],
            ['Moxfield primers', ()=>ddg(deckNames()+' cedh primer site:moxfield.com')]] },
 
-  { t:"Add the cEDH staples you're missing",
-    body:`<p>Open a known cEDH staples list and scan it for the high-value, color-agnostic pieces your colors can
-      run but your deck doesn't yet — free interaction (Force of Will, Fierce Guardianship, Deflecting Swat),
-      fast mana (Mana Crypt, the Moxen, Jeweled Lotus), efficient tutors. The weaker your commander, the more of
-      these you need to keep pace in a bracket-4 pod. Add the ones that fit, then re-run step 7.</p>
-      <p class="note">Thinking about a specific staple? Type it below to see what combos it unlocks in your colors.</p>`,
-    cardbox:true,
-    links:[['Open a cEDH staples list', ()=>MOX_STAPLES],
+  { t:"Add the competitive staples you're missing",
+    body:`<p>Paste your decklist or a Moxfield link below — it's <b>shared with step 7</b>, so you only paste once.
+      This pulls what cEDH decks of your commander actually run (live EDHREC data) and lists the most-played cards
+      you're <b>not</b> on yet, ranked by the % of competitive decks that play them. The weaker your commander, the
+      more of these you'll want to keep pace.</p>`,
+    auto:'staples',
+    links:[['Browse a full cEDH staples list', ()=>MOX_STAPLES],
            ['Spellbook · all combos in your colors', csbColorCombos]] },
 
   { t:"Find what you're one-away from",
     body:`<p>Paste a <b>Moxfield deck link</b> (it'll fetch the list for you) or your decklist text, one card per
-      line. This computes, right here, which single cards would complete the most combos in your colors — ranked.
-      No copy-paste tallying, no upload.</p>`,
+      line — <b>shared with step 6</b>. This computes which single cards would complete the most combos in your
+      colors — ranked. No copy-paste tallying, no upload.</p>
+      <p class="note"><b>Wincons:</b> these combos are your finishers — lock in a small, focused set that (A) fits
+      your gameplan and (B) wins along different axes (stax-locked, instant-speed, etc.) rather than jamming every
+      line you can.</p>`,
     auto:'oneaway',
     links:[['Cross-check on Spellbook · Find My Combos', ()=>FIND_MY_COMBOS]] },
 
@@ -224,8 +235,8 @@ function steps(){ return [
     body:`<p>Plug the gaps. Combo-piece heavy on artifacts/enchantments → add the matching tutors. Commander makes
       no mana → more ramp. Doesn't draw → add engines. Needs an enabler type → grab the most abusable version on
       Scryfall (artifact creatures beat Phyrexians here). Then fix the mana base with good untapped lands.</p>`,
-    links:[['Scryfall · tutors in your colors', ()=>scry('id<='+ci()+' o:"search your library" (t:artifact or t:creature)')],
-           ['Scryfall · mana rocks', ()=>scry('id<='+ci()+' t:artifact o:"add" mv<=3')],
+    links:[['Scryfall · tutors in your colors', ()=>scry('id<='+ci()+' o:"search your library" -t:land')],
+           ['Scryfall · mana rocks & dorks', ()=>scry('id<='+ci()+' (t:artifact or t:creature) o:" add " mv<=3')],
            ['managathering · untapped duals', landsLink]] },
 
   { t:"Check your mulligans",
@@ -233,10 +244,6 @@ function steps(){ return [
       Use the calculator below — or a generic hypergeometric tool — to get the odds of an acceptable opener.</p>`,
     auto:'mull',
     links:[['AetherHub · hypergeometric', ()=>HYPERGEO]] },
-
-  { t:"Lock in tight, sensible wincons",
-    body:`<p>A small, focused set of wincons that (A) fit your gameplan and (B) ideally win along different axes —
-      stax-locked, instant-speed, etc.</p>` },
 
   { t:"Goldfish — can it win fast?",
     body:`<p>You want to be winning well under turn 6. If you can't, add stax to slow the table (Rule of Law effects,
@@ -249,7 +256,7 @@ function steps(){ return [
 function key(){ return 'bs:'+slug(state.cmd||'_'); }
 function save(){ localStorage.setItem(key(), JSON.stringify({done:state.done,notes:state.notes,deck:state.deck,colors:[...state.colors],cmd2:state.cmd2,ci1:state.ci1,ci2:state.ci2,mull:state.mull})); }
 function load(){
-  state.done={}; state.notes=''; state.deck=''; state.cmd2=''; state.ci2=[]; state.mull=defaultMull(); oneAwayHTML='';
+  state.done={}; state.notes=''; state.deck=''; state.cmd2=''; state.ci2=[]; state.mull=defaultMull(); oneAwayHTML=''; staplesHTML=''; deckCache={key:null,names:null};
   try{ const o=JSON.parse(localStorage.getItem(key())||'{}');
     state.done=o.done||{}; state.notes=o.notes||''; state.deck=o.deck||'';
     state.cmd2=o.cmd2||''; if(o.ci2) state.ci2=o.ci2; if(o.ci1 && !(state.ci1||[]).length) state.ci1=o.ci1;
@@ -259,7 +266,7 @@ function load(){
   const i2=$('#cmd2'); if(i2) i2.value=state.cmd2;
   $('#list').value=state.notes;
 }
-function onDeck(v){ state.deck=v; save(); }
+function onDeck(v){ state.deck=v; save(); document.querySelectorAll('.deckbox').forEach(t=>{ if(t.value!==v) t.value=v; }); }
 function paintPips(){ document.querySelectorAll('.pip').forEach(p=>p.classList.toggle('on',state.colors.has(p.dataset.c))); }
 
 function render(){
@@ -275,23 +282,30 @@ function render(){
       html+=`<div class="mini"><input type="text" id="cardin${n}" placeholder="card name…" autocomplete="off">
         <button onclick="cardSearch(${n})">Search</button></div>`;
     }
+    if(s.auto==='staples'){
+      html+=deckBoxHTML();
+      html+=`<button class="btn" style="width:100%;margin-top:8px" onclick="findStaples()">Find competitive staples I'm missing</button>
+        <div id="staplesout">${staplesHTML||''}</div>`;
+    }
     if(s.auto==='oneaway'){
-      html+=`<textarea id="deckbox" oninput="onDeck(this.value)" placeholder="Paste a Moxfield deck link, or your decklist (one card per line)…">${(state.deck||'').replace(/</g,'&lt;')}</textarea>
-        <button class="btn" style="width:100%;margin-top:8px" onclick="findOneAway()">Find cards I'm one away from</button>
+      html+=deckBoxHTML();
+      html+=`<button class="btn" style="width:100%;margin-top:8px" onclick="findOneAway()">Find cards I'm one away from</button>
         <div id="oneaway">${oneAwayHTML||''}</div>`;
     }
     if(s.auto==='mull'){
       const M=state.mull;
       html+=`<button class="btn ghost" style="width:100%;margin-top:4px" onclick="toggleMull()">${M.open?'▾':'▸'} Advanced: mana-base keep-rate calculator</button>`;
       if(M.open){
+        const letters=[...new Set((M.combos||'').toUpperCase().replace(/[^A-Z]/g,'').split(''))];
+        const LEG={L:'Land (Command Tower etc.)',R:'Rock (incl. Simian Spirit Guide)',D:'Depletion land (Sandstone/Ruins/Bog/Ebon)',I:'Investment ramp (Sol Ring, Mana Vault, Ragavan, tutors)',C:'Colored ritual (Dark Ritual, Rite)'};
         html+=`<div class="mullbox">
-          <p class="note" style="margin-top:0">How many of each mana-card type are in your 99? <b>L</b>and (Command Tower etc.) · <b>R</b>ock (incl. Simian Spirit Guide) · <b>D</b>epletion land (Sandstone/Ruins/Bog/Ebon) · <b>I</b>nvestment ramp (Sol Ring, Mana Vault, Ragavan, tutors) · <b>C</b>olored ritual (Dark Ritual, Rite).</p>
-          <div class="mullgrid">${['L','R','D','I','C'].map(k=>`<label>${k}<input type="number" min="0" value="${M[k]}" oninput="onMull('${k}',this.value)"></label>`).join('')}</div>
-          <label class="note" style="display:block;margin:9px 0 3px">Keepable opening-hand combos (space-separated; each letter = one card of that type):</label>
-          <input type="text" value="${M.combos.replace(/"/g,'&quot;')}" oninput="onMull('combos',this.value)" style="width:100%;font-family:ui-monospace,monospace;background:#171a21;border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:9px;font-size:14px">
+          <label class="note" style="display:block;margin:0 0 3px">Keepable opening-hand combos — space-separated; each letter = one card of that type (e.g. <code>LLR</code> = 2 lands + a rock):</label>
+          <input type="text" value="${(M.combos||'').replace(/"/g,'&quot;')}" oninput="onMull('combos',this.value)" style="width:100%;font-family:ui-monospace,monospace;background:#171a21;border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:9px;font-size:14px">
+          <p class="note" style="margin:10px 0 4px">How many of each type are in your deck?${letters.length?letters.map(k=>` <b>${k}</b> = ${LEG[k]||'?'}`).join(' ·'):' — type some combos above first.'}</p>
+          <div class="mullgrid" style="grid-template-columns:repeat(${letters.length||1},1fr)">${letters.map(k=>`<label>${k}<input type="number" min="0" value="${M[k]||0}" oninput="onMull('${k}',this.value)"></label>`).join('')}</div>
           <div class="mullgrid2"><label>deck size<input type="number" min="1" value="${M.N}" oninput="onMull('N',this.value)"></label><label>hand size<input type="number" min="1" value="${M.h}" oninput="onMull('h',this.value)"></label></div>
           <div id="mullresult" class="mullresult"></div>
-          <p class="note">Approximate: a hand counts as keepable if its mana-card counts contain any listed combo. It doesn't model specific anti-synergies (e.g. Sandstone + Simian Spirit Guide). Aim for ~2-in-3, looser or tighter by how mull-sensitive the deck is.</p>
+          <p class="note">Approximate: a hand is keepable if its mana-card counts contain any listed combo. Doesn't model specific anti-synergies (e.g. Sandstone + Simian Spirit Guide). “Ever-keep” = chance you find a keeper across London mulligans down to ~2.</p>
         </div>`;
       }
     }
@@ -319,36 +333,42 @@ function cardSearch(n){
   window.open(scry('id<='+ci()+' "'+v+'"'),'_blank','noopener');
 }
 
-/* ---------- step 7: one-away finder (local, from CSB combo bundles) ---------- */
+/* ---------- shared deck resolver (paste text OR Moxfield link via jina), cached ---------- */
 function normName(s){ return s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,''); }
+function cleanCardLine(line){ return String(line).replace(/^\s*\d+\s*x?\s+/i,'').replace(/\s*\([^)]*\).*$/,'').split('//')[0].trim(); }
+async function resolveDeckNames(){
+  const raw=(state.deck||'').trim(); if(!raw) return [];
+  const mox=raw.match(/moxfield\.com\/decks\/([A-Za-z0-9_-]+)/i);
+  const cacheKey = mox ? 'mox:'+mox[1] : 'txt:'+raw;
+  if(deckCache.key===cacheKey) return deckCache.names;
+  let names;
+  if(mox){
+    const r=await fetch('https://r.jina.ai/https://api.moxfield.com/v2/decks/all/'+mox[1]);
+    if(!r.ok) throw new Error('moxfetch');
+    const t=await r.text();
+    const js=JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}')+1));
+    names=[].concat(...['commanders','mainboard','companions','signatureSpells'].map(k=>Object.keys(js[k]||{})));
+    if(!names.length) throw new Error('empty');
+  } else { names=raw.split('\n'); }
+  names=names.map(cleanCardLine).filter(Boolean);
+  deckCache={key:cacheKey, names};
+  return names;
+}
+
+/* ---------- step 7: one-away finder (local, from CSB combo bundles) ---------- */
 async function findOneAway(){
   const box=$('#oneaway');
   const code = (WUBRG.filter(x=>state.colors.has(x)).join('') || 'c').toUpperCase();
-  if(!state.deck.trim()){ oneAwayHTML='<div class="oahead">Paste a decklist above first.</div>'; box.innerHTML=oneAwayHTML; return; }
-  oneAwayHTML='<div class="oahead">Loading combo data…</div>'; box.innerHTML=oneAwayHTML;
-  let bundle;
+  if(!state.deck.trim()){ oneAwayHTML='<div class="oahead">Paste a decklist or Moxfield link above first.</div>'; box.innerHTML=oneAwayHTML; return; }
+  oneAwayHTML='<div class="oahead">Loading…</div>'; box.innerHTML=oneAwayHTML;
+  let bundle, names;
   try{ const r=await fetch('data/'+code+'.json'); if(!r.ok) throw 0; bundle=await r.json(); }
   catch(e){ oneAwayHTML='<div class="oahead">Couldn\'t load combo data for '+code+'. (Works on the live site; opening the file locally blocks the fetch.)</div>'; box.innerHTML=oneAwayHTML; return; }
+  try{ names=await resolveDeckNames(); }
+  catch(e){ oneAwayHTML='<div class="oahead">Couldn’t fetch that Moxfield deck — make sure it’s public, or paste the decklist text instead (Moxfield: ⋯ → Export).</div>'; box.innerHTML=oneAwayHTML; return; }
   const idxByName=new Map(); bundle.cards.forEach((nm,i)=>idxByName.set(normName(nm),i));
   const deck=new Set();
-  let names;
-  const mox=state.deck.match(/moxfield\.com\/decks\/([A-Za-z0-9_-]+)/i);
-  if(mox){
-    oneAwayHTML='<div class="oahead">Fetching deck from Moxfield…</div>'; box.innerHTML=oneAwayHTML;
-    try{
-      const r=await fetch('https://r.jina.ai/https://api.moxfield.com/v2/decks/all/'+mox[1]);
-      if(!r.ok) throw 0;
-      const t=await r.text();
-      const js=JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}')+1));
-      names=[].concat(...['commanders','mainboard','companions','signatureSpells'].map(k=>Object.keys(js[k]||{})));
-      if(!names.length) throw 0;
-    }catch(e){ oneAwayHTML='<div class="oahead">Couldn’t fetch that Moxfield deck — make sure it’s public, or paste the decklist text instead (Moxfield: ⋯ → Export).</div>'; box.innerHTML=oneAwayHTML; return; }
-  } else { names=state.deck.split('\n'); }
-  for(let line of names){
-    line=String(line).replace(/^\s*\d+\s*x?\s+/i,'').replace(/\s*\([^)]*\).*$/,'').split('//')[0].trim();
-    if(!line) continue;
-    const k=normName(line); if(idxByName.has(k)) deck.add(idxByName.get(k));
-  }
+  for(let nm of names){ const k=normName(nm); if(idxByName.has(k)) deck.add(idxByName.get(k)); }
   for(const cn of [state.cmd, state.cmd2]){ const ck=normName(cn||''); if(ck && idxByName.has(ck)) deck.add(idxByName.get(ck)); }
   const tally=new Map(); let already=0;
   for(const combo of bundle.combos){
@@ -366,6 +386,38 @@ async function findOneAway(){
     }).join('')+'</div>'; }
   oneAwayHTML=h; box.innerHTML=h;
 }
+/* ---------- step 6: competitive staples you're missing (EDHREC statistical data) ---------- */
+async function findStaples(){
+  const box=$('#staplesout');
+  if(!state.cmd){ staplesHTML='<div class="oahead">Pick a commander first.</div>'; box.innerHTML=staplesHTML; return; }
+  staplesHTML='<div class="oahead">Loading competitive data from EDHREC…</div>'; box.innerHTML=staplesHTML;
+  let data=null, used='';
+  for(const page of ['cedh','optimized','']){
+    try{ const r=await fetch('https://json.edhrec.com/pages/commanders/'+deckSlug()+(page?'/'+page:'')+'.json'); if(r.ok){ data=await r.json(); used=page||'all'; break; } }catch(e){}
+  }
+  if(!data){ staplesHTML='<div class="oahead">No EDHREC page for this commander yet — try once it has more decks logged.</div>'; box.innerHTML=staplesHTML; return; }
+  const cl=(data.container && data.container.json_dict && data.container.json_dict.cardlists)||[];
+  const BASICS=new Set(['plains','island','swamp','mountain','forest','wastes']);
+  const map=new Map();
+  for(const list of cl){ for(const cv of (list.cardviews||[])){
+    const k=normName(cv.name); if(BASICS.has(k)) continue;
+    const pct=cv.potential_decks?100*cv.num_decks/cv.potential_decks:0;
+    if(!map.has(k)||map.get(k).pct<pct) map.set(k,{name:cv.name,pct});
+  }}
+  let deckSet=new Set(), deckNote='';
+  if(state.deck.trim()){
+    try{ (await resolveDeckNames()).forEach(nm=>deckSet.add(normName(nm))); }
+    catch(e){ deckNote=' (couldn’t read your deck — showing all top staples)'; }
+  } else { deckNote=' (no deck pasted — showing all top staples)'; }
+  for(const cn of [state.cmd,state.cmd2]) if(cn) deckSet.add(normName(cn));
+  const missing=[...map.values()].filter(v=>!deckSet.has(normName(v.name))).sort((a,b)=>b.pct-a.pct).slice(0,40);
+  const where = used==='cedh'?'cEDH':used==='optimized'?'bracket-4':'all';
+  let h=`<div class="oahead">Most-played cards in ${where} decks of your commander you're <b>not</b> running${deckNote}. % = share of those decks that play it.</div>`;
+  if(!missing.length){ h+='<div class="oahead">You\'re already on all the top staples — nice.</div>'; }
+  else { h+='<div class="oalist">'+missing.map(v=>`<div class="oarow"><span class="oacnt">${v.pct.toFixed(0)}%</span><a class="oaname" href="${scry('!"'+v.name.replace(/"/g,'')+'"')}" target="_blank" rel="noopener">${v.name.replace(/</g,'&lt;')}</a></div>`).join('')+'</div>'; }
+  staplesHTML=h; box.innerHTML=h;
+}
+
 /* ---------- step 9: mana-base keep-rate (multivariate hypergeometric) ---------- */
 function comb(n,k){ if(k<0||k>n||n<0) return 0; k=Math.min(k,n-k); let r=1; for(let i=0;i<k;i++) r=r*(n-i)/(i+1); return r; }
 function acceptRate(counts, combos, N, h){
@@ -382,16 +434,23 @@ function acceptRate(counts, combos, N, h){
   (function rec(pos,rem){ if(pos===K-1){ parts[pos]=rem; evalComp(); return; } for(let v=0;v<=rem;v++){ parts[pos]=v; rec(pos+1,rem-v); } })(0,h);
   const denom=comb(N,h); return denom>0 ? total/denom : 0;
 }
+function syncMullN(){ const want=state.cmd2?98:99; if(state.mull.N===98||state.mull.N===99) state.mull.N=want; }
 function computeMull(){
   const el=$('#mullresult'); if(!el) return;
   const M=state.mull, combos=(M.combos||'').trim().split(/\s+/).filter(Boolean);
   const N=+M.N||99, h=+M.h||7;
-  if(!combos.length){ el.innerHTML='<b>—</b>add at least one combo above'; return; }
-  const counts={L:+M.L||0,R:+M.R||0,D:+M.D||0,I:+M.I||0,C:+M.C||0};
-  if(Object.values(counts).reduce((a,b)=>a+b,0)>N){ el.innerHTML='<b>—</b>mana cards exceed deck size'; return; }
+  if(!combos.length){ el.innerHTML='<b>—</b><div class="mullsub">add at least one combo above</div>'; return; }
+  const letters=[...new Set(combos.join('').toUpperCase().split(''))].filter(x=>/[A-Z]/.test(x));
+  const counts={}; letters.forEach(k=>counts[k]=+M[k]||0);
+  if(letters.reduce((a,k)=>a+counts[k],0)>N){ el.innerHTML='<b>—</b><div class="mullsub">mana cards exceed deck size</div>'; return; }
   const p=acceptRate(counts, combos, N, h), pct=100*p;
-  const verdict = pct>=63?'comfortable':pct>=55?'okay':'shaky — add lands/rocks';
-  el.innerHTML=`<b>${pct.toFixed(1)}%</b>keepable openers &nbsp;·&nbsp; ≈ 1 in ${p>0?(1/p).toFixed(1):'∞'} &nbsp;·&nbsp; ${verdict}`;
+  const everPct=100*(1-Math.pow(1-p,7));
+  const verdict = pct>=63?'comfortable':pct>=50?'okay':'shaky — add lands/rocks';
+  const NAMES={L:'land',R:'rock',D:'depletion',I:'investment',C:'ritual'};
+  const marg=letters.map(k=>{ const c2=Object.assign({},counts); c2[k]++; return {k,d:100*(acceptRate(c2,combos,N,h)-p)}; }).filter(x=>x.d>0.05).sort((a,b)=>b.d-a.d);
+  let html=`<b>${pct.toFixed(1)}%</b><div class="mullsub">keep on the first hand · <b style="display:inline;font-size:inherit;color:#7ee0a3">${everPct.toFixed(1)}%</b> ever-keep (mull to ~2) · ${verdict}</div>`;
+  if(marg.length) html+=`<div class="margrow">adding one more: `+marg.map(x=>`${NAMES[x.k]||x.k} <b>+${x.d.toFixed(1)}%</b>`).join('<span class="margsep">·</span>')+`</div>`;
+  el.innerHTML=html;
 }
 function onMull(k,v){ state.mull[k]=v; save(); computeMull(); }
 function toggleMull(){ state.mull.open=!state.mull.open; save(); render(); }
@@ -405,7 +464,7 @@ function resetAll(){
 const PIPHEX={w:'#f7f3d6',u:'#9bd0ff',b:'#b9a7c9',r:'#ff9a86',g:'#9fe0a8'};
 const AC={1:{el:'aclist',in:'cmd',timer:null,items:[]},
           2:{el:'aclist2',in:'cmd2',timer:null,items:[]}};
-function recolor(){ state.colors=new Set([...(state.ci1||[]),...(state.ci2||[])].map(c=>c.toLowerCase())); paintPips(); }
+function recolor(){ state.colors=new Set([...(state.ci1||[]),...(state.ci2||[])].map(c=>c.toLowerCase())); paintPips(); syncMullN(); }
 // classify a commander's partner ability (from Scryfall keywords/oracle/type) -> slot-2 search fragments
 function partnerSpec(card){
   const kw=card.kw||[], oracle=card.oracle||'', tl=card.tl||'', frags=[];
