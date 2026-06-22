@@ -131,7 +131,7 @@ const $ = s => document.querySelector(s);
 const WUBRG = ['w','u','b','r','g'];
 const GUILD = {wu:'azorius',wb:'orzhov',wr:'boros',wg:'selesnya',ub:'dimir',ur:'izzet',ug:'simic',br:'rakdos',bg:'golgari',rg:'gruul'};
 
-let state = { cmd:'', cmd2:'', ci1:[], ci2:[], colors:new Set(), done:{}, notes:'', deck:'' };
+let state = { cmd:'', cmd2:'', ci1:[], ci2:[], slot2q:null, colors:new Set(), done:{}, notes:'', deck:'' };
 let oneAwayHTML = '';
 
 /* ---------- url helpers ---------- */
@@ -332,23 +332,46 @@ function resetAll(){
 
 /* ---------- commander autocomplete (Scryfall), slot 1 = commander, slot 2 = partner/background ---------- */
 const PIPHEX={w:'#f7f3d6',u:'#9bd0ff',b:'#b9a7c9',r:'#ff9a86',g:'#9fe0a8'};
-const AC={1:{el:'aclist',in:'cmd',q:'is:commander',timer:null,items:[]},
-          2:{el:'aclist2',in:'cmd2',q:'(is:commander or type:background)',timer:null,items:[]}};
+const AC={1:{el:'aclist',in:'cmd',timer:null,items:[]},
+          2:{el:'aclist2',in:'cmd2',timer:null,items:[]}};
 function recolor(){ state.colors=new Set([...(state.ci1||[]),...(state.ci2||[])].map(c=>c.toLowerCase())); paintPips(); }
-function setCommander(slot, name, ci){
-  if(slot===1){ state.cmd=name; $('#cmd').value=name; state.ci1=ci||[]; }
-  else { state.cmd2=name; $('#cmd2').value=name; state.ci2=ci||[]; }
+// classify a commander's partner ability (from Scryfall keywords/oracle/type) -> slot-2 search fragments
+function partnerSpec(card){
+  const kw=card.kw||[], oracle=card.oracle||'', tl=card.tl||'', frags=[];
+  const isPW=kw.includes('Partner with'), isFF=/friends forever/i.test(oracle);
+  const isPlain=kw.includes('Partner') && !isPW && !isFF;
+  if(isPlain) frags.push('(keyword:partner -keyword:"partner with" -oracle:"friends forever")');
+  if(isPW){ const m=oracle.match(/Partner with ([^(\n]+?)(?:\s*\(| and |$)/i); if(m) frags.push('!"'+m[1].trim().replace(/[.,]+$/,'')+'"'); }
+  if(isFF) frags.push('oracle:"friends forever"');
+  if(kw.includes('Choose a background')) frags.push('t:background');
+  if(/\bBackground\b/.test(tl)) frags.push('keyword:"choose a background"');
+  if(kw.includes("Doctor's companion")) frags.push('type:"Time Lord Doctor"');
+  if(/Time Lord Doctor/.test(tl)) frags.push('keyword:"doctor\'s companion"');
+  return frags;
+}
+function applyPartnerSpec(card){
+  const frags=partnerSpec(card), i2=$('#cmd2');
+  if(!frags.length){ state.slot2q=null; state.cmd2=''; state.ci2=[]; if(i2){i2.value='';i2.disabled=true;i2.placeholder='— no partner / background —';} $('#aclist2').innerHTML=''; return; }
+  state.slot2q = frags.length>1 ? '('+frags.join(' or ')+')' : frags[0];
+  const pw=frags.find(f=>f.startsWith('!"'));
+  if(i2){ i2.disabled=false; i2.placeholder = pw ? ('+ '+pw.slice(2,-1)+' (only legal partner)') : '+ Partner / Background…'; }
+}
+function setCommander(slot, it){
+  if(slot===1){ state.cmd=it.name; $('#cmd').value=it.name; state.ci1=it.ci||[]; }
+  else { state.cmd2=it.name; $('#cmd2').value=it.name; state.ci2=it.ci||[]; }
   $('#'+AC[slot].el).innerHTML=''; AC[slot].items=[];
-  if(slot===1) load();          // restore saved checklist/notes/partner for this commander
+  if(slot===1){ load(); applyPartnerSpec(it); }   // restore saved state, then (re)configure slot 2
   recolor(); render(); save();
 }
 async function lookup(slot,q){
   try{
-    const url='https://api.scryfall.com/cards/search?order=edhrec&unique=cards&q='+encodeURIComponent(AC[slot].q+' '+q);
+    const base = slot===1 ? 'is:commander' : (state.slot2q || '(is:commander or type:background)');
+    const full = base.startsWith('!"') ? base : base+' '+q;   // exact "Partner with X" ignores typed text
+    const url='https://api.scryfall.com/cards/search?order=edhrec&unique=cards&q='+encodeURIComponent(full);
     const r=await fetch(url);
     if(!r.ok){ $('#'+AC[slot].el).innerHTML=''; return; }
     const j=await r.json();
-    AC[slot].items=(j.data||[]).slice(0,12).map(c=>({name:c.name, ci:c.color_identity||[]}));
+    AC[slot].items=(j.data||[]).slice(0,12).map(c=>({name:c.name, ci:c.color_identity||[], kw:c.keywords||[], oracle:c.oracle_text||'', tl:c.type_line||''}));
     renderAC(slot);
   }catch(e){ $('#'+AC[slot].el).innerHTML=''; }
 }
@@ -360,9 +383,10 @@ function renderAC(slot){
     return `<div class="acitem" onclick="pick(${slot},${i})"><span class="acname">${c.name.replace(/</g,'&lt;')}</span>${pips}</div>`;
   }).join('');
 }
-function pick(slot,i){ const c=AC[slot].items[i]; if(c) setCommander(slot, c.name, c.ci); }
+function pick(slot,i){ const c=AC[slot].items[i]; if(c) setCommander(slot, c); }
 function wireSlot(slot){
   $('#'+AC[slot].in).addEventListener('input', e=>{
+    if(e.target.disabled) return;
     const v=e.target.value;
     if(slot===1) state.cmd=v; else { state.cmd2=v; if(!v.trim()){ state.ci2=[]; recolor(); } }
     clearTimeout(AC[slot].timer);
