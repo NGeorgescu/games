@@ -88,6 +88,9 @@
   .rbadge.win{background:#16243f;color:#7cc6ff}
   .rbadge.pct{background:#271f3b;color:#c3a7e0}
   .rbadge.syn{background:#37280f;color:#ffce85}
+  .rbadge.have{background:#16321f;color:#7ee0a3}
+  .rbadge.miss{background:#3a1f24;color:#ff9aa9}
+  .oarow.have{opacity:.5}
   .deckwarn{margin-top:6px;color:#ff5252;font-weight:800;font-size:16px;line-height:1.4}
   .staptoggle{display:flex;gap:6px;margin-top:8px}
   .staptoggle button{flex:1;appearance:none;border:1px solid var(--line);background:#1c222c;color:var(--muted);
@@ -254,16 +257,17 @@ function steps(){ return [
            ['EDHREC · cEDH (b5)', ()=>edhrecBracket('cedh')],
            ['EDHTop16 · tournaments', edhtop16Link]] },
 
-  { t:"See the winningest cards",
-    body:`<p>Cards that statistically <b>over-perform</b> in EDHTop16 tournament results for your commander —
-      weighted by how deep each deck finished and how big the event was (a top-4 in a 64-player counts like a win
-      in a 16-player). Score 1.00 = the commander's average; higher = decks running it place better.</p>`,
-    auto:'winning' },
-
   { t:"Find the cards those combos lean on",
     body:`<p>Click around and spot the glue pieces — e.g. if a card shows up in every combo, look up <i>which
       combos that specific card enables in your colors</i>:</p>`,
     cardbox:true },
+
+  { t:"See the winningest cards",
+    body:`<p>Cards that statistically <b>over-perform</b> in EDHTop16 tournament results for your commander —
+      weighted by how deep each deck finished and how big the event was (a top-4 in a 64-player counts like a win
+      in a 16-player). Score 1.00 = the commander's average; higher = decks running it place better. Paste your
+      deck below and it'll mark which winners you already run and which you're <b>missing</b>.</p>`,
+    auto:'winning' },
 
   { t:"Find what you're one-away from",
     body:`<p>Paste a <b>Moxfield deck link</b> (it'll fetch the list for you) or your decklist text, one card per
@@ -357,7 +361,8 @@ function render(){
         <div id="oneaway">${oneAwayHTML||''}</div>`;
     }
     if(s.auto==='winning'){
-      html+=`<button class="btn" style="width:100%;margin-top:4px" onclick="findWinners()">Show winningest cards (EDHTop16)</button>
+      html+=deckBoxHTML();
+      html+=`<button class="btn" style="width:100%;margin-top:8px" onclick="findWinners()">Show winningest cards (EDHTop16)</button>
         <div id="winout">${winHTML||''}</div>`;
     }
     if(s.auto==='recs'){
@@ -491,9 +496,21 @@ async function findWinners(){
   let d;
   try{ const r=await fetch('data/win/'+winKey()+'.json'); if(!r.ok) throw 0; d=await r.json(); }
   catch(e){ winHTML='<div class="oahead">Not enough tournament data for this commander — needs ≥20 entries in 16+ player post-ban events on EDHTop16. (Most off-meta commanders won\'t have this.)</div>'; box.innerHTML=winHTML; return; }
+  // resolve the shared deck (if any) so we can mark which winners you run vs are missing
+  let deckSet=null;
+  if(state.deck.trim()){
+    try{ const names=await resolveDeckNames(); refreshDeckWarning(); deckSet=new Set(names.map(normName)); for(const cn of [state.cmd,state.cmd2]) if(cn) deckSet.add(normName(cn)); }
+    catch(e){ deckSet=null; }
+  }
   const cmdName=[state.cmd,state.cmd2].filter(Boolean).join(' + ').replace(/</g,'&lt;');
-  let h=`<div class="oahead">Cards that over-perform in EDHTop16 results for <b>${cmdName}</b> — ${d.e} entries, 16+ players, post-ban. Score = how much better decks running it finish vs this commander's average (1.00 = average).</div>`;
-  h+='<div class="oalist">'+d.c.map(([name,n,lift])=>`<div class="oarow"><span class="oacnt">${lift.toFixed(2)}</span><a class="oaname" href="${scry('!"'+name.replace(/"/g,'')+'"')}" target="_blank" rel="noopener">${name.replace(/</g,'&lt;')}</a><span style="color:var(--muted);font-size:12px;flex:0 0 auto">${n} decks</span></div>`).join('')+'</div>';
+  let have=0; if(deckSet) for(const [name] of d.c) if(deckSet.has(normName(name))) have++;
+  let h=`<div class="oahead">Cards that over-perform in EDHTop16 results for <b>${cmdName}</b> — ${d.e} entries, 16+ players, post-ban. Score = how much better decks running it finish vs this commander's average (1.00 = average).`;
+  h+= deckSet ? ` You already run <b>${have}</b> of these top ${d.c.length}; the rest are flagged <b>missing</b>.</div>` : ` Paste your deck above to flag which you already run.</div>`;
+  h+='<div class="oalist">'+d.c.map(([name,n,lift])=>{
+    const hasit = deckSet && deckSet.has(normName(name));
+    const badge = !deckSet ? '' : (hasit?'<span class="rbadge have">✓ have</span>':'<span class="rbadge miss">missing</span>');
+    return `<div class="oarow${hasit?' have':''}"><span class="oacnt">${lift.toFixed(2)}</span><a class="oaname" href="${scry('!"'+name.replace(/"/g,'')+'"')}" target="_blank" rel="noopener">${name.replace(/</g,'&lt;')}</a>${badge}<span style="color:var(--muted);font-size:12px;flex:0 0 auto">${n} decks</span></div>`;
+  }).join('')+'</div>';
   winHTML=h; box.innerHTML=h;
 }
 
