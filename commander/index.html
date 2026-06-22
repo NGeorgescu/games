@@ -223,21 +223,17 @@ function steps(){ return [
     links:[['EDHREC · combos for this deck', edhrecCombos],
            ['Spellbook · combos in these colors', csbColorCombos]] },
 
+  { t:"Raid the bracket 4 / 5 lists",
+    body:`<p>What are people putting in optimized (bracket 4) and cEDH (bracket 5) builds? Both jump straight to
+      the <b>high-synergy cards</b> — the spicy, build-defining includes, not the generic staples.</p>`,
+    links:[['EDHREC · optimized (b4)', ()=>edhrecBracket('optimized')],
+           ['EDHREC · cEDH (b5)', ()=>edhrecBracket('cedh')]] },
+
   { t:"Find the cards those combos lean on",
     body:`<p>Click around and spot the glue pieces — e.g. if a card shows up in every combo, search for
       <i>combos that card enables in your colors</i>. Look up a card:</p>`,
     cardbox:true,
     links:[['Spellbook · combos in your colors', csbColorCombos]] },
-
-  { t:"Raid the bracket 4 (optimized) list",
-    body:`<p>What are people putting in optimized (bracket 4) builds? Jumps straight to the <b>high-synergy
-      cards</b> — the spicy, build-defining includes, not the generic staples.</p>`,
-    links:[['EDHREC · optimized (b4)', ()=>edhrecBracket('optimized')]] },
-
-  { t:"Raid the bracket 5 (cEDH) list",
-    body:`<p>And the cEDH (bracket 5) builds — the most competitive shells. Again straight to the high-synergy
-      cards that define those lists.</p>`,
-    links:[['EDHREC · cEDH (b5)', ()=>edhrecBracket('cedh')]] },
 
   { t:"Find what you're one-away from",
     body:`<p>Paste a <b>Moxfield deck link</b> (it'll fetch the list for you) or your decklist text, one card per
