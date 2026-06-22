@@ -279,8 +279,8 @@ function render(){
         <div class="chk">${done?'✓':''}</div></div>
       <div class="sbody">${s.body||''}`;
     if(s.cardbox){
-      html+=`<div class="mini"><input type="text" id="cardin${n}" placeholder="card name…" autocomplete="off">
-        <button onclick="cardSearch(${n})">Search</button></div>`;
+      html+=`<div class="mini"><input type="text" id="cardin${n}" placeholder="glue card name…" autocomplete="off">
+        <button onclick="cardSearch(${n})">Combos →</button></div>`;
     }
     if(s.auto==='staples'){
       html+=deckBoxHTML();
@@ -329,8 +329,7 @@ function render(){
 function toggle(n){ state.done[n]=!state.done[n]; save(); render(); }
 function cardSearch(n){
   const v=$('#cardin'+n).value.trim(); if(!v) return;
-  window.open(csbCardInColors(v),'_blank','noopener');
-  window.open(scry('id<='+ci()+' "'+v+'"'),'_blank','noopener');
+  window.open(csbCardInColors(v),'_blank','noopener');   // combos this card enables in your colors (Spellbook)
 }
 
 /* ---------- shared deck resolver (paste text OR Moxfield link via jina), cached ---------- */
