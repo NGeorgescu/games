@@ -326,9 +326,23 @@ const TRICKS = [
     gen(){ const n=rnd(1,9); return { q:`${n}² = ?`, a:n*n, steps:[
       `${n} × ${n} = <b>${n*n}</b>` ]}; } },
 
-  { id:"sqrt", cat:"Square roots", name:"Square root of a perfect square", tag:"Two glances, then break the tie",
+  { id:"overunder", cat:"Square roots", name:"The over-under value", tag:"a×(a+1) — the tie-break line per tens digit", answerType:"num",
+    lesson:`<h3>The over-under value</h3>
+      <p>When a square root's last digit comes in a pair, you choose between them by comparing the front of the number to a single threshold: <b>a×(a+1)</b>, where <b>a</b> is the tens digit of the root. Think of it as the betting line — front <i>under</i> it takes the smaller root, <i>over</i> it takes the larger. This drill just makes that value instant.</p>
+      <table class="map mono">
+        <tr><td>tens digit a</td><td>over-under a×(a+1)</td></tr>
+        <tr><td>1</td><td>2</td></tr><tr><td>2</td><td>6</td></tr><tr><td>3</td><td>12</td></tr>
+        <tr><td>4</td><td>20</td></tr><tr><td>5</td><td>30</td></tr><tr><td>6</td><td>42</td></tr>
+        <tr><td>7</td><td>56</td></tr><tr><td>8</td><td>72</td></tr><tr><td>9</td><td>90</td></tr>
+      </table>
+      <p>It's just "the digit times the next digit" — 6 → 6×7 = 42.</p>
+      <p class="why">Why this number? The midpoint between the two candidate roots ends in 5, and (10a+5)² = 100·a(a+1) + 25. Cover the last two digits of that midpoint square and a(a+1) is exactly what's left — so it's the front value that separates the smaller root from the larger.</p>`,
+    gen(){ const a=rnd(1,9); return { q:`Over-under value for tens digit ${a}?`, a:a*(a+1), steps:[
+      `${a} × (${a}+1) = ${a} × ${a+1} = <b>${a*(a+1)}</b>` ]}; } },
+
+  { id:"sqrt", cat:"Square roots", name:"Square root of a perfect square", tag:"Put it all together",
     lesson:`<h3>Square root in your head</h3>
-      <p>For a perfect square up to four digits the root is two digits, found a digit at a time — but unlike cube and fifth roots, the last digit arrives as a <b>pair</b> you then break the tie on.</p>
+      <p>Now combine the two warm-up drills. For a perfect square up to four digits the root is two digits, found a digit at a time — but unlike cube and fifth roots, the last digit arrives as a <b>pair</b> you break the tie on with the over-under value.</p>
 
       <h3>① Units: a pair, not a single</h3>
       <p>Squaring folds the last digit two-to-one. Read the square's final digit and you get two candidates:</p>
@@ -342,8 +356,8 @@ const TRICKS = [
       <p>Since (10a+b)² = 100·a² + (smaller), the b part only disturbs the last two digits. <b>Cover them</b> and find the largest square ≤ what's left — its root is the tens digit <b>a</b>.</p>
       <p>Squares to know: <span class="mono">1, 4, 9, 16, 25, 36, 49, 64, 81</span>.</p>
 
-      <h3>③ Break the tie</h3>
-      <p>Now choose between the two candidates. Their midpoint is the number ending in 5, and <span class="mono">(10a+5)² = 100·a(a+1) + 25</span>. So compare the <b>covered front part</b> to <b>a×(a+1)</b>:</p>
+      <h3>③ Break the tie — the over-under value</h3>
+      <p>Now choose between the two candidates using the <b>over-under value</b> from the last drill — <b>a×(a+1)</b> for tens digit <b>a</b>. Compare the <b>covered front part</b> to it:</p>
       <ul>
         <li>front <b>&lt;</b> a(a+1) → take the <b>smaller</b> candidate</li>
         <li>front <b>≥</b> a(a+1) → take the <b>larger</b> candidate</li>
@@ -355,7 +369,7 @@ const TRICKS = [
     gen(){ const r=rnd(11,99), N=r*r, a=(r/10|0), b=r%10, lo=(N/100|0), u=N%10, cand=SQ_CAND[u], thr=a*(a+1);
       const tie = cand.length<2
         ? `Ending ${u} has only one root-digit → units <span class="mono">${b}</span>`
-        : `Tie-break: a×(a+1) = ${a}×${a+1} = ${thr}; front ${lo} ${lo<thr?"&lt;":"≥"} ${thr} → take the <b>${lo<thr?"smaller":"larger"}</b> → units <span class="mono">${b}</span>`;
+        : `Over-under: a×(a+1) = ${a}×${a+1} = ${thr}; front ${lo} ${lo<thr?"&lt;":"≥"} ${thr} → take the <b>${lo<thr?"smaller":"larger"}</b> → units <span class="mono">${b}</span>`;
       return { q:`√ ${commas(N)}`, a:r, steps:[
         `Last digit ${u} → root ends in <span class="mono">${cand.join(" or ")}</span>`,
         `Cover the last 2 digits → <span class="mono">${lo}</span>; biggest square ≤ ${lo} is ${a}²=${SQUARES[a]} → tens digit <span class="mono">${a}</span>`,
