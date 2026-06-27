@@ -350,7 +350,8 @@ const TRICKS = [
       </ul>
       <p class="why">It's the "square a number ending in 5" trick run backwards: the same a×(a+1) that builds 45² = 2025 tells you which side of 45 you've landed on.</p>
 
-      <div class="ex mono">√2916<br>① ends in 6 → 4 or 6<br>② cover 16 → 29 → biggest square ≤ 29 is 5² = 25 → tens 5<br>③ a(a+1) = 5×6 = 30; &nbsp;29 &lt; 30 → smaller → units 4<br>= <b>54</b> &nbsp;(54² = 2916)</div>`,
+      <div class="ex mono"><b>Below the threshold → smaller:</b><br>√2916<br>① ends in 6 → 4 or 6<br>② cover 16 → 29 → biggest square ≤ 29 is 5² = 25 → tens 5<br>③ a(a+1) = 5×6 = 30; &nbsp;29 &lt; 30 → smaller → units 4<br>= <b>54</b> &nbsp;(54² = 2916)</div>
+      <div class="ex mono"><b>At/above the threshold → larger:</b><br>√4489<br>① ends in 9 → 3 or 7<br>② cover 89 → 44 → biggest square ≤ 44 is 6² = 36 → tens 6<br>③ a(a+1) = 6×7 = 42; &nbsp;44 ≥ 42 → larger → units 7<br>= <b>67</b> &nbsp;(67² = 4489)</div>`,
     gen(){ const r=rnd(11,99), N=r*r, a=(r/10|0), b=r%10, lo=(N/100|0), u=N%10, cand=SQ_CAND[u], thr=a*(a+1);
       const tie = cand.length<2
         ? `Ending ${u} has only one root-digit → units <span class="mono">${b}</span>`
