@@ -535,23 +535,41 @@ async function findOneAway(){
     if(n===0) already++;
     else if(n===1){ let a=tally.get(miss); if(!a){ a=[]; tally.set(miss,a); } a.push(combo); }
   }
-  const ranked=[...tally.entries()].sort((a,b)=>b[1].length-a[1].length||a[0]-b[0]).slice(0,30);
+  // rank by combos-completed desc, then by SHORTEST combo completed (a tight 2-card combo you're one piece from
+  // is more actionable than one longer combo), then bundle index.
+  const minLen=arr=>arr.reduce((m,c)=>Math.min(m,c.length),99);
+  const ranked=[...tally.entries()].sort((a,b)=>b[1].length-a[1].length || minLen(a[1])-minLen(b[1]) || a[0]-b[0]);
   const esc=s=>s.replace(/</g,'&lt;');
+  const rowHTML=([idx,combos])=>{
+    const nm=bundle.cards[idx], cnt=combos.length;
+    const inner=combos.slice(0,25).map(combo=>{
+      const parts=combo.map(i=>i===idx?'<b>'+esc(bundle.cards[i])+'</b>':esc(bundle.cards[i]));
+      const q=combo.map(i=>'"'+bundle.cards[i].replace(/"/g,'')+'"').join(' ');
+      return `<a class="oacombo" href="${CSB+enc(q)}" target="_blank" rel="noopener">${parts.join(' + ')}</a>`;
+    }).join('')+(cnt>25?`<div class="oacombo" style="color:var(--muted)">…and ${cnt-25} more</div>`:'');
+    return `<div class="oarow" onclick="toggleOA(${idx})"><span class="oacnt">${cnt}</span><span class="oaname">${esc(nm)} <span class="oacar" id="oacar${idx}">▸</span></span>${priceTag(nm)}</div>`+
+      `<div class="oacombos" id="oac${idx}" style="display:none">${inner}</div>`;
+  };
   let h=`<div class="oahead">From the Commander Spellbook combo database (v${bundle.v}, colors ${code}). You already complete <b>${already}</b> combo${already===1?'':'s'} with this list. The number on each card = how many <i>more</i> combos it would finish — <b>tap a card to list those combos</b>.</div>`;
   if(!ranked.length){ h+='<div class="oahead">No one-away combos found — either this list already completes everything it can in your colors, or paste more of the deck.</div>'; }
-  else { h+='<div class="oalist">'+ranked.map(([idx,combos])=>{
-      const nm=bundle.cards[idx], cnt=combos.length;
-      const inner=combos.slice(0,25).map(combo=>{
-        const parts=combo.map(i=>i===idx?'<b>'+esc(bundle.cards[i])+'</b>':esc(bundle.cards[i]));
-        const q=combo.map(i=>'"'+bundle.cards[i].replace(/"/g,'')+'"').join(' ');
-        return `<a class="oacombo" href="${CSB+enc(q)}" target="_blank" rel="noopener">${parts.join(' + ')}</a>`;
-      }).join('')+(cnt>25?`<div class="oacombo" style="color:var(--muted)">…and ${cnt-25} more</div>`:'');
-      return `<div class="oarow" onclick="toggleOA(${idx})"><span class="oacnt">${cnt}</span><span class="oaname">${esc(nm)} <span class="oacar" id="oacar${idx}">▸</span></span>${priceTag(nm)}</div>`+
-        `<div class="oacombos" id="oac${idx}" style="display:none">${inner}</div>`;
-    }).join('')+'</div><div class="rpricetotal"></div>'; }
+  else {
+    // cards finishing 2+ combos stay up top; the long tail that finishes exactly one combo collapses behind a toggle
+    const multi=ranked.filter(e=>e[1].length>=2), singles=ranked.filter(e=>e[1].length===1).slice(0,80);
+    if(multi.length){
+      h+='<div class="oalist">'+multi.map(rowHTML).join('')+'</div>';
+      if(singles.length) h+=`<button class="btn ghost" id="oneSinglesBtn" data-n="${singles.length}" style="width:100%;margin-top:8px" onclick="toggleOneSingles()">▸ Show ${singles.length} card${singles.length>1?'s':''} that complete just 1 combo</button>`+
+        `<div id="oneSingles" style="display:none"><div class="oalist" style="margin-top:8px">`+singles.map(rowHTML).join('')+`</div></div>`;
+    } else {
+      h+='<div class="oalist">'+singles.map(rowHTML).join('')+'</div>';   // nothing finishes 2+, just show the singles
+    }
+    h+='<div class="rpricetotal"></div>';
+  }
   oneAwayHTML=h; box.innerHTML=h; annotatePrices(box);
 }
 function toggleOA(idx){ const el=document.getElementById('oac'+idx); if(!el) return; const open=el.style.display==='none'; el.style.display=open?'block':'none'; const car=document.getElementById('oacar'+idx); if(car) car.textContent=open?'▾':'▸'; }
+function toggleOneSingles(){ const el=document.getElementById('oneSingles'); if(!el) return; const open=el.style.display==='none'; el.style.display=open?'block':'none';
+  const btn=document.getElementById('oneSinglesBtn'); if(btn){ const n=btn.dataset.n; btn.textContent=(open?'▾ Hide':'▸ Show')+' '+n+' card'+(n==1?'':'s')+' that complete just 1 combo'; }
+  if(open) annotatePrices(el); }
 /* ---------- winningest cards (precomputed EDHTop16 bundles) ---------- */
 function winKey(){ const ns=[state.cmd]; if(state.cmd2) ns.push(state.cmd2); return slug(ns.filter(Boolean).sort().join(' / ')); }
 async function findWinners(){
