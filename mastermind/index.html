@@ -66,6 +66,15 @@
   footer{color:#5a6473;font-size:12px;text-align:center;margin-top:10px}
   a{color:var(--accent)}
   .hintbox{margin-top:8px;color:var(--accent);font-size:13px;text-align:center;min-height:18px}
+  #howto summary{cursor:pointer;font-weight:700;font-size:15px;color:var(--ink);list-style:none}
+  #howto summary::-webkit-details-marker{display:none}
+  #howto summary::before{content:"▸ ";color:var(--accent)}
+  #howto[open] summary::before{content:"▾ "}
+  #howto .note{color:var(--muted);font-size:13.5px;line-height:1.55;margin-top:8px}
+  #howto .note b{color:var(--ink)}
+  #howto .note ol{margin:8px 0;padding-left:20px}
+  #howto .note li{margin-bottom:7px}
+  #howto .note .small{font-size:12.5px;opacity:.85}
 </style>
 </head>
 <body>
@@ -129,6 +138,33 @@
       <div class="history" id="cHistory"></div>
       <div class="banner hidden" id="cBanner"></div>
     </div>
+  </div>
+
+  <div class="card">
+    <details id="howto">
+      <summary>How the computer solves it — Knuth's minimax</summary>
+      <div class="note">
+        <p>The solver follows the strategy Donald Knuth published in 1977. It never needs more
+          than <b>5 guesses</b> for any of the 1296 possible codes (here it averages about
+          <b>4.48</b>). The <b>Hint</b> button runs the very same routine on your game.</p>
+        <ol>
+          <li><b>Open with 1122.</b> Every game starts with this same two-color guess — Knuth showed
+            it leads to the best worst case.</li>
+          <li><b>Keep the still-possible codes.</b> The solver holds the set <i>S</i> of every code
+            that fits all the feedback so far. It starts at all 1296 codes, and each guess's
+            black/white pegs prune the ones that don't match.</li>
+          <li><b>Score every candidate by its worst case.</b> To pick the next guess it tries all
+            1296 codes as a candidate. For each, it groups the codes in <i>S</i> by the feedback that
+            candidate would produce, and looks at the <i>largest</i> group — the most codes that could
+            still survive that guess.</li>
+          <li><b>Play the minimax guess.</b> It picks the candidate whose largest group is the
+            <i>smallest</i> — minimizing the worst case (that's the "minimax"). Ties go to a guess
+            that's still a possible code.</li>
+        </ol>
+        <p class="small">Because it minimizes the worst case, no single lucky near-miss helps much —
+          progress comes from guesses that split the remaining possibilities as evenly as possible.</p>
+      </div>
+    </details>
   </div>
 
   <footer>One of <a href="../">the games</a>. Solver: Knuth (1977) worst-case minimax.</footer>
