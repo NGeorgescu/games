@@ -12,7 +12,7 @@ Small browser games, each a self-contained static page served via GitHub Pages.
 | **Grid Memory** — memorize a shuffled 5×5 grid of 1–25, then replace them | [play →](https://ngeorgescu.github.io/games/grid/) | [`grid/`](grid/) |
 | **Mental Math** — learn &amp; drill mental-arithmetic tricks (×11, squaring, cube/fifth roots, …) | [play →](https://ngeorgescu.github.io/games/math/) | [`math/`](math/) |
 | **COMBO** — Commander Off-Meta Brewing Optimizer; enter a Magic commander + colors, get every research link pre-filled into a checklist | [play →](https://ngeorgescu.github.io/games/commander/) | [`commander/`](commander/) |
-| **Qubic** — 3-D tic-tac-toe on a 4×4×4 cube (wireframe 3/4 view); four in a row across a layer, up the stack, or any diagonal. vs-computer or 2-player | [play →](https://ngeorgescu.github.io/games/qubic/) | [`qubic/`](qubic/) |
+| **Qubic** — 3-D tic-tac-toe on a 4×4×4 cube; four in a row across a layer, up the stack, or any diagonal. Flat 3/4 wireframe view + a [rotatable WebGL version](https://ngeorgescu.github.io/games/qubic/3d.html). vs-computer or 2-player | [play →](https://ngeorgescu.github.io/games/qubic/) | [`qubic/`](qubic/) |
 | **Chess repertoire explorer** | [play →](https://ngeorgescu.github.io/games/chess/repertoire.html) | [`chess/`](chess/) |
 
 ## Adding a game

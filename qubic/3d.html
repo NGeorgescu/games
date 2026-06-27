@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Qubic 3D — rotatable 4×4×4 tic-tac-toe</title>
+<style>
+  :root{ --bg:#0e1014; --panel:#171a21; --ink:#eef1f6; --muted:#9aa3b2; --line:#262b35; --accent:#7cc6ff;
+    --red:#ff5d6c; --blue:#5db6ff; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+  .wrap{max-width:520px;margin:0 auto;padding:16px 14px 32px}
+  h1{font-size:23px;margin:.1em 0 .1em}
+  .sub{color:var(--muted);font-size:13px;line-height:1.5;margin:0 0 12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:12px}
+  button{appearance:none;border:0;border-radius:12px;padding:11px 14px;font-size:15px;font-weight:600;
+    background:var(--accent);color:#06243a;cursor:pointer}
+  button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:11px;overflow:hidden;background:#12151b}
+  .seg button{background:transparent;color:var(--muted);border-radius:0;font-weight:600;padding:9px 12px;font-size:14px}
+  .seg button.on{background:#223047;color:#dbe8ff}
+  .hud{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;min-height:30px}
+  .turn{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:600}
+  .dot{width:16px;height:16px;border-radius:50%}
+  .dot.red{background:radial-gradient(circle at 35% 30%,#ffd0d4,var(--red) 60%,#b81f2e)}
+  .dot.blue{background:radial-gradient(circle at 35% 30%,#d4ecff,var(--blue) 60%,#1f6fb8)}
+  .muted{color:var(--muted);font-size:13px}
+  #stage{width:100%;aspect-ratio:1/1;max-height:74vh;border-radius:14px;overflow:hidden;
+    background:radial-gradient(120% 120% at 50% 30%,#161a22,#0c0e12);touch-action:none;position:relative}
+  #stage canvas{display:block}
+  #hint{position:absolute;left:0;right:0;bottom:8px;text-align:center;color:var(--muted);font-size:12px;
+    pointer-events:none;text-shadow:0 1px 3px #000}
+  footer{color:#5a6473;font-size:12px;text-align:center;margin-top:10px}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Qubic <span class="muted" style="font-size:14px;font-weight:400">· 3D</span></h1>
+  <p class="sub">Drag to orbit the cube. Hover (or tap) an empty slot to preview a ball, click (or tap again) to drop it.
+    Four in a row in any direction wins. <a href="./">classic flat view →</a></p>
+
+  <div class="card">
+    <div class="row">
+      <div class="seg" id="modeSeg">
+        <button data-mode="cpu" class="on">vs Computer</button>
+        <button data-mode="pvp">2 players</button>
+      </div>
+      <div class="seg" id="diffSeg">
+        <button data-diff="easy">Easy</button>
+        <button data-diff="hard" class="on">Hard</button>
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <label class="muted" id="firstWrap"><input type="checkbox" id="cpuFirst"> Computer (blue) first</label>
+      <span style="display:flex;gap:8px">
+        <button class="ghost" id="resetView">Recenter</button>
+        <button class="ghost" id="newBtn">New game</button>
+      </span>
+    </div>
+  </div>
+
+  <div class="card" style="padding:10px">
+    <div class="hud">
+      <div class="turn"><span class="dot red" id="turnDot"></span><span id="turnTxt">Your move</span></div>
+      <span class="muted" id="moveCount">0 / 64</span>
+    </div>
+    <div id="stage"><div id="hint"></div></div>
+  </div>
+
+  <footer>One of <a href="../">the games</a>. Built with three.js.</footer>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ===== game logic (shared with the flat version) ===== */
+const N=4, CELLS=64, HUMAN='R', CPU='B';
+const idx=(i,j,z)=>z*16+j*4+i;
+const cellIJZ=c=>[c%4, Math.floor(c/4)%4, Math.floor(c/16)];
+const LINES=(()=>{
+  const dirs=[]; for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)for(let dz=-1;dz<=1;dz++) if(dx||dy||dz) dirs.push([dx,dy,dz]);
+  const seen=new Set(), out=[];
+  for(let i=0;i<N;i++)for(let j=0;j<N;j++)for(let z=0;z<N;z++) for(const [dx,dy,dz] of dirs){
+    const px=i-dx,py=j-dy,pz=z-dz; if(px>=0&&px<N&&py>=0&&py<N&&pz>=0&&pz<N) continue;
+    const ex=i+3*dx,ey=j+3*dy,ez=z+3*dz; if(ex<0||ex>=N||ey<0||ey>=N||ez<0||ez>=N) continue;
+    const cells=[]; for(let s=0;s<N;s++) cells.push(idx(i+s*dx,j+s*dy,z+s*dz));
+    const key=[...cells].sort((a,b)=>a-b).join(','); if(seen.has(key)) continue; seen.add(key); out.push(cells);
+  } return out;
+})();
+const LINES_BY_CELL=Array.from({length:CELLS},()=>[]);
+LINES.forEach((ln,li)=>ln.forEach(c=>LINES_BY_CELL[c].push(li)));
+
+let board, turn, winner, winLine, lastMove, busy;
+let mode='cpu', diff='hard', cpuFirst=false;
+
+function wonLine(b,p){ for(const ln of LINES) if(b[ln[0]]===p&&b[ln[1]]===p&&b[ln[2]]===p&&b[ln[3]]===p) return ln; return null; }
+function lineScore(c,p){ const opp=p==='R'?'B':'R'; let s=0;
+  for(const li of LINES_BY_CELL[c]){ let mine=0,bad=false;
+    for(const cc of LINES[li]){ if(board[cc]===opp){bad=true;break;} if(board[cc]===p) mine++; }
+    if(!bad) s+=[1,3,9,40][mine]||40; } return s; }
+function threatsAfter(c,p){ const opp=p==='R'?'B':'R'; board[c]=p; let t=0;
+  for(const li of LINES_BY_CELL[c]){ let mine=0,bad=false;
+    for(const cc of LINES[li]){ if(board[cc]===opp){bad=true;break;} if(board[cc]===p) mine++; }
+    if(!bad&&mine===3) t++; } board[c]=null; return t; }
+function pickWeighted(arr,fn){ let best=-1e9,pick=arr[0]; for(const c of arr){ const s=fn(c); if(s>best){best=s;pick=c;} } return pick; }
+function chooseMove(){
+  const empties=[]; for(let c=0;c<CELLS;c++) if(!board[c]) empties.push(c);
+  for(const c of empties){ board[c]=CPU; const w=!!wonLine(board,CPU); board[c]=null; if(w) return c; }
+  for(const c of empties){ board[c]=HUMAN; const w=!!wonLine(board,HUMAN); board[c]=null; if(w) return c; }
+  if(diff==='easy') return pickWeighted(empties,c=>lineScore(c,CPU)+Math.random()*6);
+  const myFork=empties.find(c=>threatsAfter(c,CPU)>=2); if(myFork!=null) return myFork;
+  const oppForks=empties.filter(c=>threatsAfter(c,HUMAN)>=2); if(oppForks.length===1) return oppForks[0];
+  return pickWeighted(empties,c=>lineScore(c,CPU)+lineScore(c,HUMAN)*0.6+threatsAfter(c,CPU)*40+Math.random()*1.5);
+}
+
+/* ===== three.js scene ===== */
+const SP=1.0, R=0.34;
+const COL = { R:0xff5d6c, B:0x5db6ff };
+const stage=document.getElementById('stage');
+const renderer=new THREE.WebGLRenderer({antialias:true, alpha:false});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+stage.appendChild(renderer.domElement);
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0c0e12);
+const camera=new THREE.PerspectiveCamera(42,1,0.1,100);
+camera.position.set(5.2,4.2,6.0);
+scene.add(new THREE.AmbientLight(0xffffff,0.65));
+const dl=new THREE.DirectionalLight(0xffffff,1.15); dl.position.set(6,9,7); scene.add(dl);
+const dl2=new THREE.DirectionalLight(0x9fc4ff,0.35); dl2.position.set(-6,-3,-5); scene.add(dl2);
+
+const controls=new OrbitControls(camera, renderer.domElement);
+controls.enableDamping=true; controls.dampingFactor=0.08; controls.enablePan=false;
+controls.minDistance=4.5; controls.maxDistance=14; controls.rotateSpeed=0.9;
+
+const W=(i,j,z)=>new THREE.Vector3((i-1.5)*SP,(z-1.5)*SP,(j-1.5)*SP); // z = vertical (stack)
+
+// lattice lines through cell centres, along all three axes
+(function buildLattice(){
+  const pts=[];
+  for(let a=0;a<N;a++)for(let b=0;b<N;b++){
+    pts.push(W(0,a,b),W(3,a,b)); // along i
+    pts.push(W(a,0,b),W(a,3,b)); // along j
+    pts.push(W(a,b,0),W(a,b,3)); // along z
+  }
+  const g=new THREE.BufferGeometry().setFromPoints(pts);
+  scene.add(new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:0xbcccdf,transparent:true,opacity:0.18})));
+})();
+
+const sphereGeo=new THREE.SphereGeometry(R,32,24);
+const slotGeo=new THREE.SphereGeometry(0.07,12,10);
+const hitGeo=new THREE.SphereGeometry(0.46,10,8);
+const slotMat=new THREE.MeshStandardMaterial({color:0x8c98ab,transparent:true,opacity:0.32,roughness:.9});
+const hitMat=new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false});
+
+const hitMeshes=[], slotMeshes=[], ballMeshes=new Array(CELLS).fill(null);
+for(let c=0;c<CELLS;c++){
+  const [i,j,z]=cellIJZ(c); const p=W(i,j,z);
+  const slot=new THREE.Mesh(slotGeo,slotMat); slot.position.copy(p); scene.add(slot); slotMeshes.push(slot);
+  const hit=new THREE.Mesh(hitGeo,hitMat); hit.position.copy(p); hit.userData.cell=c; scene.add(hit); hitMeshes.push(hit);
+}
+const ghost=new THREE.Mesh(sphereGeo,new THREE.MeshStandardMaterial({color:0xffffff,transparent:true,opacity:0.4,roughness:.3,metalness:.1}));
+ghost.visible=false; scene.add(ghost);
+let winTube=null;
+
+function placeBall(c,p){
+  const m=new THREE.Mesh(sphereGeo,new THREE.MeshStandardMaterial({color:COL[p],roughness:0.32,metalness:0.12}));
+  const [i,j,z]=cellIJZ(c); m.position.copy(W(i,j,z)); scene.add(m); ballMeshes[c]=m; slotMeshes[c].visible=false;
+}
+function clearBoard3D(){
+  for(let c=0;c<CELLS;c++){ if(ballMeshes[c]){ scene.remove(ballMeshes[c]); ballMeshes[c].geometry; ballMeshes[c]=null; } slotMeshes[c].visible=true; }
+  if(winTube){ scene.remove(winTube); winTube=null; }
+}
+function showWin(ln){
+  for(const c of ln){ const m=ballMeshes[c]; if(m){ m.material.emissive=new THREE.Color(0xffc83a); m.material.emissiveIntensity=0.6; } }
+  const [i0,j0,z0]=cellIJZ(ln[0]), [i3,j3,z3]=cellIJZ(ln[3]);
+  const a=W(i0,j0,z0), b=W(i3,j3,z3), dir=new THREE.Vector3().subVectors(b,a), len=dir.length();
+  const tube=new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.045,len,16),
+    new THREE.MeshStandardMaterial({color:0xffe27a,emissive:0xffb000,emissiveIntensity:0.9}));
+  tube.position.copy(a).add(b).multiplyScalar(0.5);
+  tube.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.clone().normalize());
+  scene.add(tube); winTube=tube;
+}
+
+/* ===== game flow ===== */
+function reset(){
+  clearBoard3D();
+  board=new Array(CELLS).fill(null); turn='R'; winner=null; winLine=null; lastMove=null; busy=false;
+  selected=-1; ghost.visible=false;
+  updateHud();
+  if(mode==='cpu'&&cpuFirst){ turn=CPU; busy=true; setTimeout(cpuMove,400); }
+}
+function place(c){
+  if(winner||busy||board[c]) return;
+  board[c]=turn; lastMove=c; placeBall(c,turn);
+  const wl=wonLine(board,turn);
+  if(wl){ winner=turn; winLine=wl; showWin(wl); selected=-1; ghost.visible=false; updateHud(); return; }
+  if(board.every(Boolean)){ winner='draw'; updateHud(); return; }
+  turn = turn==='R'?'B':'R';
+  selected=-1; ghost.visible=false; updateHud();
+  if(mode==='cpu'&&turn===CPU){ busy=true; setTimeout(cpuMove,360); }
+}
+function cpuMove(){ const c=chooseMove(); busy=false; if(c!=null) place(c); }
+
+function updateHud(){
+  const dot=document.getElementById('turnDot'),txt=document.getElementById('turnTxt'),
+        mc=document.getElementById('moveCount'),hint=document.getElementById('hint');
+  mc.textContent=`${board.filter(Boolean).length} / 64`;
+  const name=p=> mode==='cpu' ? (p==='R'?'You':'Computer') : (p==='R'?'Red':'Blue');
+  if(winner==='draw'){ dot.className='dot'; dot.style.background='#6b7689'; txt.textContent='Draw — cube full'; hint.textContent=''; return; }
+  if(winner){ dot.className='dot '+(winner==='R'?'red':'blue'); txt.textContent=`${name(winner)} win${name(winner)==='You'?'':'s'}! 🎉`; hint.textContent='Drag to admire · New game to replay'; return; }
+  dot.className='dot '+(turn==='R'?'red':'blue');
+  txt.textContent = mode==='cpu' ? (turn===CPU?'Computer thinking…':'Your move') : `${turn==='R'?'Red':'Blue'} to move`;
+  hint.textContent = isTouch ? (selected>=0?'Tap the ghost ball again to drop':'Drag to rotate · tap a slot to aim') : 'Drag to rotate · hover a slot, click to drop';
+}
+
+/* ===== picking: hover ghost + tap/click to place ===== */
+const ray=new THREE.Raycaster(), ndc=new THREE.Vector2();
+let isTouch=false, selected=-1;
+function pickCell(ev){
+  const r=renderer.domElement.getBoundingClientRect();
+  ndc.x=((ev.clientX-r.left)/r.width)*2-1;
+  ndc.y=-((ev.clientY-r.top)/r.height)*2+1;
+  ray.setFromCamera(ndc,camera);
+  const hits=ray.intersectObjects(hitMeshes,false);
+  for(const h of hits){ const c=h.object.userData.cell; if(!board[c]) return c; }
+  return -1;
+}
+function setGhost(c){
+  if(c<0){ ghost.visible=false; return; }
+  const [i,j,z]=cellIJZ(c); ghost.position.copy(W(i,j,z));
+  ghost.material.color.set(COL[turn]); ghost.visible=true;
+}
+
+const el=renderer.domElement;
+let down=null;
+el.addEventListener('pointermove',e=>{
+  if(e.pointerType!=='mouse') return;
+  if(down) return; // dragging to orbit
+  if(winner||busy||(mode==='cpu'&&turn===CPU)){ ghost.visible=false; return; }
+  setGhost(pickCell(e));
+});
+el.addEventListener('pointerdown',e=>{ down={x:e.clientX,y:e.clientY,t:performance.now(),type:e.pointerType}; });
+el.addEventListener('pointerup',e=>{
+  const d=down; down=null; if(!d) return;
+  const moved=Math.hypot(e.clientX-d.x,e.clientY-d.y);
+  if(moved>7 || performance.now()-d.t>500) return;        // it was a drag → orbit only
+  if(winner||busy||(mode==='cpu'&&turn===CPU)) return;
+  isTouch = d.type!=='mouse';
+  const c=pickCell(e);
+  if(c<0){ if(isTouch){ selected=-1; ghost.visible=false; updateHud(); } return; }
+  if(!isTouch){ place(c); return; }                        // mouse: one click drops
+  if(c===selected){ place(c); }                            // touch: second tap confirms
+  else { selected=c; setGhost(c); updateHud(); }
+});
+
+/* ===== resize + loop ===== */
+function resize(){
+  const w=stage.clientWidth, h=stage.clientHeight;
+  renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage);
+function loop(){ controls.update(); renderer.render(scene,camera); requestAnimationFrame(loop); }
+
+/* ===== controls UI ===== */
+document.getElementById('modeSeg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return;
+  mode=b.dataset.mode; document.querySelectorAll('#modeSeg button').forEach(x=>x.classList.toggle('on',x===b));
+  const d=document.getElementById('diffSeg'); d.style.opacity=mode==='cpu'?1:.4; d.style.pointerEvents=mode==='cpu'?'auto':'none';
+  document.getElementById('firstWrap').style.opacity=mode==='cpu'?1:.4; reset(); });
+document.getElementById('diffSeg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return;
+  diff=b.dataset.diff; document.querySelectorAll('#diffSeg button').forEach(x=>x.classList.toggle('on',x===b)); });
+document.getElementById('cpuFirst').addEventListener('change',e=>{ cpuFirst=e.target.checked; reset(); });
+document.getElementById('newBtn').addEventListener('click',reset);
+document.getElementById('resetView').addEventListener('click',()=>{ controls.reset(); camera.position.set(5.2,4.2,6.0); });
+
+resize(); reset(); loop();
+</script>
+</body>
+</html>
