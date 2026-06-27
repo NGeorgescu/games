@@ -57,7 +57,6 @@
   .fp{width:11px;height:11px;border-radius:50%}
   .fp.black{background:#0b0c0f;border:1px solid #e8ecf3}
   .fp.white{background:#eef1f6;border:1px solid #6c7686}
-  .fp.none{background:transparent;border:1px solid #2a313d}
   .grow.win{border-color:#2fe06a;background:#12251a}
 
   .banner{text-align:center;font-weight:700;font-size:16px;padding:8px 0 2px}
@@ -246,7 +245,6 @@ function fbHTML(black, white){
   const dots = [];
   for(let i=0;i<black;i++) dots.push('black');
   for(let i=0;i<white;i++) dots.push('white');
-  while(dots.length<4) dots.push('none');
   return `<div class="fb">${dots.map(d=>`<span class="fp ${d}"></span>`).join('')}</div>`;
 }
 function rowHTML(n, code, fb, win){
