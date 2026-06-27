@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Mastermind</title>
+<style>
+  :root{ --bg:#0e1014; --panel:#171a21; --ink:#eef1f6; --muted:#9aa3b2; --line:#262b35; --accent:#7cc6ff;
+    --c1:#e69f00; --c2:#56b4e9; --c3:#009e73; --c4:#f0e442; --c5:#0072b2; --c6:#cc79a7; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+  .wrap{max-width:520px;margin:0 auto;padding:16px 14px 32px}
+  h1{font-size:23px;margin:.1em 0 .1em}
+  .sub{color:var(--muted);font-size:13px;line-height:1.5;margin:0 0 12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:12px}
+  button{appearance:none;border:0;border-radius:12px;padding:11px 14px;font-size:15px;font-weight:600;
+    background:var(--accent);color:#06243a;cursor:pointer}
+  button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+  button:disabled{opacity:.4;cursor:default}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:11px;overflow:hidden;background:#12151b}
+  .seg button{background:transparent;color:var(--muted);border-radius:0;font-weight:600;padding:9px 12px;font-size:14px}
+  .seg button.on{background:#223047;color:#dbe8ff}
+  .hud{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;min-height:30px}
+  .turn{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:600}
+  .muted{color:var(--muted);font-size:13px}
+  .hidden{display:none!important}
+
+  /* ---- color pegs ---- */
+  .peg{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;
+    font-weight:800;color:#0c0e12;user-select:none;line-height:1;border:1px solid rgba(0,0,0,.35)}
+  .peg.c1{background:var(--c1)} .peg.c2{background:var(--c2)} .peg.c3{background:var(--c3)}
+  .peg.c4{background:var(--c4)} .peg.c5{background:var(--c5)} .peg.c6{background:var(--c6)}
+  .peg.c5{color:#dbe8ff;border-color:rgba(255,255,255,.25)}
+
+  /* palette picker */
+  .palette{display:flex;gap:9px;flex-wrap:wrap;justify-content:center;margin:4px 0 2px}
+  .palette .peg{width:46px;height:46px;font-size:20px;cursor:pointer}
+  .palette .peg:active{transform:scale(.93)}
+
+  /* current guess slots */
+  .slots{display:flex;gap:10px;justify-content:center;align-items:center;margin:6px 0}
+  .slot{width:42px;height:42px;border-radius:50%;border:2px dashed var(--line);background:#12151b;
+    display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .slot .peg{width:38px;height:38px;font-size:18px}
+
+  /* guess history rows */
+  .history{display:flex;flex-direction:column;gap:7px}
+  .grow{display:flex;align-items:center;gap:10px;justify-content:space-between;
+    background:#12151b;border:1px solid var(--line);border-radius:11px;padding:6px 9px}
+  .grow .num{color:var(--muted);font-size:12px;width:18px;text-align:right;flex:0 0 auto}
+  .gpegs{display:flex;gap:7px}
+  .gpegs .peg{width:30px;height:30px;font-size:14px}
+  .fb{display:grid;grid-template-columns:repeat(2,11px);grid-template-rows:repeat(2,11px);gap:3px;flex:0 0 auto}
+  .fp{width:11px;height:11px;border-radius:50%}
+  .fp.black{background:#0b0c0f;border:1px solid #e8ecf3}
+  .fp.white{background:#eef1f6;border:1px solid #6c7686}
+  .fp.none{background:transparent;border:1px solid #2a313d}
+  .grow.win{border-color:#2fe06a;background:#12251a}
+
+  .banner{text-align:center;font-weight:700;font-size:16px;padding:8px 0 2px}
+  .banner.win{color:#7ee0a3} .banner.lose{color:#ff8088}
+  .reveal{display:flex;gap:8px;justify-content:center;align-items:center;margin-top:6px}
+  .reveal .peg{width:34px;height:34px;font-size:16px}
+  footer{color:#5a6473;font-size:12px;text-align:center;margin-top:10px}
+  a{color:var(--accent)}
+  .hintbox{margin-top:8px;color:var(--accent);font-size:13px;text-align:center;min-height:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Mastermind</h1>
+  <p class="sub">Break the hidden code: 4 pegs, 6 colors, repeats allowed.
+    <b>Black</b> peg = right color in the right spot. <b>White</b> peg = right color, wrong spot.
+    Crack it yourself, or watch the computer solve any code in five guesses or fewer using Knuth's minimax strategy.</p>
+
+  <div class="card">
+    <div class="row">
+      <div class="seg" id="modeSeg">
+        <button data-mode="human" class="on">You crack it</button>
+        <button data-mode="cpu">Computer cracks it</button>
+      </div>
+      <button class="ghost" id="newBtn">New game</button>
+    </div>
+  </div>
+
+  <!-- ===== HUMAN MODE ===== -->
+  <div id="humanPanel">
+    <div class="card">
+      <div class="hud">
+        <div class="turn" id="hStatus">Pick 4 colors, then Guess</div>
+        <span class="muted" id="hCount">0 / 10</span>
+      </div>
+      <div class="palette" id="palette"></div>
+      <div class="slots" id="slots"></div>
+      <div class="row" style="justify-content:center;gap:10px;margin-top:4px">
+        <button class="ghost" id="clearBtn">Clear</button>
+        <button id="guessBtn" disabled>Guess</button>
+        <button class="ghost" id="hintBtn">Hint</button>
+      </div>
+      <div class="hintbox" id="hintBox"></div>
+      <div class="banner hidden" id="hBanner"></div>
+      <div class="reveal hidden" id="hReveal"></div>
+    </div>
+    <div class="card">
+      <div class="muted" style="margin-bottom:6px">Guesses</div>
+      <div class="history" id="hHistory"></div>
+    </div>
+  </div>
+
+  <!-- ===== CPU MODE ===== -->
+  <div id="cpuPanel" class="hidden">
+    <div class="card">
+      <div class="muted" style="margin-bottom:6px">Set a secret code for the computer to crack:</div>
+      <div class="palette" id="cPalette"></div>
+      <div class="slots" id="cSlots"></div>
+      <div class="row" style="justify-content:center;gap:10px;margin-top:4px">
+        <button class="ghost" id="cClearBtn">Clear</button>
+        <button class="ghost" id="cRandBtn">Random</button>
+        <button id="cSolveBtn" disabled>Let the computer solve it</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="hud">
+        <div class="turn" id="cStatus">Awaiting a secret…</div>
+        <span class="muted" id="cCount"></span>
+      </div>
+      <div class="history" id="cHistory"></div>
+      <div class="banner hidden" id="cBanner"></div>
+    </div>
+  </div>
+
+  <footer>One of <a href="../">the games</a>. Solver: Knuth (1977) worst-case minimax.</footer>
+</div>
+
+<script>
+"use strict";
+/* =====================================================================
+   CORE (testable) — pure logic, no DOM. Extracted verbatim by the
+   Node test harness between the markers below. Keep it DOM-free.
+   ===================================================================== */
+/* __CORE_START__ */
+const LEN = 4, NCOL = 6;
+
+// all 1296 codes as arrays of 4 ints in 1..6, generated in numeric order
+const ALL = (function(){
+  const out = [];
+  for(let a=1;a<=NCOL;a++)for(let b=1;b<=NCOL;b++)for(let c=1;c<=NCOL;c++)for(let d=1;d<=NCOL;d++)
+    out.push([a,b,c,d]);
+  return out;
+})();
+
+// standard Mastermind scoring with correct duplicate handling
+function score(secret, guess){
+  let black = 0;
+  const sc = new Array(NCOL+1).fill(0), gc = new Array(NCOL+1).fill(0);
+  for(let i=0;i<LEN;i++){
+    if(secret[i]===guess[i]) black++;
+    else { sc[secret[i]]++; gc[guess[i]]++; }
+  }
+  let white = 0;
+  for(let k=1;k<=NCOL;k++) white += Math.min(sc[k], gc[k]);
+  return {black, white};
+}
+const fbKey = f => f.black*10 + f.white;        // unique key per feedback
+const eqCode = (x,y) => x[0]===y[0]&&x[1]===y[1]&&x[2]===y[2]&&x[3]===y[3];
+const cmpCode = (x,y) => {                       // numeric order
+  for(let i=0;i<LEN;i++){ if(x[i]!==y[i]) return x[i]-y[i]; } return 0;
+};
+
+// Knuth minimax pick over the FULL set of 1296 candidates, against
+// consistent set S. Tie-break: smaller worst-case, then prefer a
+// candidate that is itself in S, then numerically smallest.
+function bestGuess(S){
+  if(S.length===1) return S[0];
+  const sSet = new Set(S.map(c=>c.join('')));
+  let best=null, bestMax=Infinity, bestInS=false;
+  for(const g of ALL){                           // ALL is ascending, so "first" == smallest
+    const parts = new Map();
+    let mx = 0;
+    for(const s of S){
+      const k = fbKey(score(s,g));
+      const v = (parts.get(k)||0)+1; parts.set(k,v);
+      if(v>mx) mx = v;
+      if(mx>bestMax) break;          // can't beat current best; abandon this candidate
+    }
+    const gInS = sSet.has(g.join(''));
+    if(mx < bestMax){ best=g; bestMax=mx; bestInS=gInS; }
+    else if(mx===bestMax && gInS && !bestInS){ best=g; bestInS=true; }
+  }
+  return best;
+}
+
+// filter S to codes consistent with: guess produced feedback f
+function filterConsistent(S, guess, f){
+  const key = fbKey(f);
+  return S.filter(c => fbKey(score(c, guess)) === key);
+}
+
+const FIRST_GUESS = [1,1,2,2];   // Knuth's two-color opener
+
+// Decide the solver's next guess given the history of {guess,fb} so far.
+// Rebuilds S from scratch each call so it is pure/stateless.
+function solverNext(history){
+  if(history.length===0) return FIRST_GUESS.slice();
+  let S = ALL;
+  for(const h of history) S = filterConsistent(S, h.guess, h.fb);
+  if(S.length===0) return null;          // contradictory feedback
+  return bestGuess(S);
+}
+
+// Play the solver against a known secret; return array of guesses made.
+function solve(secret){
+  const history = [];
+  for(let step=0; step<12; step++){
+    const g = solverNext(history);
+    const fb = score(secret, g);
+    history.push({guess:g, fb});
+    if(fb.black===LEN) break;
+  }
+  return history.map(h=>h.guess);
+}
+/* __CORE_END__ */
+
+/* expose for Node */
+if (typeof module !== 'undefined' && module.exports){
+  module.exports = {LEN,NCOL,ALL,score,fbKey,bestGuess,filterConsistent,FIRST_GUESS,solverNext,solve};
+}
+</script>
+
+<script>
+"use strict";
+/* ===================== UI ===================== */
+if (typeof document !== 'undefined') (function(){
+const $ = id => document.getElementById(id);
+const SYM = {1:'▲',2:'●',3:'■',4:'◆',5:'★',6:'✚'};
+const MAX_ROWS = 10;
+
+function pegHTML(col, size){
+  const s = size ? ` style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.45)}px"` : '';
+  return `<span class="peg c${col}"${s}>${SYM[col]}</span>`;
+}
+function fbHTML(black, white){
+  const dots = [];
+  for(let i=0;i<black;i++) dots.push('black');
+  for(let i=0;i<white;i++) dots.push('white');
+  while(dots.length<4) dots.push('none');
+  return `<div class="fb">${dots.map(d=>`<span class="fp ${d}"></span>`).join('')}</div>`;
+}
+function rowHTML(n, code, fb, win){
+  return `<div class="grow${win?' win':''}"><span class="num">${n}</span>`
+       + `<div class="gpegs">${code.map(c=>pegHTML(c)).join('')}</div>`
+       + fbHTML(fb.black, fb.white) + `</div>`;
+}
+function randomCode(){ return Array.from({length:LEN},()=>1+Math.floor(Math.random()*NCOL)); }
+const empty4 = ()=>[0,0,0,0];   // slots fill left-to-right (0 = empty)
+
+/* ---------- HUMAN MODE ---------- */
+const H = { secret:[], guesses:[], cur:empty4(), over:false };
+
+function buildPalette(el, onPick){
+  el.innerHTML = '';
+  for(let c=1;c<=NCOL;c++){
+    const b = document.createElement('div');
+    b.className = `peg c${c}`; b.textContent = SYM[c]; b.title = 'color '+c;
+    b.onclick = ()=>onPick(c);
+    el.appendChild(b);
+  }
+}
+function renderSlots(el, cur, onSlot){
+  el.innerHTML = '';
+  for(let i=0;i<LEN;i++){
+    const s = document.createElement('div');
+    s.className = 'slot';
+    if(cur[i]) s.innerHTML = pegHTML(cur[i],38);
+    s.onclick = ()=>onSlot(i);
+    el.appendChild(s);
+  }
+}
+function hPickColor(c){
+  if(H.over) return;
+  const i = H.cur.findIndex(x=>!x);
+  const slot = i<0 ? -1 : i;
+  if(slot<0){ // all full: replace last
+    H.cur[LEN-1]=c;
+  } else H.cur[slot]=c;
+  hRefresh();
+}
+function hClickSlot(i){ if(H.over) return; H.cur[i]=0; hRefresh(); }
+function hRefresh(){
+  renderSlots($('slots'), H.cur, hClickSlot);
+  const full = H.cur.every(x=>x);
+  $('guessBtn').disabled = H.over || !full;
+  $('hCount').textContent = `${H.guesses.length} / ${MAX_ROWS}`;
+}
+function hRenderHistory(){
+  const el = $('hHistory'); el.innerHTML = '';
+  if(!H.guesses.length){ el.innerHTML = '<div class="muted">No guesses yet.</div>'; return; }
+  H.guesses.forEach((g,i)=>{
+    el.insertAdjacentHTML('beforeend', rowHTML(i+1, g.code, g.fb, g.fb.black===LEN));
+  });
+}
+function hSubmit(){
+  if(H.over || !H.cur.every(x=>x)) return;
+  const code = H.cur.slice();
+  const fb = score(H.secret, code);
+  H.guesses.push({code, fb});
+  H.cur = empty4();
+  $('hintBox').textContent = '';
+  hRenderHistory();
+  if(fb.black===LEN){ hEnd(true); }
+  else if(H.guesses.length>=MAX_ROWS){ hEnd(false); }
+  hRefresh();
+}
+function hEnd(won){
+  H.over = true;
+  const b = $('hBanner');
+  b.className = 'banner ' + (won?'win':'lose');
+  b.textContent = won ? `Cracked it in ${H.guesses.length}! 🎉` : 'Out of guesses — the code was:';
+  b.classList.remove('hidden');
+  if(!won){
+    const r = $('hReveal'); r.innerHTML = H.secret.map(c=>pegHTML(c,34)).join('');
+    r.classList.remove('hidden');
+  }
+  $('hStatus').textContent = won ? 'Solved!' : 'Game over';
+  $('guessBtn').disabled = true; $('hintBtn').disabled = true;
+}
+function hHint(){
+  if(H.over) return;
+  const history = H.guesses.map(g=>({guess:g.code, fb:g.fb}));
+  const g = solverNext(history);
+  if(!g){ $('hintBox').textContent = 'Feedback so far is contradictory — no code fits.'; return; }
+  $('hintBox').innerHTML = 'Knuth suggests: ' + g.map(c=>pegHTML(c,24)).join(' ');
+}
+function hNew(){
+  H.secret = randomCode(); H.guesses = []; H.cur = empty4(); H.over = false;
+  $('hBanner').classList.add('hidden'); $('hReveal').classList.add('hidden');
+  $('hintBox').textContent = ''; $('hintBtn').disabled = false;
+  $('hStatus').textContent = 'Pick 4 colors, then Guess';
+  hRenderHistory(); hRefresh();
+}
+
+/* ---------- CPU MODE ---------- */
+const C = { secret:empty4(), running:false };
+function cPickColor(col){
+  if(C.running) return;
+  const i = C.secret.findIndex(x=>!x);
+  if(i<0) C.secret[LEN-1]=col; else C.secret[i]=col;
+  cRefresh();
+}
+function cClickSlot(i){ if(C.running) return; C.secret[i]=0; cRefresh(); }
+function cRefresh(){
+  renderSlots($('cSlots'), C.secret, cClickSlot);
+  $('cSolveBtn').disabled = C.running || !C.secret.every(x=>x);
+}
+function cRand(){ if(C.running) return; C.secret = randomCode(); cRefresh(); }
+function cClear(){ if(C.running) return; C.secret = empty4(); cRefresh();
+  $('cHistory').innerHTML=''; $('cBanner').classList.add('hidden'); $('cStatus').textContent='Awaiting a secret…'; $('cCount').textContent=''; }
+async function cSolve(){
+  if(C.running || !C.secret.every(x=>x)) return;
+  C.running = true; cRefresh();
+  $('cBanner').classList.add('hidden');
+  const hist = $('cHistory'); hist.innerHTML='';
+  const secret = C.secret.slice();
+  const history = [];
+  $('cStatus').textContent = 'Computer is solving…';
+  for(let step=0; step<10; step++){
+    $('cCount').textContent = `guess ${step+1}…`;
+    await sleep(step===0?250:650);
+    const g = solverNext(history);
+    const fb = score(secret, g);
+    history.push({guess:g, fb});
+    hist.insertAdjacentHTML('beforeend', rowHTML(history.length, g, fb, fb.black===LEN));
+    hist.lastElementChild.scrollIntoView({block:'nearest'});
+    if(fb.black===LEN){
+      const b=$('cBanner'); b.className='banner win';
+      b.textContent = `Solved in ${history.length} guess${history.length>1?'es':''}. ✅`;
+      b.classList.remove('hidden');
+      $('cStatus').textContent='Done'; $('cCount').textContent=`${history.length} / ≤5`;
+      break;
+    }
+  }
+  C.running = false; cRefresh();
+}
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+/* ---------- wiring ---------- */
+buildPalette($('palette'), hPickColor);
+buildPalette($('cPalette'), cPickColor);
+$('guessBtn').onclick = hSubmit;
+$('clearBtn').onclick = ()=>{ if(!H.over){ H.cur=empty4(); hRefresh(); } };
+$('hintBtn').onclick = hHint;
+$('cClearBtn').onclick = cClear;
+$('cRandBtn').onclick = cRand;
+$('cSolveBtn').onclick = cSolve;
+$('newBtn').onclick = ()=>{ if(curMode==='human') hNew(); else cClear(); };
+
+let curMode='human';
+$('modeSeg').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  curMode = b.dataset.mode;
+  document.querySelectorAll('#modeSeg button').forEach(x=>x.classList.toggle('on',x===b));
+  $('humanPanel').classList.toggle('hidden', curMode!=='human');
+  $('cpuPanel').classList.toggle('hidden', curMode!=='cpu');
+});
+
+hNew(); cRefresh();
+})();
+</script>
+</body>
+</html>
