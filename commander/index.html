@@ -90,6 +90,10 @@
   .rbadge.syn{background:#37280f;color:#ffce85}
   .rbadge.have{background:#16321f;color:#7ee0a3}
   .rbadge.miss{background:#3a1f24;color:#ff9aa9}
+  .rprice{flex:0 0 auto;font-size:12.5px;font-weight:800;color:#8fe0b0;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .rprice:empty{display:none}
+  .rpricetotal{color:var(--muted);font-size:12px;text-align:right;margin-top:7px;line-height:1.5}
+  .rpricetotal:empty{display:none}
   .oarow.have{opacity:.5}
   .deckwarn{margin-top:6px;color:#ff5252;font-weight:800;font-size:16px;line-height:1.4}
   .staptoggle{display:flex;gap:6px;margin-top:8px}
@@ -122,6 +126,9 @@
   .warnbox{background:#1d160f;border:1px solid #5a4a20;border-radius:14px;padding:13px 14px;margin-bottom:12px}
   .warnbox h3{margin:0 0 6px;font-size:15px;color:#ffd07c}
   .warnbox p{margin:0;font-size:13px;color:#e7d8be;line-height:1.6}
+  .warnbox.precon{background:#101a2a;border-color:#2c3e63}
+  .warnbox.precon h3{color:var(--accent)}
+  .warnbox.precon p{color:#cfd6e2}
   .foot{color:#5a6473;font-size:12px;margin-top:18px;text-align:center;line-height:1.6}
   .foot a{color:#5a6473}
   .reset{background:transparent;border:1px solid var(--line);color:var(--muted);font-weight:600}
@@ -152,6 +159,8 @@
     </div>
   </div>
 
+  <div id="preconbox" style="display:none"></div>
+
   <div class="progwrap"><div class="progbar" id="bar"></div></div>
   <div class="note" id="progtxt" style="text-align:center;margin-bottom:12px">0 / 11 steps done</div>
 
@@ -162,8 +171,10 @@
   <div class="foot">
     Every link is built from your commander and color identity. The bracket and staples views pull live EDHREC
     data; the one-away finder runs entirely in your browser on a snapshot of the Commander Spellbook combo
-    database (v5.4.10, 2026-06-22), fetching only the bundle for your colors. Scryfall queries are editable
-    starting points — tweak the syntax to taste.
+    database (v5.4.10, 2026-06-22), fetching only the bundle for your colors. Card prices are pulled live from
+    the Scryfall <code>cards/collection</code> API (market USD); the precon alert matches your commander against
+    a snapshot index built from EDHREC's precon pages. Scryfall queries are editable starting points — tweak the
+    syntax to taste.
   </div>
 </div>
 
@@ -408,6 +419,7 @@ function render(){
   $('#bar').style.width=(100*n/total)+'%';
   $('#progtxt').textContent=n+' / '+total+' steps done';
   computeHG(); computeMull();
+  ['#oneaway','#winout','#recout','#staplesout'].forEach(id=>{ const b=$(id); if(b) annotatePrices(b); });   // re-fill price tags from cache after re-render
 }
 function toggle(n){ state.done[n]=!state.done[n]; save(); render(); }
 function cardSearch(n){
@@ -447,6 +459,38 @@ function unionCI(){
   return s;
 }
 
+/* ---------- card prices (Scryfall collection API, batched ≤75 + cached) ---------- */
+const priceCache=new Map();   // normName -> usd Number | null (null = no price / not found, won't refetch)
+function priceTag(name){ return `<span class="rprice" data-price="${String(name).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}"></span>`; }
+async function fetchPrices(names){
+  const want=[], seen=new Set();
+  for(const nm of names){ const k=normName(nm); if(!k||seen.has(k)||priceCache.has(k)) continue; seen.add(k); want.push(nm); }
+  for(let i=0;i<want.length;i+=75){
+    const chunk=want.slice(i,i+75);
+    try{
+      const r=await fetch('https://api.scryfall.com/cards/collection',{method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({identifiers:chunk.map(n=>({name:n}))})});
+      if(r.ok){ const j=await r.json();
+        for(const c of (j.data||[])){ const p=c.prices&&c.prices.usd; priceCache.set(normName(c.name), p?+p:null); } }
+    }catch(e){}
+    for(const nm of chunk){ const k=normName(nm); if(!priceCache.has(k)) priceCache.set(k,null); }   // record misses so we don't refetch
+  }
+}
+// fill every [data-price] placeholder inside box; cached names resolve instantly, only new ones hit the network
+async function annotatePrices(box){
+  if(!box) return;
+  const els=[...box.querySelectorAll('[data-price]')];
+  if(!els.length) return;
+  await fetchPrices(els.map(e=>e.getAttribute('data-price')));
+  let total=0;
+  for(const e of els){ const u=priceCache.get(normName(e.getAttribute('data-price')));
+    if(u==null){ e.textContent=''; }
+    else { e.textContent='$'+(u>=100?u.toFixed(0):u.toFixed(2)); total+=u; } }
+  const tEl=box.querySelector('.rpricetotal');
+  if(tEl) tEl.textContent = total>0 ? ('≈ $'+total.toFixed(2)+' to buy every card listed · Scryfall market, USD') : '';
+}
+
 /* ---------- step 7: one-away finder (local, from CSB combo bundles) ---------- */
 async function findOneAway(){
   const box=$('#oneaway');
@@ -481,10 +525,10 @@ async function findOneAway(){
         const q=combo.map(i=>'"'+bundle.cards[i].replace(/"/g,'')+'"').join(' ');
         return `<a class="oacombo" href="${CSB+enc(q)}" target="_blank" rel="noopener">${parts.join(' + ')}</a>`;
       }).join('')+(cnt>25?`<div class="oacombo" style="color:var(--muted)">…and ${cnt-25} more</div>`:'');
-      return `<div class="oarow" onclick="toggleOA(${idx})"><span class="oacnt">${cnt}</span><span class="oaname">${esc(nm)} <span class="oacar" id="oacar${idx}">▸</span></span></div>`+
+      return `<div class="oarow" onclick="toggleOA(${idx})"><span class="oacnt">${cnt}</span><span class="oaname">${esc(nm)} <span class="oacar" id="oacar${idx}">▸</span></span>${priceTag(nm)}</div>`+
         `<div class="oacombos" id="oac${idx}" style="display:none">${inner}</div>`;
-    }).join('')+'</div>'; }
-  oneAwayHTML=h; box.innerHTML=h;
+    }).join('')+'</div><div class="rpricetotal"></div>'; }
+  oneAwayHTML=h; box.innerHTML=h; annotatePrices(box);
 }
 function toggleOA(idx){ const el=document.getElementById('oac'+idx); if(!el) return; const open=el.style.display==='none'; el.style.display=open?'block':'none'; const car=document.getElementById('oacar'+idx); if(car) car.textContent=open?'▾':'▸'; }
 /* ---------- winningest cards (precomputed EDHTop16 bundles) ---------- */
@@ -509,9 +553,9 @@ async function findWinners(){
   h+='<div class="oalist">'+d.c.map(([name,n,lift])=>{
     const hasit = deckSet && deckSet.has(normName(name));
     const badge = !deckSet ? '' : (hasit?'<span class="rbadge have">✓ have</span>':'<span class="rbadge miss">missing</span>');
-    return `<div class="oarow${hasit?' have':''}"><span class="oacnt">${lift.toFixed(2)}</span><a class="oaname" href="${scry('!"'+name.replace(/"/g,'')+'"')}" target="_blank" rel="noopener">${name.replace(/</g,'&lt;')}</a>${badge}<span style="color:var(--muted);font-size:12px;flex:0 0 auto">${n} decks</span></div>`;
-  }).join('')+'</div>';
-  winHTML=h; box.innerHTML=h;
+    return `<div class="oarow${hasit?' have':''}"><span class="oacnt">${lift.toFixed(2)}</span><a class="oaname" href="${scry('!"'+name.replace(/"/g,'')+'"')}" target="_blank" rel="noopener">${name.replace(/</g,'&lt;')}</a>${badge}${priceTag(name)}<span style="color:var(--muted);font-size:12px;flex:0 0 auto">${n} decks</span></div>`;
+  }).join('')+'</div><div class="rpricetotal"></div>';
+  winHTML=h; box.innerHTML=h; annotatePrices(box);
 }
 
 /* ---------- unified recommendations: merge one-away + winningest + EDHREC high-synergy/inclusion ---------- */
@@ -563,9 +607,9 @@ async function findRecs(){
     if(r.lift) b.push(`<span class="rbadge win">win ${r.lift.toFixed(2)}</span>`);
     if(r.pct) b.push(`<span class="rbadge pct">${r.pct.toFixed(0)}% cEDH</span>`);
     if(r.hs) b.push(`<span class="rbadge syn">high-synergy</span>`);
-    return `<div class="rrow"><a class="oaname" href="${scry('!"'+r.name.replace(/"/g,'')+'"')}" target="_blank" rel="noopener">${r.name.replace(/</g,'&lt;')}</a><div class="rbadges">${b.join('')}</div></div>`;
-  }).join('')+'</div>';
-  recHTML=h; box.innerHTML=h;
+    return `<div class="rrow"><a class="oaname" href="${scry('!"'+r.name.replace(/"/g,'')+'"')}" target="_blank" rel="noopener">${r.name.replace(/</g,'&lt;')}</a><div class="rbadges">${b.join('')}</div>${priceTag(r.name)}</div>`;
+  }).join('')+'</div><div class="rpricetotal"></div>';
+  recHTML=h; box.innerHTML=h; annotatePrices(box);
 }
 
 /* ---------- step 6: competitive staples you're missing (EDHREC statistical data) ---------- */
@@ -599,8 +643,8 @@ async function findStaples(){
   const where = used==='cedh'?'cEDH':used==='optimized'?'bracket-4':'all';
   let h=`<div class="oahead">Most-played cards in ${where} decks of your commander you're <b>not</b> running${deckNote}. % = share of those decks that play it.</div>`;
   if(!missing.length){ h+='<div class="oahead">You\'re already on all the top staples — nice.</div>'; }
-  else { h+='<div class="oalist">'+missing.map(v=>`<div class="oarow"><span class="oacnt">${v.pct.toFixed(0)}%</span><a class="oaname" href="${scry('!"'+v.name.replace(/"/g,'')+'"')}" target="_blank" rel="noopener">${v.name.replace(/</g,'&lt;')}</a></div>`).join('')+'</div>'; }
-  staplesHTML=h; box.innerHTML=h;
+  else { h+='<div class="oalist">'+missing.map(v=>`<div class="oarow"><span class="oacnt">${v.pct.toFixed(0)}%</span><a class="oaname" href="${scry('!"'+v.name.replace(/"/g,'')+'"')}" target="_blank" rel="noopener">${v.name.replace(/</g,'&lt;')}</a>${priceTag(v.name)}</div>`).join('')+'</div><div class="rpricetotal"></div>'; }
+  staplesHTML=h; box.innerHTML=h; annotatePrices(box);
 }
 // "these colors" view: filter a maintained cEDH staples list to your color identity
 async function findStaplesColors(box){
@@ -624,8 +668,70 @@ async function findStaplesColors(box){
   const clabel=target.length?target.join(''):'colorless';
   let h=`<div class="oahead">cEDH staples that fit your colors (${clabel}) and aren't in your list — from a maintained staples list. Number = mana value.</div>`;
   if(!cards.length){ h+='<div class="oahead">Nothing missing — you\'re on all the in-color staples.</div>'; }
-  else h+='<div class="oalist">'+cards.slice(0,60).map(c=>`<div class="oarow"><span class="oacnt">${c.cmc}</span><a class="oaname" href="${scry('!"'+c.name.replace(/"/g,'')+'"')}" target="_blank" rel="noopener">${c.name.replace(/</g,'&lt;')}</a></div>`).join('')+'</div>';
-  staplesHTML=h; box.innerHTML=h;
+  else h+='<div class="oalist">'+cards.slice(0,60).map(c=>`<div class="oarow"><span class="oacnt">${c.cmc}</span><a class="oaname" href="${scry('!"'+c.name.replace(/"/g,'')+'"')}" target="_blank" rel="noopener">${c.name.replace(/</g,'&lt;')}</a>${priceTag(c.name)}</div>`).join('')+'</div><div class="rpricetotal"></div>';
+  staplesHTML=h; box.innerHTML=h; annotatePrices(box);
+}
+
+/* ---------- step 0: precon-origin alert (commander/backup commander came from a precon) ---------- */
+let preconIndex=null, preconOpen=false;
+async function loadPreconIndex(){ if(preconIndex) return preconIndex;
+  try{ preconIndex=await fetch('data/precon/index.json').then(r=>r.ok?r.json():{}); }catch(e){ preconIndex={}; }
+  return preconIndex;
+}
+async function checkPrecon(){
+  const box=document.getElementById('preconbox'); if(!box) return;
+  const idx=await loadPreconIndex();
+  let hit=null, who=null;
+  for(const nm of [state.cmd, state.cmd2]){ const k=normName(nm||''); if(k && idx[k]){ hit=idx[k]; who=nm; break; } }
+  if(!hit){ box.style.display='none'; box.innerHTML=''; return; }
+  box.style.display='block';
+  box.innerHTML=`<div class="warnbox precon"><h3>⚠ Precon commander</h3><p>Checking what this precon ships with…</p></div>`;
+  // 1. the precon's full decklist (live from EDHREC)
+  let preconNames=[];
+  try{
+    const pg=await fetch('https://json.edhrec.com/pages/precon/'+hit.slug+'.json').then(r=>r.ok?r.json():null);
+    const buckets=(pg&&pg.deck&&pg.deck.cards)||{};
+    for(const t in buckets) for(const row of buckets[t]) preconNames.push(row[0]);
+  }catch(e){}
+  const preconSet=new Set(preconNames.map(normName));
+  // 2. EDHREC notable cards for THIS commander (high-synergy + inclusion %)
+  const note=new Map();
+  try{
+    let data=null;
+    for(const page of ['cedh','optimized','']){ const r=await fetch('https://json.edhrec.com/pages/commanders/'+deckSlug()+(page?'/'+page:'')+'.json'); if(r.ok){ data=await r.json(); break; } }
+    if(data){ const cl=(data.container&&data.container.json_dict&&data.container.json_dict.cardlists)||[];
+      for(const list of cl){ const hs=/high synergy/i.test(list.header||''); for(const cv of (list.cardviews||[])){
+        const k=normName(cv.name), pct=cv.potential_decks?100*cv.num_decks/cv.potential_decks:0;
+        const cur=note.get(k)||{name:cv.name,pct:0,hs:false}; cur.pct=Math.max(cur.pct,pct); if(hs)cur.hs=true; note.set(k,cur);
+      } } }
+  }catch(e){}
+  // 3. precon cards that are also high-synergy / high-inclusion for this commander
+  const BASICS=new Set(['plains','island','swamp','mountain','forest','wastes']);
+  const rows=[...note.values()].filter(v=>preconSet.has(normName(v.name)) && !BASICS.has(normName(v.name)))
+    .sort((a,b)=>(b.hs-a.hs)||(b.pct-a.pct)).slice(0,30);
+  const roleTxt = hit.role==='backup' ? 'a backup commander in' : 'the face commander of';
+  const esc=s=>String(s).replace(/</g,'&lt;');
+  let body=`<p><b>${esc(who)}</b> is ${roleTxt} the <b>${esc(hit.precon)}</b> preconstructed deck${hit.set?` (${esc(hit.set)})`:''}.`;
+  if(rows.length){
+    body+=` ${rows.length} of its cards also rank as <b>high-synergy / high-inclusion</b> for this commander — opponents who know the precon will expect these, so brew around or past them.</p>`+
+      `<button class="btn ghost" data-n="${rows.length}" style="width:100%;margin-top:4px" onclick="togglePrecon()">${preconOpen?'▾ Hide':'▸ Show'} the ${rows.length} cards</button>`+
+      `<div id="preconlist" style="display:${preconOpen?'block':'none'}"><div class="oalist" style="margin-top:8px">`+
+      rows.map(v=>{ const b=[]; if(v.hs)b.push('<span class="rbadge syn">high-synergy</span>'); if(v.pct)b.push(`<span class="rbadge pct">${v.pct.toFixed(0)}% incl</span>`);
+        return `<div class="oarow"><a class="oaname" href="${scry('!"'+v.name.replace(/"/g,'')+'"')}" target="_blank" rel="noopener">${esc(v.name)}</a><div class="rbadges">${b.join('')}</div>${priceTag(v.name)}</div>`; }).join('')+
+      `</div><div class="rpricetotal"></div></div>`;
+  } else {
+    body+=` Be on the lookout — its default includes are predictable, and ${preconNames.length?'none stood out as high-synergy for this commander':"EDHREC data wasn't available"}.</p>`;
+  }
+  box.innerHTML=`<div class="warnbox precon"><h3>⚠ Precon commander</h3>${body}</div>`;
+  if(preconOpen) annotatePrices(document.getElementById('preconlist'));
+}
+function togglePrecon(){
+  const box=document.getElementById('preconbox'); if(!box) return;
+  preconOpen=!preconOpen;
+  const l=box.querySelector('#preconlist'), btn=box.querySelector('.precon .btn.ghost');
+  if(l) l.style.display=preconOpen?'block':'none';
+  if(btn) btn.textContent=(preconOpen?'▾ Hide':'▸ Show')+' the '+btn.dataset.n+' cards';
+  if(preconOpen && l) annotatePrices(l);
 }
 
 /* ---------- step 9 ---------- */
@@ -725,6 +831,7 @@ function setCommander(slot, it){
   if(slot===1){ load(); applyPartnerSpec(it); }   // restore saved state, then (re)configure slot 2
   recolor(); render(); save();
   if(slot===1) refreshBg2();                      // a restored partner may need its background flag re-derived
+  checkPrecon();                                   // step-0 alert if this commander/backup came from a precon
 }
 // re-derive whether the second commander is a Background (fixes stale saves predating the bg2 flag)
 async function refreshBg2(){
@@ -763,6 +870,7 @@ function wireSlot(slot){
     if(e.target.disabled) return;
     const v=e.target.value;
     if(slot===1) state.cmd=v; else { state.cmd2=v; if(!v.trim()){ state.ci2=[]; state.bg2=false; recolor(); } }
+    if(!v.trim()) checkPrecon();   // field cleared → drop any stale precon banner
     clearTimeout(AC[slot].timer);
     const q=v.trim();
     if(q.length<2){ $('#'+AC[slot].el).innerHTML=''; render(); return; }
