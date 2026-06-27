@@ -326,11 +326,12 @@ const TRICKS = [
     gen(){ const n=rnd(1,9); return { q:`${n}² = ?`, a:n*n, steps:[
       `${n} × ${n} = <b>${n*n}</b>` ]}; } },
 
-  { id:"overunder", cat:"Square roots", name:"The over-under value", tag:"Cover two digits, then a×(a+1)", answerType:"num",
+  { id:"overunder", cat:"Square roots", name:"The over-under value", tag:"Cover two digits, then a×(a+1)", answerType:"ou",
     lesson:`<h3>The over-under value</h3>
-      <p>You'll see a perfect square. <b>Cover its last two digits</b>, find the largest square that fits to read off the tens digit <b>a</b>, then give the <b>over-under value a×(a+1)</b>. That's the betting line you'll compare the front against in the next drill — front <i>under</i> it takes the smaller root, <i>over</i> it takes the larger.</p>
-      <div class="ex mono">√2916 → cover 16 → 29 → biggest square ≤ 29 is 5²=25 → tens 5<br>over-under = 5×6 = <b>30</b></div>
-      <p>The second half is just "the digit times the next digit":</p>
+      <p>You'll see a perfect square. <b>Cover its last two digits</b>, find the largest square that fits to read off the tens digit <b>a</b>, then give the <b>over-under value a×(a+1)</b>. That's the betting line you compare the whole square against in the next drill — square <i>under</i> it takes the smaller root, <i>over</i> it takes the larger.</p>
+      <p>The line is a full number ending in <b>00</b>, so the <b>00 is filled in for you</b> — you just supply the front. For √2916 you'd type <b>30</b> and the field reads <span class="mono">3000</span>; then 2916 sits <i>under</i> 3000.</p>
+      <div class="ex mono">√2916 → cover 16 → 29 → biggest square ≤ 29 is 5²=25 → tens 5<br>over-under front = 5×6 = <b>30</b> → line = 3000</div>
+      <p>The front is just "the digit times the next digit":</p>
       <table class="map mono">
         <tr><td>tens digit a</td><td>over-under a×(a+1)</td></tr>
         <tr><td>1</td><td>2</td></tr><tr><td>2</td><td>6</td></tr><tr><td>3</td><td>12</td></tr>
@@ -342,7 +343,7 @@ const TRICKS = [
       return { q:`√ ${commas(N)} → over-under?`, a:a*(a+1), steps:[
         `Cover the last 2 digits → <span class="mono">${lo}</span>`,
         `Biggest square ≤ ${lo} is ${a}²=${SQUARES[a]} → tens digit <span class="mono">${a}</span>`,
-        `Over-under = ${a}×(${a}+1) = ${a}×${a+1} = <b>${a*(a+1)}</b>` ]}; } },
+        `Front = ${a}×(${a}+1) = ${a}×${a+1} = <b>${a*(a+1)}</b> → line = <span class="mono">${a*(a+1)}00</span> (the 00 is pre-filled)` ]}; } },
 
   { id:"sqrt", cat:"Square roots", name:"Square root of a perfect square", tag:"Put it all together",
     lesson:`<h3>Square root in your head</h3>
@@ -770,6 +771,9 @@ const app = {
   renderAns(){ const a=$("ans");
     if(this.cur && this.cur.answerType==="quotrem"){          // quotient R remainder, ATM-style (last digit = remainder)
       a.textContent = (this.input.slice(0,-1)||"_")+" R "+(this.input.slice(-1)||"_");
+      a.classList.toggle("empty", this.input===""); return; }
+    if(this.cur && this.cur.answerType==="ou"){               // over-under: trailing "00" pre-filled, user types the front
+      a.textContent = (this.input||"_")+"00";
       a.classList.toggle("empty", this.input===""); return; }
     if(this.input===""){ a.textContent="—"; a.classList.add("empty"); }
     else { a.textContent=this.input; a.classList.remove("empty"); } },
