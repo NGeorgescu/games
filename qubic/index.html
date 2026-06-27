@@ -73,7 +73,13 @@
         <button data-diff="easy">Easy</button>
         <button data-diff="hard" class="on">Hard</button>
       </div>
-      <label class="muted" id="firstWrap"><input type="checkbox" id="cpuFirst"> Computer (blue) first</label>
+      <span class="muted" id="firstWrap" style="display:flex;align-items:center;gap:8px">First
+        <span class="seg" id="firstSeg">
+          <button data-first="R" class="on">Red</button>
+          <button data-first="B">Blue</button>
+          <button data-first="alt">Alt</button>
+        </span>
+      </span>
     </div>
     <div class="row" style="margin-top:10px;justify-content:flex-end">
       <button class="ghost hidden" id="resetView">Recenter</button>
@@ -118,7 +124,7 @@ const LINES_BY_CELL=Array.from({length:CELLS},()=>[]);
 LINES.forEach((ln,li)=>ln.forEach(c=>LINES_BY_CELL[c].push(li)));
 
 let board, turn, winner, winLine, lastMove, busy;
-let mode='cpu', diff='hard', cpuFirst=false, view='2d';
+let mode='cpu', diff='hard', firstPref='R', altNext='R', view='2d';
 
 function wonLine(b,p){ for(const ln of LINES) if(b[ln[0]]===p&&b[ln[1]]===p&&b[ln[2]]===p&&b[ln[3]]===p) return ln; return null; }
 function lineScore(c,p){ const opp=p==='R'?'B':'R'; let s=0;
@@ -140,11 +146,16 @@ function chooseMove(){
   return pickWeighted(empties,c=>lineScore(c,CPU)+lineScore(c,HUMAN)*0.6+threatsAfter(c,CPU)*40+Math.random()*1.5);
 }
 
+function startingPlayer(){
+  if(firstPref==='alt'){ const p=altNext; altNext=altNext==='R'?'B':'R'; return p; }
+  return firstPref;
+}
 function reset(){
-  board=new Array(CELLS).fill(null); turn='R'; winner=null; winLine=null; lastMove=null; busy=false;
+  board=new Array(CELLS).fill(null); winner=null; winLine=null; lastMove=null; busy=false;
+  turn=startingPlayer();
   selected=-1; if(ghost) ghost.visible=false;
   refresh();
-  if(mode==='cpu'&&cpuFirst){ turn=CPU; busy=true; setTimeout(cpuMove,400); }
+  if(mode==='cpu'&&turn===CPU){ busy=true; setTimeout(cpuMove,400); }
 }
 function place(c){
   if(winner||busy||board[c]) return;
@@ -384,10 +395,11 @@ document.getElementById('viewSeg').addEventListener('click',e=>{ const b=e.targe
 document.getElementById('modeSeg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return;
   mode=b.dataset.mode; document.querySelectorAll('#modeSeg button').forEach(x=>x.classList.toggle('on',x===b));
   const d=document.getElementById('diffSeg'); d.style.opacity=mode==='cpu'?1:.4; d.style.pointerEvents=mode==='cpu'?'auto':'none';
-  document.getElementById('firstWrap').style.opacity=mode==='cpu'?1:.4; reset(); });
+  reset(); });
 document.getElementById('diffSeg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return;
   diff=b.dataset.diff; document.querySelectorAll('#diffSeg button').forEach(x=>x.classList.toggle('on',x===b)); });
-document.getElementById('cpuFirst').addEventListener('change',e=>{ cpuFirst=e.target.checked; reset(); });
+document.getElementById('firstSeg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return;
+  firstPref=b.dataset.first; altNext='R'; document.querySelectorAll('#firstSeg button').forEach(x=>x.classList.toggle('on',x===b)); reset(); });
 document.getElementById('newBtn').addEventListener('click',reset);
 document.getElementById('resetView').addEventListener('click',()=>{ if(controls){ controls.reset(); camera.position.set(...HOME); } });
 addEventListener('resize',()=>{ if(view==='3d'&&inited3D) resize3D(); });
