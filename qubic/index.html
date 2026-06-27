@@ -270,7 +270,7 @@ async function init3D(){
   lineFamily(xs,[1,0,0]); lineFamily(zs,[0,0,1]); lineFamily(ys,[0,1,0]);
 
   sphereGeo=new THREE.SphereGeometry(0.34,32,24);
-  const slotGeo=new THREE.SphereGeometry(0.07,12,10), hitGeo=new THREE.SphereGeometry(0.46,10,8);
+  const slotGeo=new THREE.SphereGeometry(0.07,12,10), hitGeo=new THREE.SphereGeometry(0.32,10,8);
   const slotMat=new THREE.MeshStandardMaterial({color:0x8c98ab,transparent:true,opacity:0.32,roughness:.9});
   const hitMat=new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false});
   for(let c=0;c<CELLS;c++){
