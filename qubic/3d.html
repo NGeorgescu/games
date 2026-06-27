@@ -267,7 +267,7 @@ el.addEventListener('pointerup',e=>{
 /* ===== resize + loop ===== */
 function resize(){
   const w=stage.clientWidth, h=stage.clientHeight;
-  renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
+  renderer.setSize(w,h); camera.aspect=w/h; camera.updateProjectionMatrix();
 }
 new ResizeObserver(resize).observe(stage);
 function loop(){ controls.update(); renderer.render(scene,camera); requestAnimationFrame(loop); }
