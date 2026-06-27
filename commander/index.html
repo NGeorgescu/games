@@ -749,12 +749,14 @@ async function checkPrecon(){
         cur.pct=Math.max(cur.pct,pct); if(syn!=null) cur.syn=(cur.syn==null)?syn:Math.max(cur.syn,syn); note.set(k,cur);
       } } }
   }catch(e){}
-  // 3. precon cards whose SYNERGY clears a threshold — i.e. over-represented for this commander beyond their
-  //    format-wide baseline. Ranked by synergy desc. Universal staples (low synergy) are filtered out.
-  const SYN_MIN=0.2;
+  // 3. precon cards whose SYNERGY clears a low threshold — i.e. over-represented for this commander beyond their
+  //    format-wide baseline. Ranked by synergy desc. Universal colorless staples are dropped explicitly because
+  //    their synergy can drift above the threshold on popularity noise (e.g. Sol Ring ~0.14) and isn't meaningful.
+  const SYN_MIN=0.05;
   const BASICS=new Set(['plains','island','swamp','mountain','forest','wastes']);
-  const rows=[...note.values()].filter(v=>preconSet.has(normName(v.name)) && !BASICS.has(normName(v.name)) && v.syn!=null && v.syn>=SYN_MIN)
-    .sort((a,b)=>b.syn-a.syn).slice(0,30);
+  const STAPLES=new Set(['solring','manacrypt','manavault','arcanesignet','fellwarstone','mindstone','thoughtvessel','commanderssphere','wayfarersbauble','everflowingchalice','chromaticlantern','coalitionrelic','wornpowerstone','jeweledlotus','lotuspetal','chromemox','commandtower','exoticorchard','pathofancestry','reliquarytower','bojukabog','terramorphicexpanse','evolvingwilds','myriadlandscape','commandbeacon','roguespassage','ashbarrens','theworldtree','warroom']);
+  const rows=[...note.values()].filter(v=>{ const k=normName(v.name); return preconSet.has(k) && !BASICS.has(k) && !STAPLES.has(k) && v.syn!=null && v.syn>=SYN_MIN; })
+    .sort((a,b)=>b.syn-a.syn).slice(0,40);
   const roleTxt = hit.role==='backup' ? 'a backup commander in' : 'the face commander of';
   const esc=s=>String(s).replace(/</g,'&lt;');
   let body=`<p><b>${esc(who)}</b> is ${roleTxt} the <b>${esc(hit.precon)}</b> preconstructed deck${hit.set?` (${esc(hit.set)})`:''}.`;
