@@ -185,7 +185,8 @@ const WUBRG = ['w','u','b','r','g'];
 
 function defaultMull(){ return {L:17,R:4,I:4,N:99,h:7,combos:'LLL LLR LRI',open:false}; }
 let state = { cmd:'', cmd2:'', ci1:[], ci2:[], bg2:false, slot2q:null, colors:new Set(), done:{}, notes:'', deck:'', staplesMode:'commander', hg:{k:2,copies:10}, mull:defaultMull() };
-let oneAwayHTML = '', staplesHTML = '', deckWarning = '', winHTML = '', recHTML = '';
+let oneAwayHTML = '', staplesHTML = '', deckWarning = '', winHTML = '', cutHTML = '', recHTML = '', auditHTML = '', questHTML = '';
+let auditHideMana = false;
 let deckCache = {key:null, names:null, commanders:null, deckCI:null};
 function deckBoxHTML(){
   return `<textarea class="deckbox" oninput="onDeck(this.value)" placeholder="Paste a Moxfield deck link, or your decklist (one card per line)…">${(state.deck||'').replace(/</g,'&lt;')}</textarea>
@@ -330,7 +331,7 @@ function steps(){ return [
 function key(){ return 'bs:'+slug(state.cmd||'_'); }
 function save(){ localStorage.setItem(key(), JSON.stringify({done:state.done,notes:state.notes,deck:state.deck,colors:[...state.colors],cmd2:state.cmd2,ci1:state.ci1,ci2:state.ci2,bg2:state.bg2,staplesMode:state.staplesMode,hg:state.hg,mull:state.mull})); }
 function load(){
-  state.done={}; state.notes=''; state.deck=''; state.cmd2=''; state.ci2=[]; state.bg2=false; state.staplesMode='commander'; state.hg={k:2,copies:10}; state.mull=defaultMull(); oneAwayHTML=''; staplesHTML=''; deckWarning=''; winHTML=''; recHTML=''; deckCache={key:null,names:null,commanders:null,deckCI:null};
+  state.done={}; state.notes=''; state.deck=''; state.cmd2=''; state.ci2=[]; state.bg2=false; state.staplesMode='commander'; state.hg={k:2,copies:10}; state.mull=defaultMull(); oneAwayHTML=''; staplesHTML=''; deckWarning=''; winHTML=''; cutHTML=''; recHTML=''; auditHTML=''; questHTML=''; deckCache={key:null,names:null,commanders:null,deckCI:null};
   try{ const o=JSON.parse(localStorage.getItem(key())||'{}');
     state.done=o.done||{}; state.notes=o.notes||''; state.deck=o.deck||'';
     state.cmd2=o.cmd2||''; state.bg2=!!o.bg2; state.staplesMode=o.staplesMode||'commander'; if(o.hg) state.hg=o.hg; if(o.ci2) state.ci2=o.ci2; if(o.ci1 && !(state.ci1||[]).length) state.ci1=o.ci1;
@@ -369,12 +370,18 @@ function render(){
     if(s.auto==='oneaway'){
       html+=deckBoxHTML();
       html+=`<button class="btn" style="width:100%;margin-top:8px" onclick="findOneAway()">Find cards I'm one away from</button>
-        <div id="oneaway">${oneAwayHTML||''}</div>`;
+        <div id="oneaway">${oneAwayHTML||''}</div>
+        <button class="btn ghost" style="width:100%;margin-top:8px" onclick="findDeckAudit()">Audit my deck — combo cards by type</button>
+        <div id="auditout">${auditHTML||''}</div>
+        <button class="btn ghost" style="width:100%;margin-top:8px" onclick="findQuestionable()">Find my most questionable includes</button>
+        <div id="questout">${questHTML||''}</div>`;
     }
     if(s.auto==='winning'){
       html+=deckBoxHTML();
       html+=`<button class="btn" style="width:100%;margin-top:8px" onclick="findWinners()">Show winningest cards (EDHTop16)</button>
-        <div id="winout">${winHTML||''}</div>`;
+        <div id="winout">${winHTML||''}</div>
+        <button class="btn ghost" style="width:100%;margin-top:8px" onclick="findCuts()">Show least-winningest (cut candidates)</button>
+        <div id="cutout">${cutHTML||''}</div>`;
     }
     if(s.auto==='recs'){
       html+=deckBoxHTML();
@@ -419,7 +426,7 @@ function render(){
   $('#bar').style.width=(100*n/total)+'%';
   $('#progtxt').textContent=n+' / '+total+' steps done';
   computeHG(); computeMull();
-  ['#oneaway','#winout','#recout','#staplesout'].forEach(id=>{ const b=$(id); if(b) annotatePrices(b); });   // re-fill price tags from cache after re-render
+  ['#oneaway','#winout','#cutout','#recout','#staplesout','#auditout','#questout'].forEach(id=>{ const b=$(id); if(b) annotatePrices(b); });   // re-fill price tags from cache after re-render
 }
 function toggle(n){ state.done[n]=!state.done[n]; save(); render(); }
 function cardSearch(n){
@@ -483,12 +490,8 @@ async function annotatePrices(box){
   const els=[...box.querySelectorAll('[data-price]')];
   if(!els.length) return;
   await fetchPrices(els.map(e=>e.getAttribute('data-price')));
-  let total=0;
   for(const e of els){ const u=priceCache.get(normName(e.getAttribute('data-price')));
-    if(u==null){ e.textContent=''; }
-    else { e.textContent='$'+(u>=100?u.toFixed(0):u.toFixed(2)); total+=u; } }
-  const tEl=box.querySelector('.rpricetotal');
-  if(tEl) tEl.textContent = total>0 ? ('≈ $'+total.toFixed(2)+' to buy every card listed · Scryfall market, USD') : '';
+    e.textContent = (u==null) ? '' : '$'+(u>=100?u.toFixed(0):u.toFixed(2)); }
 }
 
 /* ---------- Commander banlist (Scryfall, cached) — CSB combos include banned cards (Fastbond, etc.) ---------- */
@@ -507,6 +510,127 @@ async function loadBanlist(){
     banSet=s;   // only cache on a clean load so a transient failure can retry next time
   }catch(e){ return s; }
   return banSet;
+}
+
+/* ---------- card meta (type / mana value / mana-producer) from Scryfall, batched + cached ---------- */
+const metaCache=new Map();   // normName -> {name, cmc, type, mana:bool}
+async function fetchMeta(names){
+  const want=[], seen=new Set();
+  for(const nm of names){ const k=normName(nm); if(!k||seen.has(k)||metaCache.has(k)) continue; seen.add(k); want.push(nm); }
+  for(let i=0;i<want.length;i+=75){
+    const chunk=want.slice(i,i+75);
+    try{
+      const r=await fetch('https://api.scryfall.com/cards/collection',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({identifiers:chunk.map(n=>({name:n}))})});
+      if(r.ok){ const j=await r.json();
+        for(const c of (j.data||[])) metaCache.set(normName(c.name), {name:c.name, cmc:c.cmc||0, type:c.type_line||'', mana:!!(c.produced_mana&&c.produced_mana.length)}); }
+    }catch(e){}
+    for(const nm of chunk){ const k=normName(nm); if(!metaCache.has(k)) metaCache.set(k,{name:nm,cmc:0,type:'',mana:false}); }
+  }
+  return metaCache;
+}
+
+/* ---------- shared: combos this deck can FULLY run (every piece present), tallied per card ---------- */
+async function deckComboCounts(allNames){
+  const cu=unionCI(), code=(WUBRG.filter(x=>cu.has(x)).join('')||'c').toUpperCase();
+  const comboCount=new Map(); let live=0;
+  try{
+    const bundle=await fetch('data/'+code+'.json').then(r=>r.ok?r.json():null);
+    const ban=await loadBanlist();
+    if(bundle){
+      const idxByName=new Map(); bundle.cards.forEach((nm,i)=>idxByName.set(normName(nm),i));
+      const bannedIdx=new Set(); bundle.cards.forEach((nm,i)=>{ if(ban.has(normName(nm))) bannedIdx.add(i); });
+      const deckIdx=new Set(); for(const nm of allNames){ const k=normName(nm); if(idxByName.has(k)) deckIdx.add(idxByName.get(k)); }
+      for(const combo of bundle.combos){
+        if(combo.some(i=>bannedIdx.has(i))) continue;
+        if(combo.every(i=>deckIdx.has(i))){ live++; for(const i of combo){ const k=normName(bundle.cards[i]); comboCount.set(k,(comboCount.get(k)||0)+1); } }
+      }
+    }
+  }catch(e){}
+  return {comboCount, live, code};
+}
+// EDHTop16 lift per card (from this commander's winners + cuts bundle), if it exists
+async function winLiftMap(){
+  const m=new Map(); let have=false;
+  try{ const d=await fetch('data/win/'+winKey()+'.json').then(r=>r.ok?r.json():null);
+    if(d){ have=true; for(const [nm,,lift] of (d.c||[])) m.set(normName(nm),lift); for(const [nm,,lift] of (d.cuts||[])) m.set(normName(nm),lift); }
+  }catch(e){}
+  return {m, have};
+}
+
+/* ---------- most questionable includes: your cards with no combo role, no mana, poor/no EDHTop16 signal ---------- */
+async function findQuestionable(){
+  const box=$('#questout'); if(!box) return;
+  if(!state.deck.trim()){ questHTML='<div class="oahead">Paste a decklist or Moxfield link above first.</div>'; box.innerHTML=questHTML; return; }
+  questHTML='<div class="oahead">Loading…</div>'; box.innerHTML=questHTML;
+  let names; try{ names=await resolveDeckNames(); }
+  catch(e){ questHTML='<div class="oahead">Couldn’t read that deck — make sure the Moxfield link is public, or paste the list as text.</div>'; box.innerHTML=questHTML; return; }
+  refreshDeckWarning();
+  const cmdrs=new Set([state.cmd,state.cmd2].filter(Boolean).map(normName));
+  const allNames=[...new Set(names.concat([state.cmd,state.cmd2].filter(Boolean)).map(n=>cleanCardLine(n)).filter(Boolean))];
+  const {comboCount}=await deckComboCounts(allNames);
+  const meta=await fetchMeta(allNames);
+  const {m:lift, have:haveWin}=await winLiftMap();
+  // candidates: not a commander, 0 fully-runnable combos, not a mana producer, not a proven EDHTop16 winner (lift>=1)
+  const rows=[];
+  for(const nm of allNames){ const k=normName(nm); if(cmdrs.has(k)) continue;
+    const m=meta.get(k)||{name:nm,cmc:0,type:'',mana:false};
+    if((comboCount.get(k)||0)>0) continue;
+    if(m.mana) continue;
+    const lf=lift.get(k);
+    if(lf!=null && lf>=1) continue;       // EDHTop16 says it over-performs → keep it
+    rows.push({name:m.name||nm, cmc:m.cmc||0, lift:lf});
+  }
+  // worst-first: known under-performers (lift<1) ascending, then cards with no tournament data (unproven/obscure)
+  rows.sort((a,b)=>{ const au=a.lift==null, bu=b.lift==null; if(au!==bu) return au?1:-1; if(!au) return a.lift-b.lift; return a.cmc-b.cmc || a.name.localeCompare(b.name); });
+  const esc=s=>String(s).replace(/</g,'&lt;');
+  let h=`<div class="oahead">Your cards that pull the <b>least weight</b> by our signals: they finish <b>no combo</b> you can run, <b>don't make mana</b>, and ${haveWin?'either under-perform in EDHTop16 (lift below 1.00) or have no tournament record':'have no EDHTop16 record for this commander (so this is ranked on combo/mana alone — no tournament data to weigh)'}. Cut candidates to pressure-test, not a verdict.</div>`;
+  if(!rows.length){ h+='<div class="oahead">Nothing flagged — every card is a combo piece, makes mana, or has a positive tournament signal.</div>'; }
+  else { h+='<div class="oalist">'+rows.map(r=>{
+      const badge = r.lift!=null ? `<span class="rbadge miss">win ${r.lift.toFixed(2)}</span>` : `<span class="rbadge" style="background:#1c2230;color:#9aa3b2">no data</span>`;
+      return `<div class="oarow"><span class="oacnt">${Number.isInteger(r.cmc)?r.cmc:r.cmc.toFixed(1)}</span><a class="oaname" href="${scry('!"'+r.name.replace(/"/g,'')+'"')}" target="_blank" rel="noopener">${esc(r.name)}</a>${badge}${priceTag(r.name)}</div>`;
+    }).join('')+'</div>'; }
+  questHTML=h; box.innerHTML=h; annotatePrices(box);
+}
+
+/* ---------- deck audit: your decklist grouped by card type, mana-sorted, with #combos each card enables ---------- */
+const AUDIT_TYPES=[['Creature',/Creature/],['Planeswalker',/Planeswalker/],['Battle',/Battle/],['Instant',/Instant/],['Sorcery',/Sorcery/],['Artifact',/Artifact/],['Enchantment',/Enchantment/],['Land',/Land/]];
+function auditPrimaryType(tl){ for(const [n,re] of AUDIT_TYPES) if(re.test(tl||'')) return n; return 'Other'; }
+function toggleAuditMana(){ auditHideMana=!auditHideMana; findDeckAudit(); }
+async function findDeckAudit(){
+  const box=$('#auditout'); if(!box) return;
+  if(!state.deck.trim()){ auditHTML='<div class="oahead">Paste a decklist or Moxfield link above first.</div>'; box.innerHTML=auditHTML; return; }
+  auditHTML='<div class="oahead">Loading…</div>'; box.innerHTML=auditHTML;
+  let names; try{ names=await resolveDeckNames(); }
+  catch(e){ auditHTML='<div class="oahead">Couldn’t read that deck — make sure the Moxfield link is public, or paste the list as text.</div>'; box.innerHTML=auditHTML; return; }
+  refreshDeckWarning();
+  const allNames=[...new Set(names.concat([state.cmd,state.cmd2].filter(Boolean)).map(n=>cleanCardLine(n)).filter(Boolean))];
+  const {comboCount, live:liveCombos, code}=await deckComboCounts(allNames);
+  const meta=await fetchMeta(allNames);
+  // group by primary type
+  const groups=new Map();   // type -> [{name, cmc, mana, cnt}]
+  for(const nm of allNames){ const k=normName(nm); const m=meta.get(k)||{name:nm,cmc:0,type:'',mana:false};
+    const t=auditPrimaryType(m.type); if(!groups.has(t)) groups.set(t,[]);
+    groups.get(t).push({name:m.name||nm, cmc:m.cmc, mana:m.mana, cnt:comboCount.get(k)||0}); }
+  const order=AUDIT_TYPES.map(t=>t[0]).concat('Other');
+  const esc=s=>String(s).replace(/</g,'&lt;');
+  let shown=0, hiddenMana=0;
+  let body='';
+  for(const t of order){ const arr=groups.get(t); if(!arr) continue;
+    const rows=arr.filter(c=>{ if(auditHideMana && c.mana && c.cnt===0){ hiddenMana++; return false; } return true; })
+      .sort((a,b)=>a.cmc-b.cmc || b.cnt-a.cnt || a.name.localeCompare(b.name));
+    if(!rows.length) continue;
+    body+=`<div class="oahead" style="margin-top:10px"><b>${t}</b> · ${rows.length}</div><div class="oalist">`+
+      rows.map(c=>{ shown++;
+        const badge = c.cnt ? `<span class="rbadge combo">${c.cnt} combo${c.cnt>1?'s':''}</span>` : '';
+        const manatag = c.mana ? `<span class="rbadge" style="background:#1c2230;color:#9aa3b2">mana</span>` : '';
+        return `<div class="oarow"><span class="oacnt">${Number.isInteger(c.cmc)?c.cmc:c.cmc.toFixed(1)}</span><a class="oaname" href="${scry('!"'+c.name.replace(/"/g,'')+'"')}" target="_blank" rel="noopener">${esc(c.name)}</a>${badge}${manatag}${priceTag(c.name)}</div>`;
+      }).join('')+'</div>';
+  }
+  let h=`<div class="oahead">Your decklist by card type (number on the left = mana value), each card tagged with how many combos it <b>enables that you can fully run</b> with this list — ${liveCombos} complete combo${liveCombos===1?'':'s'} total in colors ${code}.</div>`;
+  h+=`<button class="btn ghost" style="width:100%;margin:8px 0" onclick="toggleAuditMana()">${auditHideMana?'☑':'☐'} Hide mana producers${auditHideMana&&hiddenMana?` (${hiddenMana} hidden)`:''}</button>`;
+  h+=body || '<div class="oahead">No cards to show.</div>';
+  auditHTML=h; box.innerHTML=h; annotatePrices(box);
 }
 
 /* ---------- step 7: one-away finder (local, from CSB combo bundles) ---------- */
@@ -572,29 +696,41 @@ function toggleOneSingles(){ const el=document.getElementById('oneSingles'); if(
   if(open) annotatePrices(el); }
 /* ---------- winningest cards (precomputed EDHTop16 bundles) ---------- */
 function winKey(){ const ns=[state.cmd]; if(state.cmd2) ns.push(state.cmd2); return slug(ns.filter(Boolean).sort().join(' / ')); }
-async function findWinners(){
-  const box=$('#winout'); if(!box) return;
-  if(!state.cmd){ winHTML='<div class="oahead">Pick a commander first.</div>'; box.innerHTML=winHTML; return; }
-  winHTML='<div class="oahead">Loading EDHTop16 tournament data…</div>'; box.innerHTML=winHTML;
+function findWinners(){ return winList(false); }
+function findCuts(){ return winList(true); }
+async function winList(cut){
+  const box=$(cut?'#cutout':'#winout'); if(!box) return;
+  const setH=html=>{ if(cut) cutHTML=html; else winHTML=html; box.innerHTML=html; };
+  if(!state.cmd){ setH('<div class="oahead">Pick a commander first.</div>'); return; }
+  setH('<div class="oahead">Loading EDHTop16 tournament data…</div>');
   let d;
   try{ const r=await fetch('data/win/'+winKey()+'.json'); if(!r.ok) throw 0; d=await r.json(); }
-  catch(e){ winHTML='<div class="oahead">Not enough tournament data for this commander — needs ≥20 entries in 16+ player post-ban events on EDHTop16. (Most off-meta commanders won\'t have this.)</div>'; box.innerHTML=winHTML; return; }
-  // resolve the shared deck (if any) so we can mark which winners you run vs are missing
+  catch(e){ setH('<div class="oahead">Not enough tournament data for this commander — needs ≥20 entries in 16+ player post-ban events on EDHTop16. (Most off-meta commanders won\'t have this.)</div>'); return; }
+  const list = cut ? (d.cuts||[]) : (d.c||[]);
+  // resolve the shared deck (if any) so we can mark which cards you run
   let deckSet=null;
   if(state.deck.trim()){
     try{ const names=await resolveDeckNames(); refreshDeckWarning(); deckSet=new Set(names.map(normName)); for(const cn of [state.cmd,state.cmd2]) if(cn) deckSet.add(normName(cn)); }
     catch(e){ deckSet=null; }
   }
   const cmdName=[state.cmd,state.cmd2].filter(Boolean).join(' + ').replace(/</g,'&lt;');
-  let have=0; if(deckSet) for(const [name] of d.c) if(deckSet.has(normName(name))) have++;
-  let h=`<div class="oahead">Cards that over-perform in EDHTop16 results for <b>${cmdName}</b> — ${d.e} entries, 16+ players, post-ban. Score = how much better decks running it finish vs this commander's average (1.00 = average).`;
-  h+= deckSet ? ` You already run <b>${have}</b> of these top ${d.c.length}; the rest are flagged <b>missing</b>.</div>` : ` Paste your deck above to flag which you already run.</div>`;
-  h+='<div class="oalist">'+d.c.map(([name,n,lift])=>{
+  if(cut && !list.length){ setH(`<div class="oahead">No clear cut candidates for <b>${cmdName}</b> — no commonly-played card finished below this commander's average with enough sample (or the data predates this view; rebuild needed).</div>`); return; }
+  let have=0; if(deckSet) for(const [name] of list) if(deckSet.has(normName(name))) have++;
+  let h;
+  if(cut){
+    h=`<div class="oahead">Cards that <b>under-perform</b> in EDHTop16 results for <b>${cmdName}</b> — ${d.e} entries, 16+ players, post-ban. Score = how decks running it finish vs this commander's average (1.00 = average; <b>below 1.00 = correlated with worse finishes</b>). It's a correlation, not proof a card is bad — but these are your first cut candidates.`;
+    h+= deckSet ? ` You're running <b>${have}</b> of them, flagged <b>in your deck</b>.</div>` : ` Paste your deck above to flag which of these you're running.</div>`;
+  } else {
+    h=`<div class="oahead">Cards that over-perform in EDHTop16 results for <b>${cmdName}</b> — ${d.e} entries, 16+ players, post-ban. Score = how much better decks running it finish vs this commander's average (1.00 = average).`;
+    h+= deckSet ? ` You already run <b>${have}</b> of these top ${list.length}; the rest are flagged <b>missing</b>.</div>` : ` Paste your deck above to flag which you already run.</div>`;
+  }
+  h+='<div class="oalist">'+list.map(([name,n,lift])=>{
     const hasit = deckSet && deckSet.has(normName(name));
-    const badge = !deckSet ? '' : (hasit?'<span class="rbadge have">✓ have</span>':'<span class="rbadge miss">missing</span>');
-    return `<div class="oarow${hasit?' have':''}"><span class="oacnt">${lift.toFixed(2)}</span><a class="oaname" href="${scry('!"'+name.replace(/"/g,'')+'"')}" target="_blank" rel="noopener">${name.replace(/</g,'&lt;')}</a>${badge}${priceTag(name)}<span style="color:var(--muted);font-size:12px;flex:0 0 auto">${n} decks</span></div>`;
+    const badge = !deckSet ? '' : (cut ? (hasit?'<span class="rbadge miss">in your deck</span>':'') : (hasit?'<span class="rbadge have">✓ have</span>':'<span class="rbadge miss">missing</span>'));
+    const rowcls = (!cut && hasit) ? ' have' : '';   // dim owned winners; keep owned cut-candidates highlighted
+    return `<div class="oarow${rowcls}"><span class="oacnt">${lift.toFixed(2)}</span><a class="oaname" href="${scry('!"'+name.replace(/"/g,'')+'"')}" target="_blank" rel="noopener">${name.replace(/</g,'&lt;')}</a>${badge}${priceTag(name)}<span style="color:var(--muted);font-size:12px;flex:0 0 auto">${n} decks</span></div>`;
   }).join('')+'</div><div class="rpricetotal"></div>';
-  winHTML=h; box.innerHTML=h; annotatePrices(box);
+  setH(h); annotatePrices(box);
 }
 
 /* ---------- unified recommendations: merge one-away + winningest + EDHREC high-synergy/inclusion ---------- */
@@ -620,10 +756,11 @@ async function findRecs(){
       const idx=new Map(); b.cards.forEach((nm,i)=>idx.set(normName(nm),i));
       const bIdx=new Set(); b.cards.forEach((nm,i)=>{ if(ban.has(normName(nm))) bIdx.add(i); });
       const dset=new Set(); names.forEach(nm=>{const k=normName(nm); if(idx.has(k))dset.add(idx.get(k));});
-      for(const cn of [state.cmd,state.cmd2]){const k=normName(cn||''); if(idx.has(k))dset.add(idx.get(k));}
-      const tally=new Map();
-      for(const combo of b.combos){ if(combo.some(i=>bIdx.has(i))) continue; let miss=-1,c=0; for(const i of combo){ if(!dset.has(i)){c++;miss=i;if(c>1)break;} } if(c===1) tally.set(miss,(tally.get(miss)||0)+1); }
-      for(const [i,cnt] of tally) add(b.cards[i],'combos',cnt);
+      const cmdIdx=new Set();
+      for(const cn of [state.cmd,state.cmd2]){const k=normName(cn||''); if(idx.has(k)){dset.add(idx.get(k)); cmdIdx.add(idx.get(k));}}
+      const tally=new Map(), tallyW=new Map();   // tally = true count (for display); tallyW = score weight, commander combos count extra (you always have the commander)
+      for(const combo of b.combos){ if(combo.some(i=>bIdx.has(i))) continue; let miss=-1,c=0; for(const i of combo){ if(!dset.has(i)){c++;miss=i;if(c>1)break;} } if(c===1){ tally.set(miss,(tally.get(miss)||0)+1); const w=combo.some(i=>cmdIdx.has(i))?2.5:1; tallyW.set(miss,(tallyW.get(miss)||0)+w); } }
+      for(const [i,cnt] of tally){ add(b.cards[i],'combos',cnt); const r=rec.get(normName(b.cards[i])); if(r) r.comboW=tallyW.get(i)||cnt; }
     }
   }catch(e){}
   // 2. winningest (precomputed EDHTop16 bundle)
@@ -638,13 +775,13 @@ async function findRecs(){
     }
   }catch(e){}
   // rank: per-signal strength, with a bonus for cross-signal agreement
-  const score=r=> ((r.combos||0)*0.9 + Math.max(0,((r.lift||1)-1))*9 + (r.pct||0)*0.025 + (r.hs?0.8:0)) * (1+0.3*(r.src.size-1));
+  const score=r=> (((r.comboW!=null?r.comboW:r.combos)||0)*0.9 + Math.max(0,((r.lift||1)-1))*9 + (r.pct||0)*0.025 + (r.hs?0.8:0)) * (1+0.3*(r.src.size-1));
   const rows=[...rec.values()].sort((a,b)=>score(b)-score(a)).slice(0,40);
   if(!rows.length){ recHTML='<div class="oahead">No recommendations beyond what you already run — tight list.</div>'; box.innerHTML=recHTML; return; }
   let h=`<div class="oahead">Cards <b>not in your deck</b>, merged across all signals (combo finishers · EDHTop16 winning · EDHREC high-synergy &amp; cEDH inclusion). More signals → higher rank.</div>`;
   h+='<div class="oalist">'+rows.map(r=>{
     const b=[];
-    if(r.combos) b.push(`<span class="rbadge combo">${r.combos} combo${r.combos>1?'s':''}</span>`);
+    if(r.combos) b.push(`<span class="rbadge combo"${(r.comboW&&r.comboW>r.combos)?' title="includes a combo with your commander — weighted higher since you always have it"':''}>${r.combos} combo${r.combos>1?'s':''}${(r.comboW&&r.comboW>r.combos)?' ★cmdr':''}</span>`);
     if(r.lift) b.push(`<span class="rbadge win">win ${r.lift.toFixed(2)}</span>`);
     if(r.pct) b.push(`<span class="rbadge pct">${r.pct.toFixed(0)}% cEDH</span>`);
     if(r.hs) b.push(`<span class="rbadge syn">high-synergy</span>`);

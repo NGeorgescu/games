@@ -43,22 +43,30 @@ function winners(entries){
   }
   if(!E) return null;
   const p0=sum0/E;
-  const cards=Object.keys(n).filter(k=>n[k]>=MIN_N).map(k=>{ const sh=(sp[k]+M*p0)/(n[k]+M); return [k, n[k], +(sh/p0).toFixed(2)]; }).sort((a,b)=>b[2]-a[2]).slice(0,TOPK);
-  // compact array format: { e:entries, p:avgPerf, c:[[name, appearances, lift], ...] }
-  return {e:E, p:+p0.toFixed(3), c:cards};
+  const all=Object.keys(n).filter(k=>n[k]>=MIN_N).map(k=>{ const sh=(sp[k]+M*p0)/(n[k]+M); return [k, n[k], +(sh/p0).toFixed(2)]; });
+  const cards=[...all].sort((a,b)=>b[2]-a[2]).slice(0,TOPK);                          // winningest: highest lift
+  const cuts=[...all].filter(x=>x[2]<1).sort((a,b)=>a[2]-b[2]).slice(0,TOPK);         // cut candidates: lift below the commander's average (negatively correlated with finishing well)
+  // compact array format: { e:entries, p:avgPerf, c:[[name, appearances, lift], ...], cuts:[[name, appearances, lift], ...] }
+  return {e:E, p:+p0.toFixed(3), c:cards, cuts};
 }
 (async()=>{
   const outdir=__dirname;
   const cmds=await listCommanders();
   console.log('commanders:', cmds.length);
-  let done=0, written=0;
-  for(const cmd of cmds){
+  let done=0, written=0, skipped=0;
+  const CONC=5;   // process commanders in parallel; each still self-throttles its own paged fetches via DELAY
+  async function handle(cmd){
+    const fp=path.join(outdir, slug(cmd)+'.json');
     try{
+      if(fs.existsSync(fp)){ const ex=JSON.parse(fs.readFileSync(fp,'utf8')); if(ex && ex.cuts){ skipped++; return; } }   // resume: already regenerated
       const w=winners(await fetchEntries(cmd));
-      if(w){ fs.writeFileSync(path.join(outdir, slug(cmd)+'.json'), JSON.stringify(w)); written++; }
+      if(w){ fs.writeFileSync(fp, JSON.stringify(w)); written++; }
     }catch(e){ console.log('skip', cmd, e.message); }
-    if(++done%25===0) console.log(done+'/'+cmds.length+' ('+written+' written)');
+    finally{ if(++done%25===0) console.log(done+'/'+cmds.length+' ('+written+' written, '+skipped+' skipped)'); }
   }
+  let next=0;
+  const worker=async()=>{ while(next<cmds.length){ const i=next++; await handle(cmds[i]); } };
+  await Promise.all(Array.from({length:CONC}, worker));
   fs.writeFileSync(path.join(outdir,'_meta.json'), JSON.stringify({source:'edhtop16 GraphQL', metric:'size-aware perf lift', timePeriod:TP, minEventSize:MIN_EVENT, minEntries:MIN_ENTRIES, shrinkage:M, minAppearances:MIN_N, commanders:written}));
   console.log('DONE', done, 'commanders,', written, 'bundles');
 })();
