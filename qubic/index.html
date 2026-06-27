@@ -75,9 +75,9 @@
       </div>
       <span class="muted" id="firstWrap" style="display:flex;align-items:center;gap:8px">First
         <span class="seg" id="firstSeg">
-          <button data-first="R" class="on">Red</button>
+          <button data-first="R">Red</button>
           <button data-first="B">Blue</button>
-          <button data-first="alt">Alt</button>
+          <button data-first="alt" class="on">Alt</button>
         </span>
       </span>
     </div>
@@ -124,7 +124,7 @@ const LINES_BY_CELL=Array.from({length:CELLS},()=>[]);
 LINES.forEach((ln,li)=>ln.forEach(c=>LINES_BY_CELL[c].push(li)));
 
 let board, turn, winner, winLine, lastMove, busy;
-let mode='cpu', diff='hard', firstPref='R', altNext='R', view='2d';
+let mode='cpu', diff='hard', firstPref='alt', altNext='R', view='2d';
 
 function wonLine(b,p){ for(const ln of LINES) if(b[ln[0]]===p&&b[ln[1]]===p&&b[ln[2]]===p&&b[ln[3]]===p) return ln; return null; }
 function lineScore(c,p){ const opp=p==='R'?'B':'R'; let s=0;
