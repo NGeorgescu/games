@@ -137,6 +137,8 @@ function dow(y,m,d){
 const CUBE_UNITS = {0:0,1:1,8:2,7:3,4:4,5:5,6:6,3:7,2:8,9:9};   // last digit of cube -> units of root
 const CUBES  = [0,1,8,27,64,125,216,343,512,729];               // n^3, n=0..9
 const FIFTHS = [0,1,32,243,1024,3125,7776,16807,32768,59049];   // n^5, n=0..9
+const SQUARES = [0,1,4,9,16,25,36,49,64,81];                    // n^2, n=0..9
+const SQ_CAND = {0:[0],1:[1,9],4:[2,8],5:[5],6:[4,6],9:[3,7]};  // last digit of square -> candidate units of root
 function largestIdx(table, val){ let k=0; for(let t=0;t<=9;t++) if(table[t]<=val) k=t; return k; }
 
 function timesSteps(a,b){
@@ -302,6 +304,62 @@ const TRICKS = [
       return { q:`${x} × ${y} = ?`, a:x*y, steps:[
         `fastest path here: <b>${METHODS[m]}</b>`,
         `${x} × ${y} = <b>${commas(x*y)}</b>` ]}; } },
+
+  { id:"squares", cat:"Square roots", name:"Squares 1–9", tag:"Know your squares (the square-root toolkit)", answerType:"num",
+    lesson:`<h3>Square the single digits</h3>
+      <p>Square roots lean on instantly knowing the squares of 1–9 — so drill them cold. Given a digit, give its square (6 → 36).</p>
+      <table class="map mono">
+        <tr><td>n</td><td>n²</td></tr>
+        <tr><td>1</td><td>1</td></tr><tr><td>2</td><td>4</td></tr><tr><td>3</td><td>9</td></tr>
+        <tr><td>4</td><td>16</td></tr><tr><td>5</td><td>25</td></tr><tr><td>6</td><td>36</td></tr>
+        <tr><td>7</td><td>49</td></tr><tr><td>8</td><td>64</td></tr><tr><td>9</td><td>81</td></tr>
+      </table>
+      <p>Now watch only the <b>last digit</b> of each square: <span class="mono">1, 4, 9, 6, 5, 6, 9, 4, 1</span> — it reads the same backwards. That palindrome is the whole catch of square roots: digits that add to 10 share an ending, so a square's last digit can't tell them apart on its own.</p>
+      <ul>
+        <li><b>1 &amp; 9</b> both end in <span class="mono">1</span></li>
+        <li><b>2 &amp; 8</b> both end in <span class="mono">4</span></li>
+        <li><b>3 &amp; 7</b> both end in <span class="mono">9</span></li>
+        <li><b>4 &amp; 6</b> both end in <span class="mono">6</span></li>
+        <li><b>5</b> ends in <span class="mono">5</span>, <b>0</b> ends in <span class="mono">0</span> — these two are unambiguous</li>
+      </ul>
+      <p>And <b>2, 3, 7, 8 never appear</b> as the last digit of a square — a free check that a number isn't a perfect square.</p>`,
+    gen(){ const n=rnd(1,9); return { q:`${n}² = ?`, a:n*n, steps:[
+      `${n} × ${n} = <b>${n*n}</b>` ]}; } },
+
+  { id:"sqrt", cat:"Square roots", name:"Square root of a perfect square", tag:"Two glances, then break the tie",
+    lesson:`<h3>Square root in your head</h3>
+      <p>For a perfect square up to four digits the root is two digits, found a digit at a time — but unlike cube and fifth roots, the last digit arrives as a <b>pair</b> you then break the tie on.</p>
+
+      <h3>① Units: a pair, not a single</h3>
+      <p>Squaring folds the last digit two-to-one. Read the square's final digit and you get two candidates:</p>
+      <table class="map mono">
+        <tr><td>square ends</td><td>0</td><td>1</td><td>4</td><td>5</td><td>6</td><td>9</td></tr>
+        <tr><td>root ends</td><td>0</td><td>1 or 9</td><td>2 or 8</td><td>5</td><td>4 or 6</td><td>3 or 7</td></tr>
+      </table>
+      <p>Each pair adds to 10. Endings <span class="mono">0</span> and <span class="mono">5</span> are loners — no ambiguity — and a square never ends in <span class="mono">2, 3, 7, 8</span>.</p>
+
+      <h3>② Tens: cover two digits</h3>
+      <p>Since (10a+b)² = 100·a² + (smaller), the b part only disturbs the last two digits. <b>Cover them</b> and find the largest square ≤ what's left — its root is the tens digit <b>a</b>.</p>
+      <p>Squares to know: <span class="mono">1, 4, 9, 16, 25, 36, 49, 64, 81</span>.</p>
+
+      <h3>③ Break the tie</h3>
+      <p>Now choose between the two candidates. Their midpoint is the number ending in 5, and <span class="mono">(10a+5)² = 100·a(a+1) + 25</span>. So compare the <b>covered front part</b> to <b>a×(a+1)</b>:</p>
+      <ul>
+        <li>front <b>&lt;</b> a(a+1) → take the <b>smaller</b> candidate</li>
+        <li>front <b>≥</b> a(a+1) → take the <b>larger</b> candidate</li>
+      </ul>
+      <p class="why">It's the "square a number ending in 5" trick run backwards: the same a×(a+1) that builds 45² = 2025 tells you which side of 45 you've landed on.</p>
+
+      <div class="ex mono">√2916<br>① ends in 6 → 4 or 6<br>② cover 16 → 29 → biggest square ≤ 29 is 5² = 25 → tens 5<br>③ a(a+1) = 5×6 = 30; &nbsp;29 &lt; 30 → smaller → units 4<br>= <b>54</b> &nbsp;(54² = 2916)</div>`,
+    gen(){ const r=rnd(11,99), N=r*r, a=(r/10|0), b=r%10, lo=(N/100|0), u=N%10, cand=SQ_CAND[u], thr=a*(a+1);
+      const tie = cand.length<2
+        ? `Ending ${u} has only one root-digit → units <span class="mono">${b}</span>`
+        : `Tie-break: a×(a+1) = ${a}×${a+1} = ${thr}; front ${lo} ${lo<thr?"&lt;":"≥"} ${thr} → take the <b>${lo<thr?"smaller":"larger"}</b> → units <span class="mono">${b}</span>`;
+      return { q:`√ ${commas(N)}`, a:r, steps:[
+        `Last digit ${u} → root ends in <span class="mono">${cand.join(" or ")}</span>`,
+        `Cover the last 2 digits → <span class="mono">${lo}</span>; biggest square ≤ ${lo} is ${a}²=${SQUARES[a]} → tens digit <span class="mono">${a}</span>`,
+        tie,
+        `Answer = <b>${r}</b>` ]}; } },
 
   { id:"cubes", cat:"Cube roots", name:"Cubes 1–9", tag:"Know your cubes (the cube-root toolkit)", answerType:"num",
     lesson:`<h3>Cube the single digits</h3>
@@ -629,8 +687,9 @@ const app = {
 
   init(){
     const list=$("trickList"); let lastCat="", idx=0;
-    const catOrder=["Cube roots","Fifth roots","Division","Calendar","2-digit multiplication"];
+    const catOrder=["Square roots","Cube roots","Fifth roots","Division","Calendar","2-digit multiplication"];
     const CAT_DESC={
+      "Square roots":"e.g.  √ 2,916  =  54",
       "Cube roots":"e.g.  ∛ 250,047  =  63",
       "Fifth roots":"e.g.  ⁵√ 371,293  =  13",
       "Division":"e.g.  3852 ÷ 7  =  550.285714…",
