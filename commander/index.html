@@ -291,6 +291,13 @@ function steps(){ return [
     auto:'oneaway',
     links:[['Cross-check on Spellbook · Find My Combos', ()=>FIND_MY_COMBOS]] },
 
+  { t:"Audit the deck you have",
+    body:`<p>Two looks at the list you're holding (shared deck box above). <b>By type</b> lays your decklist out by
+      card type, sub-sorted by mana value, with the number on the left = how many combos that card <b>enables that
+      you can fully run</b>. <b>Questionable includes</b> surfaces cards pulling the least weight — no runnable combo,
+      no mana, and a poor or absent EDHTop16 record.</p>`,
+    auto:'audit' },
+
   { t:"Add the competitive staples you're missing",
     body:`<p>Paste your decklist or a Moxfield link below — it's <b>shared with the one-away step</b>, so you only
       paste once. This pulls what cEDH decks of your commander actually run (live EDHREC data) and lists the most-played cards
@@ -370,8 +377,11 @@ function render(){
     if(s.auto==='oneaway'){
       html+=deckBoxHTML();
       html+=`<button class="btn" style="width:100%;margin-top:8px" onclick="findOneAway()">Find cards I'm one away from</button>
-        <div id="oneaway">${oneAwayHTML||''}</div>
-        <button class="btn ghost" style="width:100%;margin-top:8px" onclick="findDeckAudit()">Audit my deck — combo cards by type</button>
+        <div id="oneaway">${oneAwayHTML||''}</div>`;
+    }
+    if(s.auto==='audit'){
+      html+=deckBoxHTML();
+      html+=`<button class="btn" style="width:100%;margin-top:8px" onclick="findDeckAudit()">Audit my deck — combo cards by type</button>
         <div id="auditout">${auditHTML||''}</div>
         <button class="btn ghost" style="width:100%;margin-top:8px" onclick="findQuestionable()">Find my most questionable includes</button>
         <div id="questout">${questHTML||''}</div>`;
@@ -622,12 +632,11 @@ async function findDeckAudit(){
     if(!rows.length) continue;
     body+=`<div class="oahead" style="margin-top:10px"><b>${t}</b> · ${rows.length}</div><div class="oalist">`+
       rows.map(c=>{ shown++;
-        const badge = c.cnt ? `<span class="rbadge combo">${c.cnt} combo${c.cnt>1?'s':''}</span>` : '';
         const manatag = c.mana ? `<span class="rbadge" style="background:#1c2230;color:#9aa3b2">mana</span>` : '';
-        return `<div class="oarow"><span class="oacnt">${Number.isInteger(c.cmc)?c.cmc:c.cmc.toFixed(1)}</span><a class="oaname" href="${scry('!"'+c.name.replace(/"/g,'')+'"')}" target="_blank" rel="noopener">${esc(c.name)}</a>${badge}${manatag}${priceTag(c.name)}</div>`;
+        return `<div class="oarow"><span class="oacnt"${c.cnt?'':' style="background:#1c2230;color:#9aa3b2"'}>${c.cnt}</span><a class="oaname" href="${scry('!"'+c.name.replace(/"/g,'')+'"')}" target="_blank" rel="noopener">${esc(c.name)}</a>${manatag}${priceTag(c.name)}</div>`;
       }).join('')+'</div>';
   }
-  let h=`<div class="oahead">Your decklist by card type (number on the left = mana value), each card tagged with how many combos it <b>enables that you can fully run</b> with this list — ${liveCombos} complete combo${liveCombos===1?'':'s'} total in colors ${code}.</div>`;
+  let h=`<div class="oahead">Your decklist by card type, sorted by mana value. The number on the left = how many combos that card <b>enables that you can fully run</b> with this list — ${liveCombos} complete combo${liveCombos===1?'':'s'} total in colors ${code}.</div>`;
   h+=`<button class="btn ghost" style="width:100%;margin:8px 0" onclick="toggleAuditMana()">${auditHideMana?'☑':'☐'} Hide mana producers${auditHideMana&&hiddenMana?` (${hiddenMana} hidden)`:''}</button>`;
   h+=body || '<div class="oahead">No cards to show.</div>';
   auditHTML=h; box.innerHTML=h; annotatePrices(box);
