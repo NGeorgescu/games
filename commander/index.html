@@ -491,6 +491,24 @@ async function annotatePrices(box){
   if(tEl) tEl.textContent = total>0 ? ('≈ $'+total.toFixed(2)+' to buy every card listed · Scryfall market, USD') : '';
 }
 
+/* ---------- Commander banlist (Scryfall, cached) — CSB combos include banned cards (Fastbond, etc.) ---------- */
+let banSet=null;
+async function loadBanlist(){
+  if(banSet) return banSet;
+  const s=new Set();
+  try{
+    let url='https://api.scryfall.com/cards/search?unique=cards&q='+encodeURIComponent('banned:commander');
+    for(let guard=0; url && guard<5; guard++){
+      const r=await fetch(url); if(!r.ok) break;
+      const j=await r.json();
+      (j.data||[]).forEach(c=>s.add(normName(c.name)));
+      url=j.has_more?j.next_page:null;
+    }
+    banSet=s;   // only cache on a clean load so a transient failure can retry next time
+  }catch(e){ return s; }
+  return banSet;
+}
+
 /* ---------- step 7: one-away finder (local, from CSB combo bundles) ---------- */
 async function findOneAway(){
   const box=$('#oneaway');
@@ -504,11 +522,14 @@ async function findOneAway(){
   try{ const r=await fetch('data/'+code+'.json'); if(!r.ok) throw 0; bundle=await r.json(); }
   catch(e){ oneAwayHTML='<div class="oahead">Couldn\'t load combo data for '+code+'. (Works on the live site; opening the file locally blocks the fetch.)</div>'; box.innerHTML=oneAwayHTML; return; }
   const idxByName=new Map(); bundle.cards.forEach((nm,i)=>idxByName.set(normName(nm),i));
+  const ban=await loadBanlist();
+  const bannedIdx=new Set(); bundle.cards.forEach((nm,i)=>{ if(ban.has(normName(nm))) bannedIdx.add(i); });
   const deck=new Set();
   for(let nm of names){ const k=normName(nm); if(idxByName.has(k)) deck.add(idxByName.get(k)); }
   for(const cn of [state.cmd, state.cmd2]){ const ck=normName(cn||''); if(ck && idxByName.has(ck)) deck.add(idxByName.get(ck)); }
   const tally=new Map(); let already=0;
   for(const combo of bundle.combos){
+    if(combo.some(i=>bannedIdx.has(i))) continue;   // skip combos that need a banned card — can't legally play them
     let miss=-1, n=0;
     for(const idx of combo){ if(!deck.has(idx)){ n++; miss=idx; if(n>1) break; } }
     if(n===0) already++;
@@ -570,18 +591,20 @@ async function findRecs(){
   refreshDeckWarning();
   const deckSet=new Set(names.map(normName));
   for(const cn of [state.cmd,state.cmd2]) if(cn) deckSet.add(normName(cn));
+  const ban=await loadBanlist();
   const rec=new Map();
-  function add(name,key,val){ const k=normName(name); if(!k||deckSet.has(k)) return; let r=rec.get(k); if(!r){ r={name,src:new Set()}; rec.set(k,r); } if(key==='pct') r.pct=Math.max(r.pct||0,val); else r[key]=val; r.src.add(key); }
+  function add(name,key,val){ const k=normName(name); if(!k||deckSet.has(k)||ban.has(k)) return; let r=rec.get(k); if(!r){ r={name,src:new Set()}; rec.set(k,r); } if(key==='pct') r.pct=Math.max(r.pct||0,val); else r[key]=val; r.src.add(key); }
   // 1. one-away combo finishers (local bundle, union identity)
   try{
     const cu=unionCI(), code=(WUBRG.filter(x=>cu.has(x)).join('')||'c').toUpperCase();
     const b=await fetch('data/'+code+'.json').then(r=>r.ok?r.json():null);
     if(b){
       const idx=new Map(); b.cards.forEach((nm,i)=>idx.set(normName(nm),i));
+      const bIdx=new Set(); b.cards.forEach((nm,i)=>{ if(ban.has(normName(nm))) bIdx.add(i); });
       const dset=new Set(); names.forEach(nm=>{const k=normName(nm); if(idx.has(k))dset.add(idx.get(k));});
       for(const cn of [state.cmd,state.cmd2]){const k=normName(cn||''); if(idx.has(k))dset.add(idx.get(k));}
       const tally=new Map();
-      for(const combo of b.combos){ let miss=-1,c=0; for(const i of combo){ if(!dset.has(i)){c++;miss=i;if(c>1)break;} } if(c===1) tally.set(miss,(tally.get(miss)||0)+1); }
+      for(const combo of b.combos){ if(combo.some(i=>bIdx.has(i))) continue; let miss=-1,c=0; for(const i of combo){ if(!dset.has(i)){c++;miss=i;if(c>1)break;} } if(c===1) tally.set(miss,(tally.get(miss)||0)+1); }
       for(const [i,cnt] of tally) add(b.cards[i],'combos',cnt);
     }
   }catch(e){}
@@ -694,33 +717,38 @@ async function checkPrecon(){
     for(const t in buckets) for(const row of buckets[t]) preconNames.push(row[0]);
   }catch(e){}
   const preconSet=new Set(preconNames.map(normName));
-  // 2. EDHREC notable cards for THIS commander (high-synergy + inclusion %)
+  // 2. EDHREC cards for THIS commander, keyed by SYNERGY (lift over the card's baseline inclusion).
+  //    Synergy isolates precon-driven over-inclusion: a universal auto-include (Sol Ring) has ~0 synergy
+  //    even at 90%+ inclusion, while a card that's common only because it shipped in the precon spikes high.
   const note=new Map();
   try{
     let data=null;
     for(const page of ['cedh','optimized','']){ const r=await fetch('https://json.edhrec.com/pages/commanders/'+deckSlug()+(page?'/'+page:'')+'.json'); if(r.ok){ data=await r.json(); break; } }
     if(data){ const cl=(data.container&&data.container.json_dict&&data.container.json_dict.cardlists)||[];
-      for(const list of cl){ const hs=/high synergy/i.test(list.header||''); for(const cv of (list.cardviews||[])){
-        const k=normName(cv.name), pct=cv.potential_decks?100*cv.num_decks/cv.potential_decks:0;
-        const cur=note.get(k)||{name:cv.name,pct:0,hs:false}; cur.pct=Math.max(cur.pct,pct); if(hs)cur.hs=true; note.set(k,cur);
+      for(const list of cl){ for(const cv of (list.cardviews||[])){
+        const k=normName(cv.name), syn=(typeof cv.synergy==='number')?cv.synergy:null, pct=cv.potential_decks?100*cv.num_decks/cv.potential_decks:0;
+        const cur=note.get(k)||{name:cv.name,pct:0,syn:null};
+        cur.pct=Math.max(cur.pct,pct); if(syn!=null) cur.syn=(cur.syn==null)?syn:Math.max(cur.syn,syn); note.set(k,cur);
       } } }
   }catch(e){}
-  // 3. precon cards that are also high-synergy / high-inclusion for this commander
+  // 3. precon cards whose SYNERGY clears a threshold — i.e. over-represented for this commander beyond their
+  //    format-wide baseline. Ranked by synergy desc. Universal staples (low synergy) are filtered out.
+  const SYN_MIN=0.2;
   const BASICS=new Set(['plains','island','swamp','mountain','forest','wastes']);
-  const rows=[...note.values()].filter(v=>preconSet.has(normName(v.name)) && !BASICS.has(normName(v.name)))
-    .sort((a,b)=>(b.hs-a.hs)||(b.pct-a.pct)).slice(0,30);
+  const rows=[...note.values()].filter(v=>preconSet.has(normName(v.name)) && !BASICS.has(normName(v.name)) && v.syn!=null && v.syn>=SYN_MIN)
+    .sort((a,b)=>b.syn-a.syn).slice(0,30);
   const roleTxt = hit.role==='backup' ? 'a backup commander in' : 'the face commander of';
   const esc=s=>String(s).replace(/</g,'&lt;');
   let body=`<p><b>${esc(who)}</b> is ${roleTxt} the <b>${esc(hit.precon)}</b> preconstructed deck${hit.set?` (${esc(hit.set)})`:''}.`;
   if(rows.length){
-    body+=` ${rows.length} of its cards also rank as <b>high-synergy / high-inclusion</b> for this commander — opponents who know the precon will expect these, so brew around or past them.</p>`+
+    body+=` Heads-up: most EDHREC decks for a precon commander are <b>lightly-modified precons</b>, so the precon's own cards get over-counted. These ${rows.length} precon cards are <b>over-represented for this commander</b> by EDHREC <b>synergy</b> (lift over each card's normal play rate — so universal auto-includes like Sol Ring are excluded). High synergy here can mean precon inertia rather than a genuinely strong pick — <b>scrutinize each on its own merits</b>.</p>`+
       `<button class="btn ghost" data-n="${rows.length}" style="width:100%;margin-top:4px" onclick="togglePrecon()">${preconOpen?'▾ Hide':'▸ Show'} the ${rows.length} cards</button>`+
       `<div id="preconlist" style="display:${preconOpen?'block':'none'}"><div class="oalist" style="margin-top:8px">`+
-      rows.map(v=>{ const b=[]; if(v.hs)b.push('<span class="rbadge syn">high-synergy</span>'); if(v.pct)b.push(`<span class="rbadge pct">${v.pct.toFixed(0)}% incl</span>`);
+      rows.map(v=>{ const b=[`<span class="rbadge syn">+${v.syn.toFixed(2)} syn</span>`]; if(v.pct)b.push(`<span class="rbadge pct">${v.pct.toFixed(0)}% incl</span>`);
         return `<div class="oarow"><a class="oaname" href="${scry('!"'+v.name.replace(/"/g,'')+'"')}" target="_blank" rel="noopener">${esc(v.name)}</a><div class="rbadges">${b.join('')}</div>${priceTag(v.name)}</div>`; }).join('')+
       `</div><div class="rpricetotal"></div></div>`;
   } else {
-    body+=` Be on the lookout — its default includes are predictable, and ${preconNames.length?'none stood out as high-synergy for this commander':"EDHREC data wasn't available"}.</p>`;
+    body+=` Its default includes are over-represented in EDHREC simply because people start from the precon — ${preconNames.length?"but none of them clear the synergy bar for this commander, so there's nothing to single out":"and EDHREC data wasn't available here"}.</p>`;
   }
   box.innerHTML=`<div class="warnbox precon"><h3>⚠ Precon commander</h3>${body}</div>`;
   if(preconOpen) annotatePrices(document.getElementById('preconlist'));
