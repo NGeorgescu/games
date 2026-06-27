@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Qubic — 3D Tic-Tac-Toe</title>
+<style>
+  :root{ --bg:#0e1014; --panel:#171a21; --ink:#eef1f6; --muted:#9aa3b2; --line:#262b35; --accent:#7cc6ff;
+    --red:#ff5d6c; --blue:#5db6ff; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+  .wrap{max-width:480px;margin:0 auto;padding:16px 14px 36px}
+  h1{font-size:23px;margin:.1em 0 .1em}
+  .sub{color:var(--muted);font-size:13px;line-height:1.5;margin:0 0 14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
+  button{appearance:none;border:0;border-radius:12px;padding:11px 14px;font-size:15px;font-weight:600;
+    background:var(--accent);color:#06243a;cursor:pointer}
+  button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:11px;overflow:hidden;background:#12151b}
+  .seg button{background:transparent;color:var(--muted);border-radius:0;font-weight:600;padding:9px 13px;font-size:14px}
+  .seg button.on{background:#223047;color:#dbe8ff}
+  .hud{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;min-height:30px}
+  .turn{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:600}
+  .dot{width:16px;height:16px;border-radius:50%}
+  .dot.red{background:radial-gradient(circle at 35% 30%,#ffd0d4,var(--red) 60%,#b81f2e)}
+  .dot.blue{background:radial-gradient(circle at 35% 30%,#d4ecff,var(--blue) 60%,#1f6fb8)}
+  .muted{color:var(--muted);font-size:13px}
+  svg{display:block;width:100%;height:auto;touch-action:manipulation;user-select:none}
+  .board{padding:6px 6px 2px}
+  .gridline{stroke:#cdd6e4;stroke-opacity:.30;stroke-width:1}
+  .layerfill{fill:#aecbff;fill-opacity:.030}
+  .seat{fill:#000;fill-opacity:.32}
+  .spot{fill:#cdd6e4;fill-opacity:.16}
+  .hit{fill:transparent;cursor:pointer}
+  .ball{cursor:default}
+  .layerlabel{fill:var(--muted);font-size:13px;font-weight:600}
+  .winline{stroke-linecap:round;stroke:#ffe27a;stroke-opacity:.9;stroke-width:7;filter:url(#glow)}
+  footer{color:#5a6473;font-size:12px;text-align:center;margin-top:8px}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Qubic</h1>
+  <p class="sub">3-D tic-tac-toe on a 4×4×4 cube. Get four in a row — across a layer, straight up through the stack,
+    or along any diagonal (e.g. front-bottom-left → back-top-right).</p>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <div class="seg" id="modeSeg">
+        <button data-mode="cpu" class="on">vs Computer</button>
+        <button data-mode="pvp">2 players</button>
+      </div>
+      <div class="seg" id="diffSeg">
+        <button data-diff="easy">Easy</button>
+        <button data-diff="hard" class="on">Hard</button>
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px;justify-content:space-between">
+      <label class="muted" id="firstWrap"><input type="checkbox" id="cpuFirst"> Computer (blue) moves first</label>
+      <button class="ghost" id="newBtn">New game</button>
+    </div>
+  </div>
+
+  <div class="card board">
+    <div class="hud">
+      <div class="turn"><span class="dot red" id="turnDot"></span><span id="turnTxt">Red to move</span></div>
+      <span class="muted" id="moveCount">0 / 64</span>
+    </div>
+    <svg id="svg" viewBox="0 -16 430 612" aria-label="Qubic board"></svg>
+  </div>
+
+  <footer>One of <a href="../">the games</a>. Tap an empty cell to drop a ball.</footer>
+</div>
+
+<script>
+const N = 4, CELLS = 64;
+// ---- oblique 3/4 projection ----
+const CX = 60, DX = 24, DY = -28, LZ = 138, BASEX = 56, BASEY = 560, LIFT = 15, R = 21;
+function P(gx, gy, z){ return { x: BASEX + gx*CX + gy*DX, y: BASEY + gy*DY - z*LZ }; }
+const idx = (i,j,z) => z*16 + j*4 + i;
+
+// ---- winning lines (76 of them) ----
+const LINES = (() => {
+  const dirs = [];
+  for(let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++) for(let dz=-1;dz<=1;dz++)
+    if(dx||dy||dz) dirs.push([dx,dy,dz]);
+  const seen = new Set(), out = [];
+  for(let i=0;i<N;i++) for(let j=0;j<N;j++) for(let z=0;z<N;z++)
+    for(const [dx,dy,dz] of dirs){
+      const px=i-dx, py=j-dy, pz=z-dz;                 // must be a true start
+      if(px>=0&&px<N&&py>=0&&py<N&&pz>=0&&pz<N) continue;
+      const ex=i+3*dx, ey=j+3*dy, ez=z+3*dz;           // must fit
+      if(ex<0||ex>=N||ey<0||ey>=N||ez<0||ez>=N) continue;
+      const cells=[]; for(let s=0;s<N;s++) cells.push(idx(i+s*dx,j+s*dy,z+s*dz));
+      const key=[...cells].sort((a,b)=>a-b).join(',');
+      if(seen.has(key)) continue; seen.add(key); out.push(cells);
+    }
+  return out;
+})();
+const LINES_BY_CELL = Array.from({length:CELLS}, ()=>[]);
+LINES.forEach((ln,li)=> ln.forEach(c=> LINES_BY_CELL[c].push(li)));
+
+// ---- state ----
+let board, turn, winner, winLine, lastMove, busy;
+let mode='cpu', diff='hard', cpuFirst=false;
+const HUMAN='R', CPU='B';
+
+function reset(){
+  board = new Array(CELLS).fill(null);
+  turn='R'; winner=null; winLine=null; lastMove=null; busy=false;
+  render();
+  if(mode==='cpu' && cpuFirst){ turn=CPU; busy=true; setTimeout(cpuMove, 350); }
+}
+
+function wonLine(b, p){
+  for(const ln of LINES) if(b[ln[0]]===p && b[ln[1]]===p && b[ln[2]]===p && b[ln[3]]===p) return ln;
+  return null;
+}
+
+function place(c){
+  if(winner || busy || board[c]) return;
+  board[c]=turn; lastMove=c;
+  const wl = wonLine(board, turn);
+  if(wl){ winner=turn; winLine=wl; render(); return; }
+  if(board.every(Boolean)){ winner='draw'; render(); return; }
+  turn = turn==='R' ? 'B' : 'R';
+  render();
+  if(mode==='cpu' && turn===CPU){ busy=true; setTimeout(cpuMove, 320); }
+}
+
+// ---- computer ----
+function cpuMove(){
+  const c = chooseMove();
+  busy=false;
+  if(c!=null) place(c);
+}
+function chooseMove(){
+  const empties = []; for(let c=0;c<CELLS;c++) if(!board[c]) empties.push(c);
+  // 1. win now
+  for(const c of empties){ board[c]=CPU; const w=!!wonLine(board,CPU); board[c]=null; if(w) return c; }
+  // 2. block opponent's immediate win
+  for(const c of empties){ board[c]=HUMAN; const w=!!wonLine(board,HUMAN); board[c]=null; if(w) return c; }
+  if(diff==='easy'){
+    // greedy-ish: weight by open lines, lots of randomness
+    return pickWeighted(empties, c => lineScore(c,CPU) + Math.random()*6);
+  }
+  // 3. hard: make a fork if we can (two threats at once)
+  const myFork = empties.find(c => threatsAfter(c, CPU) >= 2);
+  if(myFork!=null) return myFork;
+  // 4. block an opponent fork
+  const oppForks = empties.filter(c => threatsAfter(c, HUMAN) >= 2);
+  if(oppForks.length===1) return oppForks[0];
+  // 5. positional score, prefer creating single threats too
+  return pickWeighted(empties, c =>
+      lineScore(c,CPU)*1.0 + lineScore(c,HUMAN)*0.6
+      + threatsAfter(c,CPU)*40 + Math.random()*1.5);
+}
+function pickWeighted(arr, fn){
+  let best=-1e9, pick=arr[0];
+  for(const c of arr){ const s=fn(c); if(s>best){ best=s; pick=c; } }
+  return pick;
+}
+// value of cell for player p = sum over its lines that are not blocked by opponent
+function lineScore(c, p){
+  const opp = p==='R'?'B':'R'; let s=0;
+  for(const li of LINES_BY_CELL[c]){
+    let mine=0, bad=false;
+    for(const cc of LINES[li]){ if(board[cc]===opp){bad=true;break;} if(board[cc]===p) mine++; }
+    if(bad) continue;
+    s += [1,3,9,40][mine] || 40;
+  }
+  return s;
+}
+// how many "3-in-line with the 4th empty" threats player p has after playing c
+function threatsAfter(c, p){
+  const opp = p==='R'?'B':'R';
+  board[c]=p; let t=0;
+  for(const li of LINES_BY_CELL[c]){
+    let mine=0, bad=false;
+    for(const cc of LINES[li]){ if(board[cc]===opp){bad=true;break;} if(board[cc]===p) mine++; }
+    if(!bad && mine===3) t++;
+  }
+  board[c]=null; return t;
+}
+
+// ---- render ----
+const svg = document.getElementById('svg');
+function render(){
+  let s = `<defs>
+    <radialGradient id="gRed" cx="36%" cy="30%" r="75%">
+      <stop offset="0%" stop-color="#ffe2e5"/><stop offset="45%" stop-color="#ff5d6c"/><stop offset="100%" stop-color="#a51325"/>
+    </radialGradient>
+    <radialGradient id="gBlue" cx="36%" cy="30%" r="75%">
+      <stop offset="0%" stop-color="#dcefff"/><stop offset="45%" stop-color="#5db6ff"/><stop offset="100%" stop-color="#155a9c"/>
+    </radialGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="bsh" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="3" stdDeviation="2.5" flood-color="#000" flood-opacity="0.45"/>
+    </filter></defs>`;
+
+  // layers bottom -> top so upper grids draw over lower ones
+  for(let z=0; z<N; z++){
+    const c00=P(0,0,z), c40=P(N,0,z), c44=P(N,N,z), c04=P(0,N,z);
+    s += `<polygon class="layerfill" points="${c00.x},${c00.y} ${c40.x},${c40.y} ${c44.x},${c44.y} ${c04.x},${c04.y}"/>`;
+    for(let g=0; g<=N; g++){
+      const a=P(g,0,z), b=P(g,N,z); s += `<line class="gridline" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"/>`;
+      const d=P(0,g,z), e=P(N,g,z); s += `<line class="gridline" x1="${d.x}" y1="${d.y}" x2="${e.x}" y2="${e.y}"/>`;
+    }
+    const lab=P(0,0,z); s += `<text class="layerlabel" x="${lab.x-30}" y="${lab.y-CX*0.0+0}">${z+1}</text>`;
+  }
+
+  // collect cells, paint back-to-front, bottom-to-top
+  const order=[];
+  for(let z=0;z<N;z++) for(let j=N-1;j>=0;j--) for(let i=0;i<N;i++) order.push([i,j,z]);
+  const winSet = winLine ? new Set(winLine) : null;
+  for(const [i,j,z] of order){
+    const c = idx(i,j,z);
+    const seat = P(i+0.5, j+0.5, z);
+    const cx = seat.x, cy = seat.y - LIFT;
+    s += `<ellipse class="seat" cx="${seat.x}" cy="${seat.y}" rx="${R*0.78}" ry="${R*0.34}"/>`;
+    if(board[c]){
+      const grad = board[c]==='R' ? 'gRed' : 'gBlue';
+      const win = winSet && winSet.has(c);
+      s += `<circle class="ball" cx="${cx}" cy="${cy}" r="${R}" fill="url(#${grad})" filter="url(#bsh)"
+              stroke="${win?'#ffe27a':(c===lastMove?'#ffffff':'none')}" stroke-opacity="${win?0.95:0.65}" stroke-width="${win?3:2}"/>`;
+      s += `<ellipse cx="${cx-R*0.28}" cy="${cy-R*0.34}" rx="${R*0.34}" ry="${R*0.2}" fill="#fff" fill-opacity="0.45"/>`;
+    } else {
+      s += `<circle class="spot" cx="${cx}" cy="${cy}" r="3.2"/>`;
+      if(!winner && !(mode==='cpu' && turn===CPU))
+        s += `<circle class="hit" data-c="${c}" cx="${cx}" cy="${cy}" r="${R+5}"/>`;
+    }
+  }
+
+  // winning streak line through ball centres
+  if(winLine){
+    const a=P( (winLine[0]%4)+0.5, (Math.floor(winLine[0]/4)%4)+0.5, Math.floor(winLine[0]/16));
+    const b=P( (winLine[3]%4)+0.5, (Math.floor(winLine[3]/4)%4)+0.5, Math.floor(winLine[3]/16));
+    s += `<line class="winline" x1="${a.x}" y1="${a.y-LIFT}" x2="${b.x}" y2="${b.y-LIFT}"/>`;
+  }
+
+  svg.innerHTML = s;
+  svg.querySelectorAll('.hit').forEach(el =>
+    el.addEventListener('pointerdown', e => { e.preventDefault(); place(+el.dataset.c); }));
+
+  updateHud();
+}
+function updateHud(){
+  const dot=document.getElementById('turnDot'), txt=document.getElementById('turnTxt'),
+        mc=document.getElementById('moveCount');
+  mc.textContent = `${board.filter(Boolean).length} / 64`;
+  const name = p => mode==='cpu' ? (p==='R'?'You':'Computer') : (p==='R'?'Red':'Blue');
+  if(winner==='draw'){ dot.className='dot'; dot.style.background='#6b7689'; txt.textContent='Draw — cube full'; return; }
+  if(winner){ dot.className='dot '+(winner==='R'?'red':'blue'); txt.textContent=`${name(winner)} win${name(winner)==='You'?'':'s'}! 🎉`; return; }
+  dot.className='dot '+(turn==='R'?'red':'blue');
+  txt.textContent = mode==='cpu'
+    ? (turn===CPU ? 'Computer thinking…' : 'Your move')
+    : `${turn==='R'?'Red':'Blue'} to move`;
+}
+
+// ---- controls ----
+document.getElementById('modeSeg').addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  mode=b.dataset.mode;
+  document.querySelectorAll('#modeSeg button').forEach(x=>x.classList.toggle('on', x===b));
+  document.getElementById('diffSeg').style.opacity = mode==='cpu'?1:0.4;
+  document.getElementById('diffSeg').style.pointerEvents = mode==='cpu'?'auto':'none';
+  document.getElementById('firstWrap').style.opacity = mode==='cpu'?1:0.4;
+  reset();
+});
+document.getElementById('diffSeg').addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  diff=b.dataset.diff;
+  document.querySelectorAll('#diffSeg button').forEach(x=>x.classList.toggle('on', x===b));
+});
+document.getElementById('cpuFirst').addEventListener('change', e=>{ cpuFirst=e.target.checked; reset(); });
+document.getElementById('newBtn').addEventListener('click', reset);
+
+reset();
+</script>
+</body>
+</html>
