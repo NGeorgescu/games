@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Qubic — 3D Tic-Tac-Toe</title>
+<title>Qubic — 4×4×4 Tic-Tac-Toe</title>
 <style>
   :root{ --bg:#0e1014; --panel:#171a21; --ink:#eef1f6; --muted:#9aa3b2; --line:#262b35; --accent:#7cc6ff;
     --red:#ff5d6c; --blue:#5db6ff; }
@@ -11,16 +11,16 @@
   html,body{margin:0;background:var(--bg);color:var(--ink);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     -webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
-  .wrap{max-width:480px;margin:0 auto;padding:16px 14px 36px}
+  .wrap{max-width:520px;margin:0 auto;padding:16px 14px 32px}
   h1{font-size:23px;margin:.1em 0 .1em}
-  .sub{color:var(--muted);font-size:13px;line-height:1.5;margin:0 0 14px}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
+  .sub{color:var(--muted);font-size:13px;line-height:1.5;margin:0 0 12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:12px}
   button{appearance:none;border:0;border-radius:12px;padding:11px 14px;font-size:15px;font-weight:600;
     background:var(--accent);color:#06243a;cursor:pointer}
   button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
-  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between}
   .seg{display:inline-flex;border:1px solid var(--line);border-radius:11px;overflow:hidden;background:#12151b}
-  .seg button{background:transparent;color:var(--muted);border-radius:0;font-weight:600;padding:9px 13px;font-size:14px}
+  .seg button{background:transparent;color:var(--muted);border-radius:0;font-weight:600;padding:9px 12px;font-size:14px}
   .seg button.on{background:#223047;color:#dbe8ff}
   .hud{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;min-height:30px}
   .turn{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:600}
@@ -28,168 +28,157 @@
   .dot.red{background:radial-gradient(circle at 35% 30%,#ffd0d4,var(--red) 60%,#b81f2e)}
   .dot.blue{background:radial-gradient(circle at 35% 30%,#d4ecff,var(--blue) 60%,#1f6fb8)}
   .muted{color:var(--muted);font-size:13px}
-  svg{display:block;width:100%;height:auto;touch-action:manipulation;user-select:none}
-  .board{padding:6px 6px 2px}
+  .hidden{display:none!important}
+
+  /* 2-D board */
+  svg#svg{display:block;width:100%;height:auto;touch-action:manipulation;user-select:none}
   .gridline{stroke:#cdd6e4;stroke-opacity:.30;stroke-width:1}
   .layerfill{fill:#aecbff;fill-opacity:.030}
   .seat{fill:#000;fill-opacity:.32}
   .spot{fill:#cdd6e4;fill-opacity:.16}
-  .hit{fill:transparent;cursor:pointer}
   .ball{cursor:default}
+  .hit{fill:transparent;cursor:pointer}
   .layerlabel{fill:var(--muted);font-size:13px;font-weight:600}
   .winline{stroke-linecap:round;stroke:#ffe27a;stroke-opacity:.9;stroke-width:7;filter:url(#glow)}
-  footer{color:#5a6473;font-size:12px;text-align:center;margin-top:8px}
+
+  /* 3-D board */
+  #stage{width:100%;aspect-ratio:1/1;max-height:74vh;border-radius:12px;overflow:hidden;
+    background:radial-gradient(120% 120% at 50% 30%,#161a22,#0c0e12);touch-action:none;position:relative}
+  #stage canvas{display:block}
+  #hint{position:absolute;left:0;right:0;bottom:8px;text-align:center;color:var(--muted);font-size:12px;
+    pointer-events:none;text-shadow:0 1px 3px #000}
+  footer{color:#5a6473;font-size:12px;text-align:center;margin-top:10px}
   a{color:var(--accent)}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Qubic</h1>
-  <p class="sub">3-D tic-tac-toe on a 4×4×4 cube. Get four in a row — across a layer, straight up through the stack,
-    or along any diagonal (e.g. front-bottom-left → back-top-right). <a href="3d.html">Try the rotatable 3-D version →</a></p>
+  <p class="sub">3-D tic-tac-toe on a 4×4×4 cube. Get four in a row — across a layer, up the stack, or along any
+    diagonal (including the long corner-to-corner ones). Switch between a flat 3/4 view and a fully rotatable cube.</p>
 
   <div class="card">
-    <div class="row" style="justify-content:space-between">
+    <div class="row">
+      <div class="seg" id="viewSeg">
+        <button data-view="2d" class="on">Flat 2-D</button>
+        <button data-view="3d">3-D cube</button>
+      </div>
       <div class="seg" id="modeSeg">
         <button data-mode="cpu" class="on">vs Computer</button>
         <button data-mode="pvp">2 players</button>
       </div>
+    </div>
+    <div class="row" style="margin-top:10px">
       <div class="seg" id="diffSeg">
         <button data-diff="easy">Easy</button>
         <button data-diff="hard" class="on">Hard</button>
       </div>
+      <label class="muted" id="firstWrap"><input type="checkbox" id="cpuFirst"> Computer (blue) first</label>
     </div>
-    <div class="row" style="margin-top:10px;justify-content:space-between">
-      <label class="muted" id="firstWrap"><input type="checkbox" id="cpuFirst"> Computer (blue) moves first</label>
+    <div class="row" style="margin-top:10px;justify-content:flex-end">
+      <button class="ghost hidden" id="resetView">Recenter</button>
       <button class="ghost" id="newBtn">New game</button>
     </div>
   </div>
 
-  <div class="card board">
+  <div class="card" style="padding:10px">
     <div class="hud">
-      <div class="turn"><span class="dot red" id="turnDot"></span><span id="turnTxt">Red to move</span></div>
+      <div class="turn"><span class="dot red" id="turnDot"></span><span id="turnTxt">Your move</span></div>
       <span class="muted" id="moveCount">0 / 64</span>
     </div>
     <svg id="svg" viewBox="0 -16 430 612" aria-label="Qubic board"></svg>
+    <div id="stage" class="hidden"><div id="hint"></div></div>
   </div>
 
-  <footer>One of <a href="../">the games</a>. Tap an empty cell to drop a ball.</footer>
+  <footer>One of <a href="../">the games</a>. 3-D view built with three.js.</footer>
 </div>
 
-<script>
-const N = 4, CELLS = 64;
-// ---- oblique 3/4 projection ----
-const CX = 60, DX = 24, DY = -28, LZ = 138, BASEX = 56, BASEY = 560, LIFT = 15, R = 21;
-function P(gx, gy, z){ return { x: BASEX + gx*CX + gy*DX, y: BASEY + gy*DY - z*LZ }; }
-const idx = (i,j,z) => z*16 + j*4 + i;
-
-// ---- winning lines (76 of them) ----
-const LINES = (() => {
-  const dirs = [];
-  for(let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++) for(let dz=-1;dz<=1;dz++)
-    if(dx||dy||dz) dirs.push([dx,dy,dz]);
-  const seen = new Set(), out = [];
-  for(let i=0;i<N;i++) for(let j=0;j<N;j++) for(let z=0;z<N;z++)
-    for(const [dx,dy,dz] of dirs){
-      const px=i-dx, py=j-dy, pz=z-dz;                 // must be a true start
-      if(px>=0&&px<N&&py>=0&&py<N&&pz>=0&&pz<N) continue;
-      const ex=i+3*dx, ey=j+3*dy, ez=z+3*dz;           // must fit
-      if(ex<0||ex>=N||ey<0||ey>=N||ez<0||ez>=N) continue;
-      const cells=[]; for(let s=0;s<N;s++) cells.push(idx(i+s*dx,j+s*dy,z+s*dz));
-      const key=[...cells].sort((a,b)=>a-b).join(',');
-      if(seen.has(key)) continue; seen.add(key); out.push(cells);
-    }
-  return out;
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+}}
+</script>
+<script type="module">
+/* ===================== shared game logic ===================== */
+const N=4, CELLS=64, HUMAN='R', CPU='B';
+const idx=(i,j,z)=>z*16+j*4+i;
+const cellIJZ=c=>[c%4, Math.floor(c/4)%4, Math.floor(c/16)];
+const LINES=(()=>{
+  const dirs=[]; for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)for(let dz=-1;dz<=1;dz++) if(dx||dy||dz) dirs.push([dx,dy,dz]);
+  const seen=new Set(), out=[];
+  for(let i=0;i<N;i++)for(let j=0;j<N;j++)for(let z=0;z<N;z++) for(const [dx,dy,dz] of dirs){
+    const px=i-dx,py=j-dy,pz=z-dz; if(px>=0&&px<N&&py>=0&&py<N&&pz>=0&&pz<N) continue;
+    const ex=i+3*dx,ey=j+3*dy,ez=z+3*dz; if(ex<0||ex>=N||ey<0||ey>=N||ez<0||ez>=N) continue;
+    const cells=[]; for(let s=0;s<N;s++) cells.push(idx(i+s*dx,j+s*dy,z+s*dz));
+    const key=[...cells].sort((a,b)=>a-b).join(','); if(seen.has(key)) continue; seen.add(key); out.push(cells);
+  } return out;
 })();
-const LINES_BY_CELL = Array.from({length:CELLS}, ()=>[]);
-LINES.forEach((ln,li)=> ln.forEach(c=> LINES_BY_CELL[c].push(li)));
+const LINES_BY_CELL=Array.from({length:CELLS},()=>[]);
+LINES.forEach((ln,li)=>ln.forEach(c=>LINES_BY_CELL[c].push(li)));
 
-// ---- state ----
 let board, turn, winner, winLine, lastMove, busy;
-let mode='cpu', diff='hard', cpuFirst=false;
-const HUMAN='R', CPU='B';
+let mode='cpu', diff='hard', cpuFirst=false, view='2d';
+
+function wonLine(b,p){ for(const ln of LINES) if(b[ln[0]]===p&&b[ln[1]]===p&&b[ln[2]]===p&&b[ln[3]]===p) return ln; return null; }
+function lineScore(c,p){ const opp=p==='R'?'B':'R'; let s=0;
+  for(const li of LINES_BY_CELL[c]){ let mine=0,bad=false;
+    for(const cc of LINES[li]){ if(board[cc]===opp){bad=true;break;} if(board[cc]===p) mine++; }
+    if(!bad) s+=[1,3,9,40][mine]||40; } return s; }
+function threatsAfter(c,p){ const opp=p==='R'?'B':'R'; board[c]=p; let t=0;
+  for(const li of LINES_BY_CELL[c]){ let mine=0,bad=false;
+    for(const cc of LINES[li]){ if(board[cc]===opp){bad=true;break;} if(board[cc]===p) mine++; }
+    if(!bad&&mine===3) t++; } board[c]=null; return t; }
+function pickWeighted(arr,fn){ let best=-1e9,pick=arr[0]; for(const c of arr){ const s=fn(c); if(s>best){best=s;pick=c;} } return pick; }
+function chooseMove(){
+  const empties=[]; for(let c=0;c<CELLS;c++) if(!board[c]) empties.push(c);
+  for(const c of empties){ board[c]=CPU; const w=!!wonLine(board,CPU); board[c]=null; if(w) return c; }
+  for(const c of empties){ board[c]=HUMAN; const w=!!wonLine(board,HUMAN); board[c]=null; if(w) return c; }
+  if(diff==='easy') return pickWeighted(empties,c=>lineScore(c,CPU)+Math.random()*6);
+  const myFork=empties.find(c=>threatsAfter(c,CPU)>=2); if(myFork!=null) return myFork;
+  const oppForks=empties.filter(c=>threatsAfter(c,HUMAN)>=2); if(oppForks.length===1) return oppForks[0];
+  return pickWeighted(empties,c=>lineScore(c,CPU)+lineScore(c,HUMAN)*0.6+threatsAfter(c,CPU)*40+Math.random()*1.5);
+}
 
 function reset(){
-  board = new Array(CELLS).fill(null);
-  turn='R'; winner=null; winLine=null; lastMove=null; busy=false;
-  render();
-  if(mode==='cpu' && cpuFirst){ turn=CPU; busy=true; setTimeout(cpuMove, 350); }
+  board=new Array(CELLS).fill(null); turn='R'; winner=null; winLine=null; lastMove=null; busy=false;
+  selected=-1; if(ghost) ghost.visible=false;
+  refresh();
+  if(mode==='cpu'&&cpuFirst){ turn=CPU; busy=true; setTimeout(cpuMove,400); }
 }
-
-function wonLine(b, p){
-  for(const ln of LINES) if(b[ln[0]]===p && b[ln[1]]===p && b[ln[2]]===p && b[ln[3]]===p) return ln;
-  return null;
-}
-
 function place(c){
-  if(winner || busy || board[c]) return;
+  if(winner||busy||board[c]) return;
   board[c]=turn; lastMove=c;
-  const wl = wonLine(board, turn);
-  if(wl){ winner=turn; winLine=wl; render(); return; }
-  if(board.every(Boolean)){ winner='draw'; render(); return; }
-  turn = turn==='R' ? 'B' : 'R';
-  render();
-  if(mode==='cpu' && turn===CPU){ busy=true; setTimeout(cpuMove, 320); }
+  const wl=wonLine(board,turn);
+  if(wl){ winner=turn; winLine=wl; selected=-1; if(ghost) ghost.visible=false; refresh(); return; }
+  if(board.every(Boolean)){ winner='draw'; refresh(); return; }
+  turn=turn==='R'?'B':'R'; selected=-1; if(ghost) ghost.visible=false; refresh();
+  if(mode==='cpu'&&turn===CPU){ busy=true; setTimeout(cpuMove,360); }
+}
+function cpuMove(){ const c=chooseMove(); busy=false; if(c!=null) place(c); }
+
+function refresh(){ updateHud(); if(view==='2d') render2D(); else if(inited3D) render3D(); }
+function updateHud(){
+  const dot=document.getElementById('turnDot'),txt=document.getElementById('turnTxt'),
+        mc=document.getElementById('moveCount'),hint=document.getElementById('hint');
+  mc.textContent=`${board.filter(Boolean).length} / 64`;
+  const name=p=> mode==='cpu' ? (p==='R'?'You':'Computer') : (p==='R'?'Red':'Blue');
+  if(winner==='draw'){ dot.className='dot'; dot.style.background='#6b7689'; txt.textContent='Draw — cube full'; }
+  else if(winner){ dot.className='dot '+(winner==='R'?'red':'blue'); txt.textContent=`${name(winner)} win${name(winner)==='You'?'':'s'}! 🎉`; }
+  else { dot.className='dot '+(turn==='R'?'red':'blue');
+    txt.textContent = mode==='cpu' ? (turn===CPU?'Computer thinking…':'Your move') : `${turn==='R'?'Red':'Blue'} to move`; }
+  if(view==='3d'){
+    hint.textContent = winner ? 'Drag to admire · New game to replay'
+      : isTouch ? (selected>=0?'Tap the ghost ball again to drop':'Drag to rotate · tap a slot to aim')
+                : 'Drag to rotate · hover a slot, click to drop';
+  }
 }
 
-// ---- computer ----
-function cpuMove(){
-  const c = chooseMove();
-  busy=false;
-  if(c!=null) place(c);
-}
-function chooseMove(){
-  const empties = []; for(let c=0;c<CELLS;c++) if(!board[c]) empties.push(c);
-  // 1. win now
-  for(const c of empties){ board[c]=CPU; const w=!!wonLine(board,CPU); board[c]=null; if(w) return c; }
-  // 2. block opponent's immediate win
-  for(const c of empties){ board[c]=HUMAN; const w=!!wonLine(board,HUMAN); board[c]=null; if(w) return c; }
-  if(diff==='easy'){
-    // greedy-ish: weight by open lines, lots of randomness
-    return pickWeighted(empties, c => lineScore(c,CPU) + Math.random()*6);
-  }
-  // 3. hard: make a fork if we can (two threats at once)
-  const myFork = empties.find(c => threatsAfter(c, CPU) >= 2);
-  if(myFork!=null) return myFork;
-  // 4. block an opponent fork
-  const oppForks = empties.filter(c => threatsAfter(c, HUMAN) >= 2);
-  if(oppForks.length===1) return oppForks[0];
-  // 5. positional score, prefer creating single threats too
-  return pickWeighted(empties, c =>
-      lineScore(c,CPU)*1.0 + lineScore(c,HUMAN)*0.6
-      + threatsAfter(c,CPU)*40 + Math.random()*1.5);
-}
-function pickWeighted(arr, fn){
-  let best=-1e9, pick=arr[0];
-  for(const c of arr){ const s=fn(c); if(s>best){ best=s; pick=c; } }
-  return pick;
-}
-// value of cell for player p = sum over its lines that are not blocked by opponent
-function lineScore(c, p){
-  const opp = p==='R'?'B':'R'; let s=0;
-  for(const li of LINES_BY_CELL[c]){
-    let mine=0, bad=false;
-    for(const cc of LINES[li]){ if(board[cc]===opp){bad=true;break;} if(board[cc]===p) mine++; }
-    if(bad) continue;
-    s += [1,3,9,40][mine] || 40;
-  }
-  return s;
-}
-// how many "3-in-line with the 4th empty" threats player p has after playing c
-function threatsAfter(c, p){
-  const opp = p==='R'?'B':'R';
-  board[c]=p; let t=0;
-  for(const li of LINES_BY_CELL[c]){
-    let mine=0, bad=false;
-    for(const cc of LINES[li]){ if(board[cc]===opp){bad=true;break;} if(board[cc]===p) mine++; }
-    if(!bad && mine===3) t++;
-  }
-  board[c]=null; return t;
-}
-
-// ---- render ----
-const svg = document.getElementById('svg');
-function render(){
+/* ===================== 2-D (SVG 3/4 view) ===================== */
+const CX=60, DX=24, DY=-28, LZ=138, BASEX=56, BASEY=560, LIFT=15, R2=21;
+const P=(gx,gy,z)=>({ x: BASEX+gx*CX+gy*DX, y: BASEY+gy*DY-z*LZ });
+const svg=document.getElementById('svg');
+function render2D(){
   let s = `<defs>
     <radialGradient id="gRed" cx="36%" cy="30%" r="75%">
       <stop offset="0%" stop-color="#ffe2e5"/><stop offset="45%" stop-color="#ff5d6c"/><stop offset="100%" stop-color="#a51325"/>
@@ -203,8 +192,6 @@ function render(){
     <filter id="bsh" x="-50%" y="-50%" width="200%" height="200%">
       <feDropShadow dx="0" dy="3" stdDeviation="2.5" flood-color="#000" flood-opacity="0.45"/>
     </filter></defs>`;
-
-  // layers bottom -> top so upper grids draw over lower ones
   for(let z=0; z<N; z++){
     const c00=P(0,0,z), c40=P(N,0,z), c44=P(N,N,z), c04=P(0,N,z);
     s += `<polygon class="layerfill" points="${c00.x},${c00.y} ${c40.x},${c40.y} ${c44.x},${c44.y} ${c04.x},${c04.y}"/>`;
@@ -212,76 +199,201 @@ function render(){
       const a=P(g,0,z), b=P(g,N,z); s += `<line class="gridline" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"/>`;
       const d=P(0,g,z), e=P(N,g,z); s += `<line class="gridline" x1="${d.x}" y1="${d.y}" x2="${e.x}" y2="${e.y}"/>`;
     }
-    const lab=P(0,0,z); s += `<text class="layerlabel" x="${lab.x-30}" y="${lab.y-CX*0.0+0}">${z+1}</text>`;
+    const lab=P(0,0,z); s += `<text class="layerlabel" x="${lab.x-30}" y="${lab.y}">${z+1}</text>`;
   }
-
-  // collect cells, paint back-to-front, bottom-to-top
-  const order=[];
-  for(let z=0;z<N;z++) for(let j=N-1;j>=0;j--) for(let i=0;i<N;i++) order.push([i,j,z]);
+  const order=[]; for(let z=0;z<N;z++) for(let j=N-1;j>=0;j--) for(let i=0;i<N;i++) order.push([i,j,z]);
   const winSet = winLine ? new Set(winLine) : null;
   for(const [i,j,z] of order){
-    const c = idx(i,j,z);
-    const seat = P(i+0.5, j+0.5, z);
-    const cx = seat.x, cy = seat.y - LIFT;
-    s += `<ellipse class="seat" cx="${seat.x}" cy="${seat.y}" rx="${R*0.78}" ry="${R*0.34}"/>`;
+    const c=idx(i,j,z); const seat=P(i+0.5,j+0.5,z); const cx=seat.x, cy=seat.y-LIFT;
+    s += `<ellipse class="seat" cx="${seat.x}" cy="${seat.y}" rx="${R2*0.78}" ry="${R2*0.34}"/>`;
     if(board[c]){
-      const grad = board[c]==='R' ? 'gRed' : 'gBlue';
-      const win = winSet && winSet.has(c);
-      s += `<circle class="ball" cx="${cx}" cy="${cy}" r="${R}" fill="url(#${grad})" filter="url(#bsh)"
+      const grad = board[c]==='R' ? 'gRed' : 'gBlue'; const win = winSet && winSet.has(c);
+      s += `<circle class="ball" cx="${cx}" cy="${cy}" r="${R2}" fill="url(#${grad})" filter="url(#bsh)"
               stroke="${win?'#ffe27a':(c===lastMove?'#ffffff':'none')}" stroke-opacity="${win?0.95:0.65}" stroke-width="${win?3:2}"/>`;
-      s += `<ellipse cx="${cx-R*0.28}" cy="${cy-R*0.34}" rx="${R*0.34}" ry="${R*0.2}" fill="#fff" fill-opacity="0.45"/>`;
+      s += `<ellipse cx="${cx-R2*0.28}" cy="${cy-R2*0.34}" rx="${R2*0.34}" ry="${R2*0.2}" fill="#fff" fill-opacity="0.45"/>`;
     } else {
       s += `<circle class="spot" cx="${cx}" cy="${cy}" r="3.2"/>`;
       if(!winner && !(mode==='cpu' && turn===CPU))
-        s += `<circle class="hit" data-c="${c}" cx="${cx}" cy="${cy}" r="${R+5}"/>`;
+        s += `<circle class="hit" data-c="${c}" cx="${cx}" cy="${cy}" r="${R2+5}"/>`;
     }
   }
-
-  // winning streak line through ball centres
   if(winLine){
-    const a=P( (winLine[0]%4)+0.5, (Math.floor(winLine[0]/4)%4)+0.5, Math.floor(winLine[0]/16));
-    const b=P( (winLine[3]%4)+0.5, (Math.floor(winLine[3]/4)%4)+0.5, Math.floor(winLine[3]/16));
+    const a=P((winLine[0]%4)+0.5,(Math.floor(winLine[0]/4)%4)+0.5,Math.floor(winLine[0]/16));
+    const b=P((winLine[3]%4)+0.5,(Math.floor(winLine[3]/4)%4)+0.5,Math.floor(winLine[3]/16));
     s += `<line class="winline" x1="${a.x}" y1="${a.y-LIFT}" x2="${b.x}" y2="${b.y-LIFT}"/>`;
   }
+  svg.innerHTML=s;
+  svg.querySelectorAll('.hit').forEach(el=> el.addEventListener('pointerdown', e=>{ e.preventDefault(); place(+el.dataset.c); }));
+}
 
-  svg.innerHTML = s;
-  svg.querySelectorAll('.hit').forEach(el =>
-    el.addEventListener('pointerdown', e => { e.preventDefault(); place(+el.dataset.c); }));
+/* ===================== 3-D (three.js) — lazily loaded ===================== */
+const COL={ R:0xff5d6c, B:0x5db6ff };
+const FADE_MAX=0.30, FADE_EXP=1.7;   // line-family fade tuning
+let THREE, OrbitControls, inited3D=false, three3D=null;
+let scene, camera, renderer, controls, ray, ndc, ghost, winTube=null;
+let sphereGeo, latGroups=[], hitMeshes=[], slotMeshes=[], ballMeshes=new Array(CELLS).fill(null);
+const HOME=[5.2,4.2,6.0];
 
+async function init3D(){
+  const hint=document.getElementById('hint'); hint.textContent='Loading 3-D…';
+  THREE = await import('three');
+  ({ OrbitControls } = await import('three/addons/controls/OrbitControls.js'));
+  const stage=document.getElementById('stage');
+  renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  stage.appendChild(renderer.domElement);
+  scene=new THREE.Scene(); scene.background=new THREE.Color(0x0c0e12);
+  camera=new THREE.PerspectiveCamera(42,1,0.1,100); camera.position.set(...HOME);
+  scene.add(new THREE.AmbientLight(0xffffff,0.65));
+  const dl=new THREE.DirectionalLight(0xffffff,1.15); dl.position.set(6,9,7); scene.add(dl);
+  const dl2=new THREE.DirectionalLight(0x9fc4ff,0.35); dl2.position.set(-6,-3,-5); scene.add(dl2);
+
+  controls=new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping=true; controls.dampingFactor=0.08; controls.enablePan=false;
+  controls.minDistance=4.5; controls.maxDistance=14; controls.rotateSpeed=0.9;
+
+  const W=(i,j,z)=>new THREE.Vector3((i-1.5),(z-1.5),(j-1.5)); // x=i, y=layer(up), z=depth(j)
+
+  // three line families, each fades when it turns edge-on to the camera
+  function lineFamily(segs, axisDir){
+    const g=new THREE.BufferGeometry().setFromPoints(segs);
+    const m=new THREE.LineBasicMaterial({color:0xbcccdf, transparent:true, opacity:FADE_MAX});
+    const ls=new THREE.LineSegments(g,m); scene.add(ls);
+    latGroups.push({mat:m, dir:new THREE.Vector3(...axisDir)});
+  }
+  const xs=[], zs=[], ys=[];
+  for(let a=0;a<N;a++) for(let b=0;b<N;b++){
+    xs.push(W(0,a,b),W(3,a,b));   // along i  -> world X
+    zs.push(W(a,0,b),W(a,3,b));   // along j  -> world Z (depth)
+    ys.push(W(a,b,0),W(a,b,3));   // along layer -> world Y (vertical)
+  }
+  lineFamily(xs,[1,0,0]); lineFamily(zs,[0,0,1]); lineFamily(ys,[0,1,0]);
+
+  sphereGeo=new THREE.SphereGeometry(0.34,32,24);
+  const slotGeo=new THREE.SphereGeometry(0.07,12,10), hitGeo=new THREE.SphereGeometry(0.46,10,8);
+  const slotMat=new THREE.MeshStandardMaterial({color:0x8c98ab,transparent:true,opacity:0.32,roughness:.9});
+  const hitMat=new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false});
+  for(let c=0;c<CELLS;c++){
+    const [i,j,z]=cellIJZ(c), p=W(i,j,z);
+    const slot=new THREE.Mesh(slotGeo,slotMat); slot.position.copy(p); scene.add(slot); slotMeshes.push(slot);
+    const hit=new THREE.Mesh(hitGeo,hitMat); hit.position.copy(p); hit.userData.cell=c; scene.add(hit); hitMeshes.push(hit);
+  }
+  ghost=new THREE.Mesh(sphereGeo,new THREE.MeshStandardMaterial({color:0xffffff,transparent:true,opacity:0.4,roughness:.3,metalness:.1}));
+  ghost.visible=false; scene.add(ghost);
+
+  ray=new THREE.Raycaster(); ndc=new THREE.Vector2();
+  three3D={W};
+  bindPointer();
+  inited3D=true;
+  resize3D();
+  loop();
+}
+
+function addBall(c){
+  const [i,j,z]=cellIJZ(c);
+  const m=new THREE.Mesh(sphereGeo,new THREE.MeshStandardMaterial({color:COL[board[c]],roughness:0.32,metalness:0.12}));
+  m.position.copy(three3D.W(i,j,z)); scene.add(m); ballMeshes[c]=m; slotMeshes[c].visible=false;
+}
+function render3D(){
+  // sync balls with board
+  for(let c=0;c<CELLS;c++){
+    if(board[c] && !ballMeshes[c]) addBall(c);
+    else if(!board[c] && ballMeshes[c]){ scene.remove(ballMeshes[c]); ballMeshes[c]=null; slotMeshes[c].visible=true; }
+  }
+  // winning highlight
+  const winSet = winLine ? new Set(winLine) : null;
+  for(let c=0;c<CELLS;c++){ if(ballMeshes[c]){
+    const on = winSet && winSet.has(c);
+    ballMeshes[c].material.emissive = new THREE.Color(on?0xffc83a:0x000000);
+    ballMeshes[c].material.emissiveIntensity = on?0.6:0;
+  }}
+  if(winTube){ scene.remove(winTube); winTube=null; }
+  if(winLine){
+    const [i0,j0,z0]=cellIJZ(winLine[0]), [i3,j3,z3]=cellIJZ(winLine[3]);
+    const a=three3D.W(i0,j0,z0), b=three3D.W(i3,j3,z3), dir=new THREE.Vector3().subVectors(b,a), len=dir.length();
+    winTube=new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.045,len,16),
+      new THREE.MeshStandardMaterial({color:0xffe27a,emissive:0xffb000,emissiveIntensity:0.9}));
+    winTube.position.copy(a).add(b).multiplyScalar(0.5);
+    winTube.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.clone().normalize());
+    scene.add(winTube);
+  }
+}
+
+/* picking + ghost */
+let isTouch=false, selected=-1, down=null;
+function pickCell(ev){
+  const r=renderer.domElement.getBoundingClientRect();
+  ndc.x=((ev.clientX-r.left)/r.width)*2-1; ndc.y=-((ev.clientY-r.top)/r.height)*2+1;
+  ray.setFromCamera(ndc,camera);
+  for(const h of ray.intersectObjects(hitMeshes,false)){ const c=h.object.userData.cell; if(!board[c]) return c; }
+  return -1;
+}
+function setGhost(c){ if(c<0){ ghost.visible=false; return; }
+  const [i,j,z]=cellIJZ(c); ghost.position.copy(three3D.W(i,j,z)); ghost.material.color.set(COL[turn]); ghost.visible=true; }
+function bindPointer(){
+  const el=renderer.domElement;
+  el.addEventListener('pointermove',e=>{
+    if(e.pointerType!=='mouse'||down) return;
+    if(winner||busy||(mode==='cpu'&&turn===CPU)){ ghost.visible=false; return; }
+    setGhost(pickCell(e));
+  });
+  el.addEventListener('pointerdown',e=>{ down={x:e.clientX,y:e.clientY,t:performance.now(),type:e.pointerType}; });
+  el.addEventListener('pointerup',e=>{
+    const d=down; down=null; if(!d) return;
+    if(Math.hypot(e.clientX-d.x,e.clientY-d.y)>7 || performance.now()-d.t>500) return;  // drag → orbit
+    if(winner||busy||(mode==='cpu'&&turn===CPU)) return;
+    isTouch = d.type!=='mouse';
+    const c=pickCell(e);
+    if(c<0){ if(isTouch){ selected=-1; ghost.visible=false; updateHud(); } return; }
+    if(!isTouch){ place(c); return; }
+    if(c===selected) place(c); else { selected=c; setGhost(c); updateHud(); }
+  });
+}
+function resize3D(){
+  const stage=document.getElementById('stage'); const w=stage.clientWidth, h=stage.clientHeight;
+  if(!w||!h) return;
+  renderer.setSize(w,h); camera.aspect=w/h; camera.updateProjectionMatrix();
+}
+const _cd=()=>camera.position.clone().sub(controls.target).normalize();
+function loop(){
+  requestAnimationFrame(loop);
+  if(view!=='3d'||!inited3D) return;
+  controls.update();
+  const cd=_cd();
+  for(const g of latGroups){ const a=Math.abs(g.dir.dot(cd)); g.mat.opacity=FADE_MAX*Math.pow(1-a,FADE_EXP); }
+  renderer.render(scene,camera);
+}
+
+/* ===================== view switching + controls ===================== */
+async function setView(v){
+  view=v;
+  document.querySelectorAll('#viewSeg button').forEach(x=>x.classList.toggle('on', x.dataset.view===v));
+  document.getElementById('resetView').classList.toggle('hidden', v!=='3d');
+  if(v==='3d'){
+    svg.classList.add('hidden'); document.getElementById('stage').classList.remove('hidden');
+    if(!inited3D){ try{ await init3D(); }catch(err){ document.getElementById('hint').textContent='Could not load 3-D (needs a network connection).'; return; } }
+    resize3D(); render3D();
+  } else {
+    document.getElementById('stage').classList.add('hidden'); svg.classList.remove('hidden');
+    render2D();
+  }
   updateHud();
 }
-function updateHud(){
-  const dot=document.getElementById('turnDot'), txt=document.getElementById('turnTxt'),
-        mc=document.getElementById('moveCount');
-  mc.textContent = `${board.filter(Boolean).length} / 64`;
-  const name = p => mode==='cpu' ? (p==='R'?'You':'Computer') : (p==='R'?'Red':'Blue');
-  if(winner==='draw'){ dot.className='dot'; dot.style.background='#6b7689'; txt.textContent='Draw — cube full'; return; }
-  if(winner){ dot.className='dot '+(winner==='R'?'red':'blue'); txt.textContent=`${name(winner)} win${name(winner)==='You'?'':'s'}! 🎉`; return; }
-  dot.className='dot '+(turn==='R'?'red':'blue');
-  txt.textContent = mode==='cpu'
-    ? (turn===CPU ? 'Computer thinking…' : 'Your move')
-    : `${turn==='R'?'Red':'Blue'} to move`;
-}
 
-// ---- controls ----
-document.getElementById('modeSeg').addEventListener('click', e=>{
-  const b=e.target.closest('button'); if(!b) return;
-  mode=b.dataset.mode;
-  document.querySelectorAll('#modeSeg button').forEach(x=>x.classList.toggle('on', x===b));
-  document.getElementById('diffSeg').style.opacity = mode==='cpu'?1:0.4;
-  document.getElementById('diffSeg').style.pointerEvents = mode==='cpu'?'auto':'none';
-  document.getElementById('firstWrap').style.opacity = mode==='cpu'?1:0.4;
-  reset();
-});
-document.getElementById('diffSeg').addEventListener('click', e=>{
-  const b=e.target.closest('button'); if(!b) return;
-  diff=b.dataset.diff;
-  document.querySelectorAll('#diffSeg button').forEach(x=>x.classList.toggle('on', x===b));
-});
-document.getElementById('cpuFirst').addEventListener('change', e=>{ cpuFirst=e.target.checked; reset(); });
-document.getElementById('newBtn').addEventListener('click', reset);
+document.getElementById('viewSeg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b) setView(b.dataset.view); });
+document.getElementById('modeSeg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return;
+  mode=b.dataset.mode; document.querySelectorAll('#modeSeg button').forEach(x=>x.classList.toggle('on',x===b));
+  const d=document.getElementById('diffSeg'); d.style.opacity=mode==='cpu'?1:.4; d.style.pointerEvents=mode==='cpu'?'auto':'none';
+  document.getElementById('firstWrap').style.opacity=mode==='cpu'?1:.4; reset(); });
+document.getElementById('diffSeg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return;
+  diff=b.dataset.diff; document.querySelectorAll('#diffSeg button').forEach(x=>x.classList.toggle('on',x===b)); });
+document.getElementById('cpuFirst').addEventListener('change',e=>{ cpuFirst=e.target.checked; reset(); });
+document.getElementById('newBtn').addEventListener('click',reset);
+document.getElementById('resetView').addEventListener('click',()=>{ if(controls){ controls.reset(); camera.position.set(...HOME); } });
+addEventListener('resize',()=>{ if(view==='3d'&&inited3D) resize3D(); });
 
 reset();
+if(new URLSearchParams(location.search).get('view')==='3d') setView('3d');
 </script>
 </body>
 </html>
