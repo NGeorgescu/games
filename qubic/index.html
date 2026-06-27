@@ -60,8 +60,8 @@
   <div class="card">
     <div class="row">
       <div class="seg" id="viewSeg">
-        <button data-view="2d" class="on">Flat 2-D</button>
-        <button data-view="3d">3-D cube</button>
+        <button data-view="2d">Flat 2-D</button>
+        <button data-view="3d" class="on">3-D cube</button>
       </div>
       <div class="seg" id="modeSeg">
         <button data-mode="cpu" class="on">vs Computer</button>
@@ -124,7 +124,7 @@ const LINES_BY_CELL=Array.from({length:CELLS},()=>[]);
 LINES.forEach((ln,li)=>ln.forEach(c=>LINES_BY_CELL[c].push(li)));
 
 let board, turn, winner, winLine, lastMove, busy;
-let mode='cpu', diff='hard', firstPref='alt', altNext='R', view='2d';
+let mode='cpu', diff='hard', firstPref='alt', altNext='R', view='3d';
 
 function wonLine(b,p){ for(const ln of LINES) if(b[ln[0]]===p&&b[ln[1]]===p&&b[ln[2]]===p&&b[ln[3]]===p) return ln; return null; }
 function lineScore(c,p){ const opp=p==='R'?'B':'R'; let s=0;
@@ -382,7 +382,7 @@ async function setView(v){
   document.getElementById('resetView').classList.toggle('hidden', v!=='3d');
   if(v==='3d'){
     svg.classList.add('hidden'); document.getElementById('stage').classList.remove('hidden');
-    if(!inited3D){ try{ await init3D(); }catch(err){ document.getElementById('hint').textContent='Could not load 3-D (needs a network connection).'; return; } }
+    if(!inited3D){ try{ await init3D(); }catch(err){ setView('2d'); return; } }
     resize3D(); render3D();
   } else {
     document.getElementById('stage').classList.add('hidden'); svg.classList.remove('hidden');
@@ -405,7 +405,7 @@ document.getElementById('resetView').addEventListener('click',()=>{ if(controls)
 addEventListener('resize',()=>{ if(view==='3d'&&inited3D) resize3D(); });
 
 reset();
-if(new URLSearchParams(location.search).get('view')==='3d') setView('3d');
+setView(new URLSearchParams(location.search).get('view')==='2d' ? '2d' : '3d');
 </script>
 </body>
 </html>
