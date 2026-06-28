@@ -157,6 +157,9 @@
       <div class="pip" data-c="w">W</div><div class="pip" data-c="u">U</div><div class="pip" data-c="b">B</div>
       <div class="pip" data-c="r">R</div><div class="pip" data-c="g">G</div>
     </div>
+    <label class="fld" style="margin-top:12px" for="topdeck">Decklist <span style="text-transform:none;letter-spacing:0">(optional — paste a Moxfield link or list; fills every deck step below, and sets the commander from a Moxfield link)</span></label>
+    <textarea id="topdeck" class="deckbox" oninput="onDeck(this.value)" placeholder="Paste a Moxfield deck link, or your decklist (one card per line)…" style="min-height:64px"></textarea>
+    <div class="deckwarn" style="display:none"></div>
   </div>
 
   <div id="preconbox" style="display:none"></div>
@@ -346,8 +349,33 @@ function load(){
     if(o.colors && state.colors.size===0){ state.colors=new Set(o.colors); paintPips(); }
   }catch(e){}
   const i2=$('#cmd2'); if(i2) i2.value=state.cmd2;
+  const td=$('#topdeck'); if(td) td.value=state.deck;
 }
-function onDeck(v){ state.deck=v; save(); document.querySelectorAll('.deckbox').forEach(t=>{ if(t.value!==v) t.value=v; }); }
+let deckCmdTimer=null;
+function onDeck(v){ state.deck=v; save(); document.querySelectorAll('.deckbox').forEach(t=>{ if(t.value!==v) t.value=v; });
+  clearTimeout(deckCmdTimer);
+  if(/moxfield\.com\/decks\//i.test(v||'')) deckCmdTimer=setTimeout(autoCommanderFromDeck, 600);   // a pasted Moxfield link sets the commander too
+}
+// pull the commander(s) from a pasted Moxfield deck and select them, keeping the pasted decklist
+async function autoCommanderFromDeck(){
+  try{ await resolveDeckNames(); }catch(e){ return; }
+  const cs=deckCache.commanders; if(!cs || !cs.length) return;
+  const cur=[state.cmd,state.cmd2].filter(Boolean).map(normName).sort().join('|');
+  const want=cs.map(normName).sort().join('|');
+  if(cur===want) return;                                    // already on this deck's commander(s)
+  const pasted=state.deck;
+  for(let i=0;i<Math.min(cs.length,2);i++){
+    try{
+      const r=await fetch('https://api.scryfall.com/cards/named?exact='+encodeURIComponent(cs[i]));
+      if(!r.ok) continue; const c=await r.json();
+      setCommander(i+1, {name:c.name, ci:c.color_identity||[], kw:c.keywords||[], oracle:c.oracle_text||'', tl:c.type_line||''});
+    }catch(e){}
+  }
+  // setCommander(1) runs load(), which restores that commander's saved deck — re-apply the deck the user just pasted
+  if(state.deck!==pasted){ state.deck=pasted; save(); }
+  document.querySelectorAll('.deckbox').forEach(t=>{ if(t.value!==pasted) t.value=pasted; });
+  render();
+}
 function paintPips(){ document.querySelectorAll('.pip').forEach(p=>p.classList.toggle('on',state.colors.has(p.dataset.c))); }
 
 function render(){
