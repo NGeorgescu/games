@@ -59,7 +59,15 @@
   .cell.ghostr{background:rgba(229,72,77,.30)}
   .cell.ghosty{background:rgba(244,192,43,.30)}
   @keyframes pulse{0%,100%{box-shadow:0 0 0 3px var(--accent)}50%{box-shadow:0 0 0 6px rgba(124,198,255,.35)}}
+  .cell.ring{box-shadow:0 0 0 3px var(--accent), inset 0 2px 4px rgba(0,0,0,.5)}
+  .cell .mk{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.7)}
   .colmark{height:16px;text-align:center;font-size:13px;font-weight:800;line-height:16px}
+  /* lesson diagrams */
+  .diagram{margin:12px 0}
+  .board.mini{max-width:266px;gap:3px;padding:5px;margin:0 auto}
+  .collabels{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;max-width:266px;margin:3px auto 0;padding:0 5px}
+  .collabels div{text-align:center;color:var(--muted);font-size:11px;font-family:ui-monospace,monospace}
+  .dcap{text-align:center;color:var(--muted);font-size:12px;margin-top:7px;line-height:1.45;font-style:italic}
 
   .fb{min-height:22px;text-align:center;font-size:14px;margin:10px 0 4px;font-weight:600}
   .fb.ok{color:var(--good)} .fb.bad{color:#ff8a8a}
@@ -94,7 +102,7 @@
   <!-- HOME -->
   <section id="home">
     <h1>Connect 4 Strategy</h1>
-    <p class="sub">Connect 4 is a <b>solved</b> game — with perfect play the first player wins, but only from the center. Learn the ideas that get you there: center control, threats, double threats, traps, and the deep <b>odd/even (odd-hole / even-hole) threat theory</b>. Each idea has a short lesson and a board drill.</p>
+    <p class="sub">A complete path from "which way do the pieces fall" to reading a position like a solver. Four stages: the basics, the all-important center, tactics &amp; traps, and the master skill of <b>reading the board</b> — parity (odd/even holes), dead threats, claiming, and calling who wins. Every idea has a worked diagram; most have a board drill. Endgame drills are graded by an <b>exact solver</b>.</p>
     <button class="tile play" onclick="app.sandbox()"><b>▶ Play the computer</b><span>Practice against a tactical engine. Turn on hints to see wins, threats, and poisoned columns highlighted live.</span></button>
     <div id="trickList"></div>
     <footer>Solved game: James Dow Allen &amp; Victor Allis, 1988. Theory after Allis's thesis. · <a href="../">← all games</a></footer>
@@ -183,7 +191,31 @@ function setsTrap(b,c,p){ const r=b.heights[c]; if(r>=H) return false;
 // does playing c on the bottom row create an open three across the bottom (two row-1 winning squares)?
 function bottomFork(b,c,p){ if(b.heights[c]!==0) return false;
   drop(b,c,p); const n=winningCols(b,p).filter(cc=>b.heights[cc]===0).length; undrop(b,c); return n>=2; }
+// after p plays c, does the opponent get an immediate win OR a fork next move? (used by fork-defense drill)
+function allowsOppTrouble(b,c,p){ const opp=3-p, r=b.heights[c]; if(r>=H) return false;
+  drop(b,c,p); const bad = winningCols(b,opp).length>0 || legalCols(b).some(cc=>isFork(b,cc,opp)); undrop(b,c); return bad; }
 function full(b){ return b.heights.every(h=>h>=H); }
+
+// EXACT game-theoretic solver: +1 player-to-move wins, 0 draw, -1 loses. Exact (searches to terminal);
+// only fast enough for near-full positions (few empty cells) — used for the evaluation & capstone drills.
+function solveExact(b,p){
+  if(winningCols(b,p).length) return 1;
+  const moves=legalCols(b); if(!moves.length) return 0;
+  const opp=3-p, ow=winningCols(b,opp);
+  if(ow.length>=2) return -1;                       // two opponent threats — can't block both
+  let cand;
+  if(ow.length===1) cand=ow;                        // forced to block the single threat
+  else { cand=ORDER.filter(c=>b.heights[c]<H && !poisoned(b,c,p)); if(!cand.length) return -1; }
+  let best=-1;
+  for(const c of cand){ drop(b,c,p); const v=-solveExact(b,opp); undrop(b,c); if(v>best){ best=v; if(best===1) break; } }
+  return best;
+}
+// optimal moves for p (those achieving the position's game value)
+function bestMoves(b,p){
+  const val=solveExact(b,p), out=[];
+  for(const c of legalCols(b)){ drop(b,c,p); const v=-solveExact(b,3-p); undrop(b,c); if(v===val) out.push(c); }
+  return { val, moves:out };
+}
 
 // random no-win position; toMove discs already placed (toMove player1 if discs even). tracks last move.
 function genPos(plies){
@@ -259,6 +291,22 @@ function aiMove(b,p,diff){
 }
 
 /* =================== board rendering =================== */
+// Static lesson diagram. discs:[[col,row,player]] marks:[[col,row,kind,label]] (1-indexed; player 1=red 2=yellow;
+// kind: "win"|"bad"|"ring"). Returns an HTML string embeddable in lesson bodies.
+function diagram(discs, marks, caption){
+  const grid={}, mk={};
+  for(const d of (discs||[])) grid[(d[1]-1)*W+(d[0]-1)]=d[2];
+  for(const m of (marks||[])) mk[(m[1]-1)*W+(m[0]-1)]={k:m[2],lbl:m[3]};
+  let cols="";
+  for(let c=0;c<W;c++){ let col='<div class="col">';
+    for(let r=H-1;r>=0;r--){ const i=r*W+c, p=grid[i], m=mk[i];
+      let cls="cell"+(p===1?" r":p===2?" y":"");
+      if(m){ cls+= m.k==="win"?" win": m.k==="bad"?" bad": m.k==="ring"?" ring":""; }
+      col+=`<div class="${cls}">${m&&m.lbl?`<span class="mk">${m.lbl}</span>`:""}</div>`; }
+    cols+=col+"</div>"; }
+  const labels='<div class="collabels">'+[1,2,3,4,5,6,7].map(n=>`<div>${n}</div>`).join("")+"</div>";
+  return `<div class="diagram"><div class="board mini">${cols}</div>${labels}${caption?`<div class="dcap">${caption}</div>`:""}</div>`;
+}
 // marks: {win:Set, bad:Set, hl:[idx], ghost:{col,player}}
 function renderBoard(host,b,opts={}){
   const {onCol=null, marks={}} = opts;
@@ -275,6 +323,7 @@ function renderBoard(host,b,opts={}){
       if(marks.win&&marks.win.has(c)&&r===b.heights[c]) cell.classList.add("win");
       if(marks.bad&&marks.bad.has(c)&&r===b.heights[c]) cell.classList.add("bad");
       if(marks.hl&&marks.hl===idx) cell.classList.add("hl");
+      if(marks.cell&&marks.cell[idx]) cell.classList.add(marks.cell[idx]);   // index-keyed marks (e.g. highlight a line)
       col.appendChild(cell);
     }
     if(onCol&&b.heights[c]<H) col.onclick=()=>onCol(c);
@@ -367,140 +416,240 @@ const DRILLS={
         options:["Player 1","Player 2","Draw"], answer:k.w,
         explain:`Player 1 cashes <b>odd</b> threats, Player 2 cashes <b>even</b> ones. Rule of thumb: P1-odd vs P2-even → <b>P1 wins</b>; both even → <b>P2 wins</b> (P2 refutes P1's even threat then scores its own); P1-even vs P2-odd → <b>draw</b> (neither threat is usable). Here: P1 ${k.p1} vs P2 ${k.p2}.` }; } },
 
-  followup:{ kind:"move",
-    gen(){ const b=genUntil(12, b=> b.last>=0 && b.heights[b.last]<H &&
-        winningCols(b,1).length===0 && winningCols(b,2).length===0 && !poisoned(b,b.last,1));
-      return { b, prompt:`<b style='color:#f4c02b'>Yellow</b> just played the highlighted column. Apply <b>follow-up</b>: answer directly on top, in the <b>same column</b>.`,
-        correct:new Set([b.last]), markLast:b.last,
-        explain:"Follow-up means replying directly above the opponent's disc. Doing this consistently lets the responder take all the even squares (the heart of the <b>Claimeven</b> defense) and keeps control of the zugzwang — as long as that square isn't poisoned and there's no urgent threat to handle first." }; } },
+  throughcenter:{ kind:"choice",
+    gen(){ const line=WINDOWS[rnd(WINDOWS.length)]; const cols=line.map(i=>i%W);
+      const through=cols.includes(3); const cell={}; for(const i of line) cell[i]="ring";
+      return { b:nb(), boardMarks:{cell}, two:true,
+        prompt:`Does this four-in-a-row pass through the <b>center column (4)</b>?`,
+        options:["Yes","No"], answer: through?0:1,
+        explain: through
+          ? "Yes. Every horizontal and diagonal four spans four <b>side-by-side</b> columns, and every such run of four includes column 4 — so all 48 of them cross the center."
+          : "No — this is a <b>vertical</b> four, the only kind that can dodge the center. There are 18 of those; the other 51 lines all pass through column 4." }; } },
+
+  forkdefense:{ kind:"move",
+    gen(){ const b=genUntil(13+rnd(4), b=> winningCols(b,1).length===0 && winningCols(b,2).length===0 &&
+        legalCols(b).some(c=>!allowsOppTrouble(b,c,1)) && legalCols(b).some(c=>allowsOppTrouble(b,c,1)) );
+      const bad=new Set(legalCols(b).filter(c=>allowsOppTrouble(b,c,1)));
+      const safe=new Set(legalCols(b).filter(c=>!allowsOppTrouble(b,c,1)));
+      return { b, prompt:"You are <b style='color:#ff6b6f'>Red</b>. Some moves let <b style='color:#f4c02b'>Yellow</b> set up a winning double threat next turn. <b>Play a safe move</b> that doesn't hand Yellow a fork.",
+        correct:safe, bad,
+        explain:"Defense isn't only blocking — it's not <i>creating</i> the opponent's chances. Before you move, check: does this give Yellow an immediate win, or a fork next turn? The columns ringed in red do; avoid them." }; } },
+
+  // -------- evaluation drills (exact-graded endgames) --------
+  evaluate:{ kind:"choice",
+    gen(){ const want=[1,-1,0][rnd(3)]; let b=null, v=null;   // target a verdict so answers stay balanced
+      for(let i=0;i<2500;i++){ const e=10+rnd(6); const cand=genPos(42-e);
+        if(!cand||legalCols(cand).length<3) continue; const cv=solveExact(cand,1);
+        if(cv===want){ b=cand; v=cv; break; } }
+      if(!b){ for(let i=0;i<300;i++){ const cand=genPos(42-(10+rnd(6))); if(cand&&legalCols(cand).length>=3){ b=cand; v=solveExact(b,1); break; } } }
+      const ans = v>0?0 : v<0?1 : 2;
+      return { b, prompt:`<b style='color:#ff6b6f'>Red</b> (first player) is to move. With <b>best play by both sides</b>, what is the result?`,
+        options:["Red wins","Yellow wins","Draw"], answer:ans,
+        explain:`Read it like an expert: list every live threat, throw out the dead ones (above a finished line, wrong parity, or a pair the defender can split), tag each survivor's row — <b>odd → Red, even → Yellow</b> — then apply the matchup. This position is a <b>${["Red win","Yellow win","draw"][ans]}</b> with perfect play.` }; } },
+
+  bestmove:{ kind:"move",
+    gen(){ let b, bm;
+      for(let i=0;i<500;i++){ const e=10+rnd(6); b=genUntil(42-e, x=> winningCols(x,2).length===0 && legalCols(x).length>=3);
+        if(!b) continue; bm=bestMoves(b,1);
+        if(bm.moves.length>=1 && bm.moves.length<legalCols(b).length) break;   // a real choice exists
+        bm=null; }
+      if(!bm){ bm=bestMoves(b,1); }
+      const tag = bm.val>0?"win":bm.val<0?"hold on (you're worse)":"hold the draw";
+      return { b, prompt:`You are <b style='color:#ff6b6f'>Red</b>. <b>Find a best move</b> — one that gives the strongest result the position allows.`,
+        correct:new Set(bm.moves),
+        explain:`Graded by the exact solver: the marked column(s) achieve the best outcome here (${["Yellow wins anyway","this is a draw with best play","Red wins with best play"][bm.val+1]}). Every other move throws away part of that. Best play = win when you can, otherwise keep the draw, and never hand over a square.` }; } },
 };
 
 /* lessons + tile metadata */
 const CONCEPTS=[
-  // Fundamentals
-  { id:"center", cat:"Fundamentals", name:"Center control", tag:"The most valuable column",
-    lesson:`<h3>Own the middle</h3>
-      <p>The center column (column 4) is the single most valuable place on the board. Every horizontal four and the two longest diagonals pass through the central files, so a disc there belongs to far more potential four-in-a-rows than a disc on the edge.</p>
-      <p>As the first player, <b>always open in the center.</b> As the second player, fight to contest it. Edge play throws away your best lines.</p>
-      <p class="why">Strong solvers literally search center-first because central moves are, on average, the best — they sit in the most alignments.</p>
-      <div class="src">Source: Pons, gamesolver.org; Tromp, "Expert Play in Connect-Four".</div>` },
-  { id:"openingmap", cat:"Fundamentals", name:"The opening map", tag:"Solved: center wins, edges lose",
-    lesson:`<h3>Connect 4 is solved</h3>
-      <p>With perfect play the <b>first player wins</b> — but only by opening the <b>center</b>. The result depends entirely on that first move:</p>
-      <table><tr><th>Opening column</th><th>Result (player 1)</th></tr>
-      <tr><td>4 (center)</td><td><b>Win</b></td></tr>
-      <tr><td>3 or 5 (next to center)</td><td>Draw</td></tr>
-      <tr><td>1, 2, 6, 7 (outer)</td><td><b>Loss</b></td></tr></table>
-      <p>So if you go first, the center is not just "good" — it is the difference between a forced win and a forced loss. If you go second and your opponent opens off-center, you are not losing; if they open on an outer column, <i>you</i> can force the win.</p>
-      <p class="why">The game was solved independently by James Dow Allen and Victor Allis, both in 1988.</p>
-      <div class="src">Source: Wikipedia, "Connect Four"; Allen &amp; Allis (1988).</div>` },
-  { id:"throughcenter", cat:"Fundamentals", name:"Every win runs through the center", tag:"48 of 48 non-vertical fours use column 4",
-    lesson:`<h3>Count the winning lines</h3>
-      <p>There are exactly <b>69</b> possible four-in-a-rows on the board. <b>48</b> of them are horizontal or diagonal — and <b>every single one passes through the center column (column 4)</b>. Only the 18 off-center vertical fours avoid it.</p>
-      <p>Here's why: a horizontal or diagonal four always spans <b>four consecutive columns</b>, and the only runs of four consecutive columns in 1–7 are 1-2-3-4, 2-3-4-5, 3-4-5-6, 4-5-6-7 — every one of which contains column 4.</p>
-      <p>So unless you are stacking straight up, your win <b>must</b> use the center file. That's the hard reason the center is king: take it and you share in every non-vertical line; deny it to your opponent and you cut off all but their vertical chances.</p>
-      <p class="why">Verified by direct enumeration of all 69 lines: 48 are non-vertical, and all 48 pass through column 4.</p>
-      <div class="src">Structural fact (board-width-specific to 7 columns); cf. Allis (1988) §2.2.</div>` },
-  { id:"openings", cat:"Fundamentals", name:"Opening play", tag:"Responses and early plans",
-    lesson:`<h3>If you go second</h3>
-      <p>Against a center opening, the soundest practical reply is to <b>contest the center — stack column 4 yourself</b>. Adjacent columns (3 or 5) are reasonable; an <b>edge column surrenders the center</b> and is the worst choice.</p>
-      <h3>If you go first</h3>
-      <p>Open the center — but don't fall in love with it. Perfect play actually requires <b>leaving the center at the right moment</b>: lines that stay glued to the middle (like 4-3-4 or 4-5-4) are known to throw the win away and only draw. Use the center to build threats, then branch out to set up an odd-row threat.</p>
-      <h3>From either side</h3>
-      <p>Don't burn early moves on the edges, scan <b>both diagonals</b> every turn (they're the most-missed wins), and never play directly <b>below</b> a square that completes the opponent's four.</p>
-      <p class="why">The exact best continuations form a solved database; the takeaways above are the human-useful part. Move-by-move "best line" claims beyond move 1 are only medium-confidence here.</p>
-      <div class="src">Source: opening-strategy guides + YouTube coaching, cross-checked vs. Wikipedia's solved result.</div>` },
-
-  // Tactics
-  { id:"win1", cat:"Tactics", name:"Take the win", tag:"Always scan for your own four first",
-    lesson:`<h3>See your own win</h3>
-      <p>Before anything else, every turn, check: <b>can I make four right now?</b> It sounds obvious, but in the heat of building threats it's the most common win that gets missed.</p>
-      <p>Look across all four directions — horizontal, vertical, and both diagonals — for three of your discs with a playable fourth square.</p>
-      <div class="src">Practice: a winning move always exists below; find it.</div>` },
-  { id:"block", cat:"Tactics", name:"Block the threat", tag:"Stop their four before it lands",
-    lesson:`<h3>Then stop theirs</h3>
-      <p>Right after checking for your own win, check the opponent's: <b>can they win next move?</b> If yes, and you can't win first, you are <b>forced</b> to block that square.</p>
-      <p>Recognizing forced moves is half of defense. The other half (next lessons) is not creating these threats for them in the first place.</p>` },
-  { id:"poison", cat:"Tactics", name:"Poisoned squares", tag:"Never play below their winning spot",
-    lesson:`<h3>Don't build their staircase</h3>
-      <p>Because of gravity, a high winning square is only reachable once the square beneath it is filled. So if you drop a disc <b>directly below</b> a square that completes the opponent's four, you hand them the win on their next turn.</p>
-      <p>That square is <b>poisoned</b>. Before every move, glance one cell up: "if I play here, can they win on top?" If so, play elsewhere — unless you're forced.</p>
-      <p class="why">This single idea is also the engine behind odd/even threat theory: a threat "freezes" the column beneath it, because the opponent dare not play there.</p>` },
-
-  // Double threats
-  { id:"fork", cat:"Double threats", name:"Forks (double threats)", tag:"Two threats, one move — unstoppable",
-    lesson:`<h3>Make two threats at once</h3>
-      <p>A single threat gets blocked. The way to actually win is to create <b>two threats in one move</b> — your opponent can only answer one, and you complete the other.</p>
-      <h3>Shapes that fork</h3>
+  // ===== 1 · Getting started =====
+  { id:"basics", cat:"1 · Getting started", name:"Reading the board", tag:"Colours, columns, rows, notation",
+    lesson:`<h3>The map</h3>
+      <p><b>Red = Player 1</b> (moves first). <b>Yellow = Player 2</b>. Discs drop to the lowest empty cell in a column.</p>
       <ul>
-        <li><b>The open-ended three ( _OO_ ):</b> three in a row with <i>both</i> ends open and playable. Strongest on the bottom row, where both ends are immediately reachable. This is the classic "three on the bottom — play toward the center" trap.</li>
-        <li><b>The "7":</b> a diagonal plus a connected line arranged so two winning squares end up stacked in one column. Block the lower, you lose to the upper.</li>
-        <li><b>Stacked threats:</b> two winning squares directly above each other (with no opponent threat below) — just start filling the column.</li>
+        <li><b>Columns</b> are numbered <b>1–7</b> left to right. The middle is <b>column 4</b>.</li>
+        <li><b>Rows</b> are numbered <b>1–6</b> from the <b>bottom</b> up.</li>
+        <li>We name a square as <b>(column, row)</b> — e.g. (4, 1) is the bottom-centre cell.</li>
+        <li>A game is written as the columns played in order: <b>4-4-3</b> means Red col 4, Yellow col 4, Red col 3.</li>
       </ul>
-      <p><b>Caution:</b> a fork only works if the opponent can't win first, and if neither winning square sits on top of one of <i>their</i> threats.</p>
-      <div class="src">Source: Allis (1988), §3.4; community trap names.</div>` },
-  { id:"threebottom", cat:"Double threats", name:"Three across the bottom", tag:"An open three on row 1 just wins",
+      ${diagram([[4,1,1],[4,2,2],[3,1,1]], [[4,3,"ring","?"]], "Red at (4,1) and (3,1); Yellow at (4,2). The ringed square is (4,3) — the next drop in column 4.")}
+      <p>Goal: be the first to line up <b>four of your colour</b> — in a row, a column, or a diagonal.</p>` },
+
+  { id:"fourways", cat:"1 · Getting started", name:"The four ways to win", tag:"Row, column, and the two diagonals",
+    lesson:`<h3>Four shapes make four</h3>
+      <p>Every win is one of these. Diagonals are the ones beginners miss most — scan for them every turn.</p>
+      <p><b>Horizontal</b></p>
+      ${diagram([[2,1,1],[3,1,1],[4,1,1],[5,1,1]], [[2,1,"win"],[3,1,"win"],[4,1,"win"],[5,1,"win"]], "Four along a row.")}
+      <p><b>Vertical</b></p>
+      ${diagram([[4,1,1],[4,2,1],[4,3,1],[4,4,1],[3,1,2],[5,1,2]], [[4,1,"win"],[4,2,"win"],[4,3,"win"],[4,4,"win"]], "Four stacked in a column. The only win that can dodge the centre.")}
+      <p><b>Diagonal (rising)</b></p>
+      ${diagram([[1,1,1],[2,2,1],[3,3,1],[4,4,1],[2,1,2],[3,1,2],[3,2,2],[4,1,2],[4,2,2],[4,3,2]], [[1,1,"win"],[2,2,"win"],[3,3,"win"],[4,4,"win"]], "Four climbing left-to-right.")}
+      <p><b>Diagonal (falling)</b></p>
+      ${diagram([[1,4,1],[2,3,1],[3,2,1],[4,1,1],[1,1,2],[1,2,2],[1,3,2],[2,1,2],[2,2,2],[3,1,2]], [[1,4,"win"],[2,3,"win"],[3,2,"win"],[4,1,"win"]], "Four descending left-to-right.")}` },
+
+  { id:"win1", cat:"1 · Getting started", name:"Take the win", tag:"Always scan for your own four first",
+    lesson:`<h3>See your own win</h3>
+      <p>Before anything else, every turn: <b>can I make four right now?</b> In the heat of building, this is the most-missed move in the game.</p>
+      <p>Check all four directions for three of your discs with a playable fourth square.</p>
+      ${diagram([[4,1,1],[4,2,1],[4,3,1],[3,1,2],[5,1,2],[3,2,2]], [[4,4,"win","✓"]], "Red has three stacked in column 4 — drop at (4,4) to win.")}` },
+
+  { id:"block", cat:"1 · Getting started", name:"Block the threat", tag:"Stop their four before it lands",
+    lesson:`<h3>Then stop theirs</h3>
+      <p>Right after checking your own win, check the opponent's: <b>can they win next move?</b> If they can and you can't win first, you are <b>forced</b> to block that square.</p>
+      ${diagram([[4,1,2],[4,2,2],[4,3,2],[3,1,1],[5,1,1],[3,2,1]], [[4,4,"bad","✕"]], "Yellow threatens (4,4). Red must play column 4 to block.")}
+      <p>Recognising forced moves is half of defence. The other half is never <i>building</i> these threats for them (later lessons).</p>` },
+
+  // ===== 2 · The center =====
+  { id:"center", cat:"2 · The center", name:"Center control", tag:"Open the middle; fight for D3 and D5",
+    lesson:`<h3>Own the middle</h3>
+      <p>The centre column (column 4) is the most valuable real estate on the board. As <b>Player 1, always open in the centre.</b> As Player 2, fight to contest it.</p>
+      <p>Within the centre, the prize cells are <b>(4,3)</b> and <b>(4,5)</b> — the central squares feed the most diagonals. Experts note (4,3) is the single best square after the opening, and grabbing it often wins (4,5) too.</p>
+      ${diagram([[4,1,1]], [[4,3,"ring","D3"],[4,5,"ring","D5"]], "Open (4,1); the ringed central squares are the ones to fight for.")}
+      <div class="src">Source: Tromp/Pomakis, "Expert Play in Connect-Four"; Pons, gamesolver.org.</div>` },
+
+  { id:"throughcenter", cat:"2 · The center", name:"Every win runs through the center", tag:"48 of 48 non-vertical fours use column 4",
+    lesson:`<h3>Count the winning lines</h3>
+      <p>There are exactly <b>69</b> possible four-in-a-rows on the board. <b>48</b> are horizontal or diagonal — and <b>every one passes through column 4</b>. Only the 18 off-centre vertical fours avoid it.</p>
+      <p>Why: a horizontal or diagonal four spans <b>four consecutive columns</b>, and the only such runs in 1–7 are 1-2-3-4, 2-3-4-5, 3-4-5-6, 4-5-6-7 — each contains column 4.</p>
+      ${diagram([[3,1,1],[4,1,1],[5,1,1],[6,1,1]], [[3,1,"win"],[4,1,"win"],[5,1,"win"],[6,1,"win"]], "This four spans columns 3-6 — and so includes column 4, like every non-vertical win.")}
+      <p>So unless you're stacking straight up, your win <b>must</b> use the centre. Deny it and you cut off all but the opponent's vertical chances.</p>
+      <p class="why">Verified by enumerating all 69 lines: 48 non-vertical, all 48 through column 4.</p>` },
+
+  { id:"openingmap", cat:"2 · The center", name:"The opening map", tag:"Solved: center wins, edges lose",
+    lesson:`<h3>Connect 4 is solved</h3>
+      <p>With perfect play the <b>first player wins — but only by opening the centre</b>. The whole result rides on move one:</p>
+      <table><tr><th>Opening column</th><th>Result for Player 1</th></tr>
+      <tr><td>4 (centre)</td><td><b>Win</b></td></tr>
+      <tr><td>3 or 5</td><td>Draw</td></tr>
+      <tr><td>1, 2, 6, 7</td><td><b>Loss</b></td></tr></table>
+      ${diagram([[4,1,1]], [], "The only opening that wins for Player 1.")}
+      <p>If you go second and they open off-centre, you can hold a draw; if they open on an outer column, <i>you</i> can force the win.</p>
+      <p class="why">Solved independently by James Dow Allen and Victor Allis, both 1988. (These verdicts assume perfect play by both sides.)</p>
+      <div class="src">Source: Wikipedia, "Connect Four"; verified vs. the Pons solver.</div>` },
+
+  { id:"openings", cat:"2 · The center", name:"Opening play", tag:"Responses and early plans",
+    lesson:`<h3>If you go second</h3>
+      <p>Against a centre opening, the soundest practical reply is to <b>contest the centre — stack column 4</b>. Columns 3 or 5 are reasonable; an <b>edge column hands over the centre</b> and is the worst choice.</p>
+      ${diagram([[4,1,1],[4,2,2]], [], "Yellow contests the centre by answering on column 4.")}
+      <h3>If you go first</h3>
+      <p>Open the centre, but don't camp there forever — purely central lines like <b>4-3-4</b> or <b>4-5-4</b> are known to only draw. Use the centre to build, then branch out. Beware: taking (4,4) can hand the opponent (4,5); the central squares trade off.</p>
+      <p class="why">Move-by-move "best line" claims past move one are medium-confidence here; the principles above are the reliable part.</p>
+      <div class="src">Source: opening guides + YouTube coaching, cross-checked vs. Wikipedia's solved result.</div>` },
+
+  // ===== 3 · Tactics & traps =====
+  { id:"poison", cat:"3 · Tactics & traps", name:"Poisoned squares", tag:"Never play below their winning spot",
+    lesson:`<h3>Don't build their staircase</h3>
+      <p>Because of gravity, a high winning square is only reachable once the cell beneath it is filled. So if you drop <b>directly below</b> a square that completes the opponent's four, you hand them the win on top.</p>
+      ${diagram([[1,1,2],[2,2,2],[3,3,2],[2,1,1],[3,1,2],[3,2,1],[4,1,2],[4,2,1]], [[4,3,"bad","✗"],[4,4,"ring","Y"]], "Yellow's diagonal needs (4,4). Playing column 4 now fills (4,3) — and Yellow drops in on top to win.")}
+      <p>Before every move, glance one cell up: "if I play here, can they win above?" If so, that square is <b>poisoned</b> — play elsewhere unless forced.</p>` },
+
+  { id:"fork", cat:"3 · Tactics & traps", name:"Forks (double threats)", tag:"Two threats, one move — unstoppable",
+    lesson:`<h3>Make two threats at once</h3>
+      <p>A single threat just gets blocked. You win by creating <b>two threats in one move</b> — the opponent answers one, you take the other.</p>
+      ${diagram([[3,1,1],[4,1,1],[3,2,2],[4,2,2],[2,2,2]], [[2,1,"win","✓"],[5,1,"win","✓"]], "Red plays (5,1) or (2,1) to make an open three _RRR_ on the bottom with two live ends.")}
+      <p>The classic fork-makers: the <b>open-ended three</b> (_RRR_ with both ends playable), the <b>"7"</b> (next lesson), and <b>stacked threats</b>. A fork only works if the opponent can't win first.</p>
+      <div class="src">Source: Allis (1988), §3.4.</div>` },
+
+  { id:"threebottom", cat:"3 · Tactics & traps", name:"Three across the bottom", tag:"An open three on row 1 just wins",
     lesson:`<h3>The bottom-row guarantee</h3>
-      <p>Three of your discs in a row along the <b>bottom row</b> with <b>both ends open</b> — say columns 3-4-5 with columns 2 and 6 empty — is an automatic win. Both empty ends sit on the floor, so both are <b>immediately playable</b>: you threaten four on either side at once. The opponent blocks one end; you take the other.</p>
+      <p>Three of your discs in a row along the <b>bottom row</b> with <b>both ends open</b> is an automatic win — both empty ends sit on the floor, so both are immediately playable. The opponent blocks one; you take the other.</p>
+      ${diagram([[3,1,1],[4,1,1],[5,1,1]], [[2,1,"win","✓"],[6,1,"win","✓"]], "Red threatens (2,1) and (6,1) at once — unblockable.")}
       <h3>The fine print</h3>
       <ul>
-        <li>It must be open on <b>both</b> ends. If a disc already sits in an end column's base, that side is dead.</li>
-        <li>It must be a <b>solid</b> three. A gapped three like 3-4-_-6 is a single threat (the gap) and is easily blocked.</li>
-        <li>One row up it is <b>not</b> automatic — the opponent can just decline to play the square beneath your winning cell.</li>
+        <li>Both ends must be open. If a disc already sits in an end column's base, that side is dead.</li>
+        <li>It must be a <b>solid</b> three. A gap like 3-4-_-6 is just a single threat.</li>
+        <li>One row up it is <b>not</b> automatic — the opponent can decline to play beneath your winning cell.</li>
       </ul>
-      <p>Defensively, intervene at the <b>two-in-a-row stage</b>: take an open end before the three forms. This is the single most common way beginners lose.</p>
+      <p>So defend at the <b>two-in-a-row stage</b>: take an open end before the three forms.</p>
       <div class="src">Source: Galli (YouTube); freetoplaypuzzles "Bottom Row Blitz".</div>` },
-  { id:"seventrap", cat:"Double threats", name:"The 7 trap", tag:"Block the lower threat, lose to the one above",
-    lesson:`<h3>Two threats, stacked</h3>
-      <p>The deadliest fork puts your two winning squares <b>in the same column, one directly above the other</b>. The shape usually looks like the numeral <b>7</b>: a vertical stem of your discs plus a diagonal or horizontal arm across the top.</p>
-      <h3>Why it can't be answered</h3>
-      <p>Say you threaten to win at (column 4, row 3) <i>and</i> at (column 4, row 4) right above it:</p>
-      <ul>
-        <li>If the opponent ignores it, you drop in column 4 and win on row 3.</li>
-        <li>If they block by dropping in column 4 (landing on row 3), that disc raises the stack — now row 4 is open, and you drop in and win there.</li>
-      </ul>
-      <p>They can fill only one cell per turn, and blocking the lower threat is exactly the move that exposes the upper one. Forced win.</p>
-      <p class="why">The <b>L-trap / clamp</b> is the same idea from a different shape: you force a block (often of a vertical) and the blocking disc completes a diagonal for you. Whenever a forced block hands you a second line, you've sprung the trap.</p>
-      <div class="src">Source: Galli &amp; Quackalope (YouTube); freetoplaypuzzles.</div>` },
 
-  // Odd/even theory
-  { id:"parity", cat:"Odd / even threat theory", name:"Odd holes & even holes", tag:"Which player a threat belongs to",
+  { id:"seventrap", cat:"3 · Tactics & traps", name:"The 7 trap", tag:"Block the lower threat, lose to the one above",
+    lesson:`<h3>Two threats, stacked</h3>
+      <p>The deadliest fork puts your two winning squares <b>in the same column, one directly above the other</b> — a shape like the numeral <b>7</b> (a vertical stem plus a diagonal arm).</p>
+      ${diagram([[4,1,1],[4,2,1],[4,3,1],[1,2,1],[2,3,1],[3,4,1],[1,1,2],[2,1,2],[2,2,1],[3,1,2],[3,2,2],[3,3,2]], [[4,4,"win","1"],[4,5,"win","2"]], "Red wins at (4,4) (vertical) AND at (4,5) (diagonal a2-b3-c4-d5).")}
+      <p>Block the lower one (1) and that disc raises the stack, opening the upper one (2) — Red wins there. Ignore it and Red wins below. They fill one cell per turn; blocking is exactly what exposes the win above.</p>
+      <p class="why">The <b>L-trap / clamp</b> is the same idea: force a block whose disc completes a diagonal for you.</p>
+      <div class="src">Source: Allis (1988) §3.4; Galli &amp; Quackalope (YouTube).</div>` },
+
+  { id:"forkdefense", cat:"3 · Tactics & traps", name:"Don't hand over a fork", tag:"Defence is not creating their chances",
+    lesson:`<h3>Watch what your move gives them</h3>
+      <p>Blocking is reactive defence. The deeper skill is <b>not setting up the opponent</b> in the first place. Every move, ask not just "does this help me?" but "what does it let Yellow do next?"</p>
+      <p>A move is bad if, right after it, Yellow can either win immediately or make a <b>fork</b> (a double threat you can't answer). Treat those moves as off-limits unless forced.</p>
+      <p>This is the same family as poisoned squares — you're refusing to build the position your opponent wants.</p>` },
+
+  // ===== 4 · Reading the board =====
+  { id:"clock", cat:"4 · Reading the board", name:"The 42-square clock", tag:"Who is forced to move — and why it matters",
+    lesson:`<h3>You can never pass</h3>
+      <p>The board has 42 cells. With pure alternation Red takes moves 1,3,5… and Yellow 2,4,6… The key fact: <b>a full column holds 6 discs — an even number</b> — so filling whole columns <b>never changes whose turn it is</b>.</p>
+      ${diagram([[4,1,1],[4,2,2],[4,3,1],[4,4,2],[4,5,1],[4,6,2]], [], "A completed column: 6 discs. Parity unchanged — so the count of discs played tells you whose move it is.")}
+      <p>When the game gets tight and tactics dry up, someone is <b>forced</b> to play a square they'd rather not (this is <b>zugzwang</b>). Counting discs tells you who. The whole next section is about turning that into "who wins."</p>
+      <div class="src">Source: Allis (1988), ch. 3 (zugzwang).</div>` },
+
+  { id:"parity", cat:"4 · Reading the board", name:"Odd holes & even holes", tag:"Which player a threat belongs to",
     lesson:`<h3>The rows are pre-assigned</h3>
-      <p>Number the rows 1–6 from the bottom. If a board fills up "neutrally," the <b>first player ends up on the odd rows (1, 3, 5)</b> and the <b>second player on the even rows (2, 4, 6)</b>. Each vertical pair of cells — odd below, even above — gets split that way.</p>
+      <p>When a column fills with the players just answering each other, the discs alternate — so <b>Player 1 (Red) ends up on the odd rows (1,3,5)</b> and <b>Player 2 (Yellow) on the even rows (2,4,6)</b>.</p>
+      ${diagram([[4,1,1],[4,2,2],[4,3,1],[4,4,2],[4,5,1],[4,6,2]], [[4,1,"win","1"],[4,3,"win","3"],[4,5,"win","5"]], "Red lands on the odd rows (ringed); Yellow on the even rows.")}
       <h3>So a threat's row tells you whose it is</h3>
       <ul>
-        <li>A winning square on an <b>odd</b> row is an <b>odd hole</b> → it belongs to <b>Player 1</b>.</li>
-        <li>A winning square on an <b>even</b> row is an <b>even hole</b> → it belongs to <b>Player 2</b>.</li>
+        <li>A winning square on an <b>odd</b> row is an <b>odd hole</b> → it pays off for <b>Red</b>.</li>
+        <li>A winning square on an <b>even</b> row is an <b>even hole</b> → it pays off for <b>Yellow</b>.</li>
       </ul>
-      <p>This is why counting "three in a row!" isn't enough — you have to check the <b>row</b> of the empty fourth square. Player 1 should aim to build odd threats; Player 2, even threats.</p>
+      <p>Counting "three in a row!" isn't enough — check the <b>row</b> of the empty fourth square. Red should aim for odd threats; Yellow for even.</p>
       <div class="src">Source: Allis (1988), §3.3.</div>` },
-  { id:"matchup", cat:"Odd / even threat theory", name:"Who wins? (threat matchup)", tag:"Reading the endgame by parity",
+
+  { id:"undercut", cat:"4 · Reading the board", name:"Undercut & useless threats", tag:"Why most threats never actually fire",
+    lesson:`<h3>The lower threat wins</h3>
+      <p>Two threats in the <b>same column</b>? The column fills from the bottom, so the <b>lower</b> one resolves first — and the higher threat above it is <b>dead</b>, because the game ends (or the cell is taken) before play ever reaches it.</p>
+      ${diagram([[1,2,2],[2,2,2],[3,2,2],[1,4,1],[2,4,1],[3,4,1],[1,1,1],[1,3,1],[2,1,1],[2,3,2],[3,1,2],[3,3,1],[4,1,1]], [[4,2,"ring","Y"],[4,4,"bad","✗"]], "Yellow needs (4,2); Red needs (4,4) above it. The lower square is reached first — Red's upper threat never fires.")}
+      <h3>Useless threats</h3>
+      <p>A threat is <b>dead weight</b> if the opponent can never be forced to give it to you. Three ways that happens:</p>
+      <ul>
+        <li>It sits <b>above</b> the opponent's threat in the same column (undercut, as above).</li>
+        <li>It's <b>surplus</b> — stacked above another of your own threats lower down; only the lowest one counts.</li>
+        <li>It's on the <b>wrong parity</b> for you (an even-row threat for Red, an odd-row threat for Yellow).</li>
+      </ul>
+      <p>Reading a position starts by throwing these out — only the live threats decide the game.</p>
+      <div class="src">Source: Allis (1988), §3.1–3.2; Tromp/Pomakis.</div>` },
+
+  { id:"claiming", cat:"4 · Reading the board", name:"Claiming squares (can the defender survive?)", tag:"Claimeven & Baseinverse as a draw proof",
+    lesson:`<h3>Defence as a guarantee, not a move</h3>
+      <p>"Claiming" is how you <b>prove</b> a position is at least a draw — by naming, in advance, a square you're guaranteed to get inside every one of the opponent's would-be fours. If <i>every</i> enemy four contains a square you've claimed, none can ever complete.</p>
+      <h3>Claimeven — you own the even squares</h3>
+      <p>Pair an empty <b>even</b> cell with the empty <b>odd</b> cell directly below it. Whenever the opponent plays the odd cell, you answer on the even one. So as Player 2 you're guaranteed every even square — and any enemy four needing one of them is dead.</p>
+      ${diagram([[4,1,2],[4,2,1]], [[4,3,"ring","odd"],[4,4,"ring","even"]], "Claimeven pair: when Yellow's foe takes the odd cell (4,3), Yellow takes the even (4,4).")}
+      <h3>Baseinverse — pair two playable squares</h3>
+      <p>Of any <b>two squares playable right now</b>, you're guaranteed at least one (one move each per turn). So any enemy four needing <i>both</i> is dead.</p>
+      ${diagram([[3,1,2],[4,1,2]], [[1,1,"ring","A"],[2,1,"ring","B"]], "The bottom line 1-2-3-4 needs both (1,1) and (2,1). Take either when the opponent takes the other.")}
+      <p class="why">These are the two most useful of Allis's nine "connection rules" — the ones strong players apply by instinct. (The other seven are finer machinery for the full proof.)</p>
+      <div class="src">Source: Allis (1988), §6 (Claimeven, Baseinverse).</div>` },
+
+  { id:"matchup", cat:"4 · Reading the board", name:"Who wins? (the matchup)", tag:"Two threats, decided by parity",
     lesson:`<h3>Two threats, who scores?</h3>
-      <p>Late in the game it often comes down to one threat each, in different columns. Parity decides it:</p>
-      <table><tr><th>Player 1</th><th>Player 2</th><th>Result</th></tr>
-      <tr><td>odd</td><td>even</td><td><b>Player 1 wins</b></td></tr>
-      <tr><td>even</td><td>even</td><td><b>Player 2 wins</b></td></tr>
+      <p>Late games often come down to one live threat each, in different columns. Parity decides it:</p>
+      <table><tr><th>Red's threat</th><th>Yellow's threat</th><th>Result</th></tr>
+      <tr><td>odd</td><td>even</td><td><b>Red wins</b></td></tr>
+      <tr><td>even</td><td>even</td><td><b>Yellow wins</b></td></tr>
       <tr><td>even</td><td>odd</td><td>Draw</td></tr></table>
-      <p>The logic: each side can only cash a threat on "their" parity. If your threat is on the wrong parity it's dead weight; if it's on the right parity and the opponent's isn't, you score.</p>
-      <p class="why">When both have odd threats it's murkier — the player forced to move first usually has to give way — so this drill sticks to the three clean cases.</p>
-      <div class="src">Source: Allis (1988), §3.3.</div>` },
-  { id:"followup", cat:"Odd / even threat theory", name:"Follow-up & Claimeven", tag:"Answer on top — and own the even rows",
-    lesson:`<h3>Follow-up</h3>
-      <p><b>Follow-up</b> is the simplest, most powerful defensive habit: reply <b>directly on top</b> of the opponent's last disc, in the same column. Do it consistently and you collect every <b>even</b> square — which, for the second player, is exactly the rows they want.</p>
-      <h3>Claimeven</h3>
-      <p>Pair each even square with the odd square directly beneath it. Whenever the opponent takes the lower (odd) square, you take the even one. If every one of the opponent's possible fours contains one of your claimed even squares, none of them can ever complete — at worst a draw, and a win if you simultaneously hold an even four "undercutting" theirs.</p>
-      <h3>Zugzwang</h3>
-      <p>You can never pass, so eventually someone is forced to play a square they'd rather not. Whoever controls this — the second player does, from the start — dictates how the odd/even squares divide up. Player 1 steals control by making a strong <b>odd threat</b>, which freezes a column and flips the parity in their favor.</p>
-      <p><b>But not blindly:</b> never follow into a square that lets the opponent win, and always handle an urgent threat first.</p>
-      <div class="src">Source: Allis (1988), §5–6; "Claimeven".</div>` },
-  { id:"baseaftereven", cat:"Odd / even threat theory", name:"Baseinverse, Aftereven & the rest", tag:"More of Allis's nine connection rules",
-    lesson:`<h3>Baseinverse — pair two playable squares</h3>
-      <p>Of any two squares that are both <b>playable right now</b>, you're guaranteed at least one — the opponent can only grab one per turn. So any enemy four that needs <i>both</i> is already dead. Classic use: the bottom line 1-2-3-4 — pair its two open base squares and that line can never form.</p>
-      <h3>Aftereven — a low even line caps the columns</h3>
-      <p>If you complete a four made of <b>even squares</b> down low, the game ends right there — so nothing is ever played above it. Every enemy threat stacked <i>higher</i> in those columns dies, because those squares are never reached. A humble low even threat can defuse a whole tower above it.</p>
-      <h3>The deeper rules</h3>
-      <p>Claimeven, Baseinverse, Vertical, and Aftereven are the four any strong player uses by instinct. The other five of Allis's nine — <b>Lowinverse, Highinverse, Baseclaim, Before, Specialbefore</b> — are finer tools that complete the proof the game is solved. The one worth knowing: <b>Lowinverse</b> — two columns whose upper open cells are both odd lets the <i>defender</i> grab an odd square, which is how the second player manufactures an odd threat. The rest you won't compute at the board; they all rest on the principle you already know — <b>control which squares get filled, and on whose turn.</b></p>
-      <div class="src">Source: Allis (1988), §6 (the nine connection rules) &amp; §6.10.</div>` },
+      <p>Each side can only cash a threat on <i>their</i> parity. A threat on the wrong row is dead weight; a right-parity threat that the opponent can't match scores.</p>
+      <p class="why">Both-odd is murkier (it depends on how many columns hold odd threats), so this checks the three clean cases.</p>
+      <div class="src">Source: Allis (1988), §3.3; Tromp/Pomakis.</div>` },
+
+  { id:"evaluate", cat:"4 · Reading the board", name:"Is this position won?", tag:"Read the verdict before it happens",
+    lesson:`<h3>Put it all together</h3>
+      <p>This is the master skill. Given a quiet position, decide the result with best play — <b>Red wins, Yellow wins, or draw</b> — by reading it, not calculating every line. The procedure:</p>
+      <ol>
+        <li><b>List the live threats</b> for both sides (empty squares that complete a four).</li>
+        <li><b>Throw out the dead ones</b> — undercut, surplus, or wrong-parity (the "Undercut &amp; useless" lesson).</li>
+        <li><b>Tag each survivor's row:</b> odd → Red's, even → Yellow's (the "Odd holes" lesson).</li>
+        <li><b>Apply the matchup</b> and the claims: can the defender claim a square in every enemy four (a draw), or does someone hold a decisive right-parity threat (a win)?</li>
+      </ol>
+      <p>The drill shows real endgames; predict the verdict. It's graded by an exact solver, so you get honest feedback.</p>` },
+
+  { id:"bestmove", cat:"4 · Reading the board", name:"Find the best move", tag:"The capstone: pick the move that holds the result",
+    lesson:`<h3>From reading to choosing</h3>
+      <p>Reading a position is worth nothing if you don't pick the move that <b>keeps</b> the best result. Best play means: win when a win exists; otherwise hold the draw; and never give away a square that flips the verdict.</p>
+      <p>The drill gives you real positions and grades every column with the exact solver. A move counts as correct only if it achieves the position's true value — exactly what a perfect player would accept.</p>
+      <p>Then test it all live against the computer from the home screen.</p>` },
 ];
 
 /* =================== APP =================== */
@@ -510,11 +659,11 @@ const app={
   diff:"medium", first:"you", hints:false, sand:null, sandOver:false,
 
   init(){
-    const list=$("trickList"); const order=["Fundamentals","Tactics","Double threats","Odd / even threat theory"];
-    const DESC={ "Fundamentals":"Where to play and why the first move decides the game.",
-      "Tactics":"The one-move skills: take wins, block threats, dodge traps.",
-      "Double threats":"How games are actually won — two threats at once.",
-      "Odd / even threat theory":"The deep idea: odd holes, even holes, and follow-up." };
+    const list=$("trickList"); const order=["1 · Getting started","2 · The center","3 · Tactics & traps","4 · Reading the board"];
+    const DESC={ "1 · Getting started":"The board, the goal, and your first two skills.",
+      "2 · The center":"Why the middle column decides games.",
+      "3 · Tactics & traps":"One-move wins and blocks, plus the classic traps.",
+      "4 · Reading the board":"The master skill: parity, dead threats, and seeing who wins before it happens." };
     let lastCat="";
     [...CONCEPTS].sort((a,b)=>order.indexOf(a.cat)-order.indexOf(b.cat)).forEach(t=>{
       if(t.cat!==lastCat){ const h=document.createElement("div"); h.className="cat"; h.textContent=t.cat; list.appendChild(h);
@@ -566,8 +715,10 @@ const app={
   },
   renderChoice(){
     const d=this.drill;
-    if(d.hl!=null){ renderBoard($("drillBoard"), d.b, { marks:{ hl:d.hl } }); }
+    if(d.boardMarks){ renderBoard($("drillBoard"), d.b, { marks:d.boardMarks }); }
+    else if(d.hl!=null){ renderBoard($("drillBoard"), d.b, { marks:{ hl:d.hl } }); }
     else if(d.b && d.b.heights.some(h=>h>0)){ renderBoard($("drillBoard"), d.b, {}); }
+    else { $("drillBoard").innerHTML=""; }
     const wrap=$("drillChoices"); wrap.className = "choices"+(d.two?" two":"");
     d.options.forEach((opt,i)=>{ const btn=document.createElement("button"); btn.className="choice"; btn.textContent=opt;
       btn.onclick=()=>this.answerChoice(i,btn); wrap.appendChild(btn); });
