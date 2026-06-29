@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Connect 4 Strategy</title>
+<style>
+  :root{ --bg:#0e1014; --panel:#171a21; --ink:#eef1f6; --muted:#9aa3b2; --line:#262b35; --accent:#7cc6ff; --good:#7ee0a3;
+    --red:#e5484d; --yel:#f4c02b; --hole:#0a0d12; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+  .wrap{max-width:480px;margin:0 auto;padding:16px 16px 40px}
+  h1{font-size:24px;margin:.1em 0}
+  .sub{color:var(--muted);font-size:13px;line-height:1.55;margin:0 0 16px}
+  .cat{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.6px;margin:18px 0 4px}
+  .catdesc{color:var(--muted);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.5;margin:0 0 9px}
+  a.tile,button.tile{display:block;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);
+    border-radius:13px;padding:13px 14px;margin-bottom:9px;text-decoration:none;color:var(--ink);cursor:pointer}
+  .tile b{font-size:16px}
+  .tile span{display:block;color:var(--muted);font-size:12.5px;margin-top:2px;line-height:1.4}
+  .tile.play{background:#13241c;border-color:#235a3a}
+  .top{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .back{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:10px;
+    width:40px;height:40px;font-size:18px;cursor:pointer;flex:0 0 auto}
+  .top h2{font-size:18px;margin:0}
+  .lesson{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;line-height:1.62;font-size:14.5px}
+  .lesson h3{margin:.7em 0 .4em;font-size:15px}
+  .lesson h3:first-child{margin-top:.1em}
+  .lesson p{margin:.5em 0}
+  .lesson ul{margin:.5em 0;padding-left:20px}
+  .lesson li{margin:.35em 0}
+  .lesson .why{color:var(--muted);font-size:12.5px;font-style:italic;border-left:2px solid var(--line);padding-left:10px;margin:9px 0;line-height:1.55}
+  .lesson .ex{background:#10141b;border-left:3px solid var(--accent);padding:8px 12px;border-radius:6px;margin:10px 0;font-size:13.5px}
+  .lesson code,.mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+  .lesson table{border-collapse:collapse;margin:8px 0;font-family:ui-monospace,monospace;font-size:13px;width:100%}
+  .lesson td,.lesson th{border:1px solid var(--line);padding:4px 7px;text-align:center}
+  .src{color:#5a6473;font-size:11.5px;margin-top:10px}
+  button.go{appearance:none;border:0;border-radius:12px;padding:14px;font-size:16px;font-weight:700;
+    background:var(--accent);color:#06243a;width:100%;margin-top:12px;cursor:pointer}
+  button.go.alt{background:var(--good);color:#063a1f}
+
+  .scoreline{display:flex;justify-content:space-between;color:var(--muted);font-size:13px;margin:2px 0 10px}
+  .scoreline b{color:var(--ink)}
+  .prompt{font-size:15px;line-height:1.5;margin:2px 0 10px;min-height:40px}
+  .prompt b{color:#dbe8ff}
+
+  /* board */
+  .board{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;background:#1b3a6b;
+    border:1px solid #2a4f8a;border-radius:14px;padding:7px;touch-action:manipulation}
+  .col{display:flex;flex-direction:column;gap:5px;cursor:pointer;border-radius:8px;transition:background .1s}
+  .col.clickable:hover{background:rgba(124,198,255,.18)}
+  .cell{aspect-ratio:1;border-radius:50%;background:var(--hole);box-shadow:inset 0 2px 4px rgba(0,0,0,.6);position:relative}
+  .cell.r{background:radial-gradient(circle at 35% 30%, #ff6b6f, var(--red))}
+  .cell.y{background:radial-gradient(circle at 35% 30%, #ffe07a, var(--yel))}
+  .cell.win{box-shadow:0 0 0 3px var(--good), inset 0 2px 4px rgba(0,0,0,.5)}
+  .cell.bad{box-shadow:0 0 0 3px var(--red), inset 0 2px 4px rgba(0,0,0,.5)}
+  .cell.hl{box-shadow:0 0 0 3px var(--accent);animation:pulse 1.1s infinite}
+  .cell.ghostr{background:rgba(229,72,77,.30)}
+  .cell.ghosty{background:rgba(244,192,43,.30)}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 3px var(--accent)}50%{box-shadow:0 0 0 6px rgba(124,198,255,.35)}}
+  .colmark{height:16px;text-align:center;font-size:13px;font-weight:800;line-height:16px}
+
+  .fb{min-height:22px;text-align:center;font-size:14px;margin:10px 0 4px;font-weight:600}
+  .fb.ok{color:var(--good)} .fb.bad{color:#ff8a8a}
+  .explain{background:#10141b;border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin:4px 0 2px;
+    font-size:13.5px;line-height:1.6;display:none}
+  .explain.show{display:block}
+  .choices{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:12px}
+  .choices.two{grid-template-columns:repeat(2,1fr)}
+  .choice{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:12px;
+    font-size:15px;font-weight:700;padding:15px 4px;cursor:pointer}
+  .choice:active{background:#222a36}
+  .choice.right{background:#16462a;border-color:#2fe06a;color:#dffbe8}
+  .choice.wrongkey{background:#4a1d1d;border-color:#ff6b6b;color:#ffd9d9}
+
+  /* sandbox controls */
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:11px;overflow:hidden;background:#12151b}
+  .seg button{background:transparent;color:var(--muted);border:0;border-radius:0;font-weight:600;padding:8px 11px;font-size:13px;cursor:pointer}
+  .seg button.on{background:#223047;color:#dbe8ff}
+  .ghost{background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:11px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer}
+  .turn{font-size:14px;font-weight:600;min-height:20px;text-align:center;margin:8px 0}
+  .legend{color:var(--muted);font-size:12px;text-align:center;margin-top:8px;line-height:1.5}
+  footer{color:#5a6473;font-size:12px;text-align:center;margin-top:14px}
+  a{color:var(--accent)}
+  .hidden{display:none}
+  .small{font-size:12.5px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HOME -->
+  <section id="home">
+    <h1>Connect 4 Strategy</h1>
+    <p class="sub">Connect 4 is a <b>solved</b> game — with perfect play the first player wins, but only from the center. Learn the ideas that get you there: center control, threats, double threats, traps, and the deep <b>odd/even (odd-hole / even-hole) threat theory</b>. Each idea has a short lesson and a board drill.</p>
+    <button class="tile play" onclick="app.sandbox()"><b>▶ Play the computer</b><span>Practice against a tactical engine. Turn on hints to see wins, threats, and poisoned columns highlighted live.</span></button>
+    <div id="trickList"></div>
+    <footer>Solved game: James Dow Allen &amp; Victor Allis, 1988. Theory after Allis's thesis. · <a href="../">← all games</a></footer>
+  </section>
+
+  <!-- LESSON -->
+  <section id="lesson" class="hidden">
+    <div class="top"><button class="back" onclick="app.home()">←</button><h2 id="lessonTitle"></h2></div>
+    <div class="lesson" id="lessonBody"></div>
+    <button class="go alt" id="lessonGo" onclick="app.practice()">Practice →</button>
+  </section>
+
+  <!-- PRACTICE -->
+  <section id="practice" class="hidden">
+    <div class="top"><button class="back" onclick="app.lesson(app.cur.id)">←</button><h2 id="practiceTitle"></h2></div>
+    <div class="scoreline"><span><b id="scCorrect">0</b>/<b id="scTotal">0</b> correct</span><span>streak <b id="scStreak">0</b> · best <b id="scBest">0</b></span></div>
+    <div class="prompt" id="prompt"></div>
+    <div id="drillBoard"></div>
+    <div id="drillChoices"></div>
+    <div class="fb" id="fb"></div>
+    <div class="explain" id="explain"></div>
+    <button class="go hidden" id="nextBtn" onclick="app.nextDrill()">Next →</button>
+  </section>
+
+  <!-- SANDBOX -->
+  <section id="sand" class="hidden">
+    <div class="top"><button class="back" onclick="app.home()">←</button><h2>Play the computer</h2></div>
+    <div class="row">
+      <div class="seg" id="diffSeg">
+        <button data-d="easy">Easy</button>
+        <button data-d="medium" class="on">Medium</button>
+        <button data-d="hard">Hard</button>
+      </div>
+      <div class="seg" id="firstSeg">
+        <button data-f="you" class="on">You 1st</button>
+        <button data-f="cpu">CPU 1st</button>
+      </div>
+      <button class="ghost" id="hintBtn">Hints: off</button>
+    </div>
+    <div class="turn" id="turn"></div>
+    <div id="sandBoard"></div>
+    <div class="legend" id="legend"></div>
+    <button class="go" style="margin-top:12px" onclick="app.newSand()">New game</button>
+  </section>
+
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+function show(id){ for(const s of ["home","lesson","practice","sand"]) $(s).classList.add("hidden"); $(id).classList.remove("hidden"); window.scrollTo(0,0); }
+const rnd = n => Math.floor(Math.random()*n);
+
+/* =================== ENGINE (array board, plain ints) =================== */
+const W=7,H=6;
+function nb(){ return { cells:new Uint8Array(42), heights:new Int8Array(7), last:-1 }; }
+function clone(b){ const n=nb(); n.cells.set(b.cells); n.heights.set(b.heights); n.last=b.last; return n; }
+const DIRS=[[1,0],[0,1],[1,1],[1,-1]];
+function winCell(b,col,row,p){
+  for(const [dc,dr] of DIRS){ let cnt=1;
+    for(const s of [1,-1]){ let c=col+dc*s,r=row+dr*s;
+      while(c>=0&&c<W&&r>=0&&r<H&&b.cells[r*W+c]===p){cnt++;c+=dc*s;r+=dr*s;} }
+    if(cnt>=4) return true; }
+  return false;
+}
+function drop(b,c,p){ const r=b.heights[c]; if(r>=H) return -1; b.cells[r*W+c]=p; b.heights[c]++; b.last=c; return r; }
+function undrop(b,c){ const r=--b.heights[c]; b.cells[r*W+c]=0; }
+function legalCols(b){ const a=[]; for(let c=0;c<W;c++) if(b.heights[c]<H) a.push(c); return a; }
+function winningCols(b,p){ const out=[]; for(let c=0;c<W;c++){ const r=b.heights[c]; if(r>=H) continue;
+  b.cells[r*W+c]=p; if(winCell(b,c,r,p)) out.push(c); b.cells[r*W+c]=0; } return out; }
+function poisoned(b,c,p){ const opp=3-p, r=b.heights[c]; if(r>=H) return false;
+  b.cells[r*W+c]=p; b.heights[c]++; const lose=winningCols(b,opp).length>0; b.heights[c]--; b.cells[r*W+c]=0; return lose; }
+function isFork(b,c,p){ const r=b.heights[c]; if(r>=H) return false;
+  b.cells[r*W+c]=p; b.heights[c]++; const n=winningCols(b,p).length; b.heights[c]--; b.cells[r*W+c]=0; return n>=2; }
+function full(b){ return b.heights.every(h=>h>=H); }
+
+// random no-win position; toMove discs already placed (toMove player1 if discs even). tracks last move.
+function genPos(plies){
+  for(let attempt=0;attempt<400;attempt++){
+    const b=nb(); let ok=true,p=1;
+    for(let i=0;i<plies;i++){
+      const moves=legalCols(b);
+      const safe=moves.filter(c=>{ const r=b.heights[c]; b.cells[r*W+c]=p; const w=winCell(b,c,r,p); b.cells[r*W+c]=0; return !w; });
+      const pool=safe.length?safe:moves;
+      const c=pool[rnd(pool.length)];
+      const r=drop(b,c,p);
+      if(winCell(b,c,r,p)){ ok=false; break; }
+      p=3-p;
+    }
+    if(ok) return b;
+  }
+  return null;
+}
+// keep generating positions until predicate holds
+function genUntil(plies,pred){
+  for(let i=0;i<6000;i++){ const b=genPos(plies); if(b&&pred(b)) return b; }
+  return null;
+}
+
+/* =================== heuristic AI for the sandbox =================== */
+const WINDOWS=(()=>{ const w=[];
+  for(let r=0;r<H;r++)for(let c=0;c<W-3;c++) w.push([0,1,2,3].map(k=>r*W+(c+k)));      // horiz
+  for(let c=0;c<W;c++)for(let r=0;r<H-3;r++) w.push([0,1,2,3].map(k=>(r+k)*W+c));      // vert
+  for(let r=0;r<H-3;r++)for(let c=0;c<W-3;c++) w.push([0,1,2,3].map(k=>(r+k)*W+(c+k)));// diag /
+  for(let r=3;r<H;r++)for(let c=0;c<W-3;c++) w.push([0,1,2,3].map(k=>(r-k)*W+(c+k))); // diag \
+  return w; })();
+function evalBoard(b,p){ const opp=3-p; let s=0;
+  for(let r=0;r<H;r++){ if(b.cells[r*W+3]===p) s+=4; else if(b.cells[r*W+3]===opp) s-=4; } // center file
+  for(const win of WINDOWS){ let mp=0,mo=0;
+    for(const i of win){ const v=b.cells[i]; if(v===p)mp++; else if(v===opp)mo++; }
+    if(mp&&mo) continue;
+    if(mp) s+= mp===3?60: mp===2?8: 1;
+    if(mo) s-= mo===3?64: mo===2?9: 1;
+  }
+  return s;
+}
+const ORDER=[3,2,4,1,5,0,6];
+function negamax(b,p,depth,alpha,beta){
+  const wins=winningCols(b,p); if(wins.length) return 100000-(20-depth); // can win now
+  const moves=legalCols(b); if(!moves.length) return 0;
+  if(depth===0) return evalBoard(b,p);
+  let best=-1e9;
+  for(const c of ORDER){ if(b.heights[c]>=H) continue;
+    drop(b,c,p);
+    const v=-negamax(b,3-p,depth-1,-beta,-alpha);
+    undrop(b,c);
+    if(v>best) best=v;
+    if(v>alpha) alpha=v;
+    if(alpha>=beta) break;
+  }
+  return best;
+}
+function aiMove(b,p,diff){
+  const wins=winningCols(b,p); if(wins.length) return wins[0];
+  const oppWins=winningCols(b,3-p); if(oppWins.length) return oppWins[0];   // block
+  let cand=legalCols(b);
+  const safe=cand.filter(c=>!poisoned(b,c,p)); if(safe.length) cand=safe;
+  if(diff==="easy"){ // mostly random, but grab a free fork
+    const fk=cand.filter(c=>isFork(b,c,p)); if(fk.length&&rnd(2)) return fk[0];
+    return cand[rnd(cand.length)];
+  }
+  const fk=cand.filter(c=>isFork(b,c,p)); if(fk.length) return fk[0];
+  const depth = diff==="hard"?7:4;
+  let best=cand[0],bv=-1e9;
+  for(const c of cand){ drop(b,c,p); const v=-negamax(b,3-p,depth-1,-1e9,1e9); undrop(b,c);
+    if(v>bv){ bv=v; best=c; } }
+  return best;
+}
+
+/* =================== board rendering =================== */
+// marks: {win:Set, bad:Set, hl:[idx], ghost:{col,player}}
+function renderBoard(host,b,opts={}){
+  const {onCol=null, marks={}} = opts;
+  host.innerHTML="";
+  const board=document.createElement("div"); board.className="board";
+  for(let c=0;c<W;c++){
+    const col=document.createElement("div"); col.className="col"+(onCol?" clickable":"");
+    if(marks.colmark){ const m=document.createElement("div"); m.className="colmark";
+      const txt=marks.colmark(c); m.textContent=txt.t||""; m.style.color=txt.color||"var(--muted)"; col.appendChild(m); }
+    for(let r=H-1;r>=0;r--){
+      const idx=r*W+c, v=b.cells[idx];
+      const cell=document.createElement("div");
+      cell.className="cell"+(v===1?" r":v===2?" y":"");
+      if(marks.win&&marks.win.has(c)&&r===b.heights[c]) cell.classList.add("win");
+      if(marks.bad&&marks.bad.has(c)&&r===b.heights[c]) cell.classList.add("bad");
+      if(marks.hl&&marks.hl===idx) cell.classList.add("hl");
+      col.appendChild(cell);
+    }
+    if(onCol&&b.heights[c]<H) col.onclick=()=>onCol(c);
+    board.appendChild(col);
+  }
+  host.appendChild(board);
+}
+
+/* =================== DRILLS =================== */
+// each drill: kind "move" (click a column) or "choice" (tap a button)
+const DRILLS={
+  // -------- move drills --------
+  center:{ kind:"move",
+    gen(){ const b=genUntil(rnd(3)*2, b=>b.heights[3]<H) || nb();
+      return { b, prompt:"The center column is the most valuable square on the board. <b>Play the center.</b>",
+        correct:new Set([3]),
+        explain:"The center file sits in more possible four-in-a-rows than any other column — every horizontal four and the longest diagonals run through it. Fight for it early; as the first player, always open here." }; } },
+
+  win1:{ kind:"move",
+    gen(){ const b=genUntil(12, b=>winningCols(b,2).length===0 && winningCols(b,1).length>=1);
+      const w=winningCols(b,1);
+      return { b, prompt:"You are <b style='color:#ff6b6f'>Red</b> and it's your move. <b>Win now</b> — drop where it completes four.",
+        correct:new Set(w),
+        explain:"Always scan for your own four-in-a-row first, before anything else. Here Red completes four immediately — take the win." }; } },
+
+  block:{ kind:"move",
+    gen(){ const b=genUntil(12, b=>winningCols(b,1).length===0 && winningCols(b,2).length===1);
+      const t=winningCols(b,2);
+      return { b, prompt:"You are <b style='color:#ff6b6f'>Red</b>. <b style='color:#f4c02b'>Yellow</b> threatens to win next move. <b>Block it.</b>",
+        correct:new Set(t),
+        explain:"Every turn, after checking for your own win, check whether the opponent can win next. If they can and you can't win first, you must block that square." }; } },
+
+  poison:{ kind:"move",
+    gen(){ const b=genUntil(14, b=> winningCols(b,2).length===0 && winningCols(b,1).length===0 &&
+        legalCols(b).some(c=>poisoned(b,c,1)) && legalCols(b).some(c=>!poisoned(b,c,1)) );
+      const safe=new Set(legalCols(b).filter(c=>!poisoned(b,c,1)));
+      const bad=new Set(legalCols(b).filter(c=>poisoned(b,c,1)));
+      return { b, prompt:"You are <b style='color:#ff6b6f'>Red</b>. Some columns are <b>poisoned</b> — playing them fills the square <i>below</i> a Yellow winning spot. <b>Pick a safe column.</b>",
+        correct:safe, bad,
+        explain:"Before you move, look one square up: if dropping here lets Yellow win on top, that column is poisoned. Never build the staircase to your opponent's four." }; } },
+
+  fork:{ kind:"move",
+    gen(){ const b=genUntil(14, b=> winningCols(b,2).length===0 && winningCols(b,1).length===0 &&
+        legalCols(b).some(c=>isFork(b,c,1)) );
+      const f=new Set(legalCols(b).filter(c=>isFork(b,c,1)));
+      return { b, prompt:"You are <b style='color:#ff6b6f'>Red</b>. One move makes <b>two threats at once</b> (a fork) — your opponent can only block one. <b>Find it.</b>",
+        correct:f,
+        explain:"A fork creates two winning squares in a single move. The opponent blocks one; you complete the other. Open-ended threes ( _OO_ ) and \"7\"-shapes are the classic fork makers." }; } },
+
+  // -------- choice drills --------
+  openingmap:{ kind:"choice",
+    gen(){ const c=rnd(7); const b=nb(); drop(b,c,1);
+      const ans = c===3?0 : (c===2||c===4)?1 : 2;   // 0 win,1 draw,2 loss
+      return { b, prompt:`The <b style='color:#ff6b6f'>first player</b> opens column <b>${c+1}</b>. With perfect play by both sides, the result for the first player is…`,
+        options:["First player wins","Draw","First player loses"], answer:ans,
+        explain:"Connect 4 is solved. The first player forces a win <b>only</b> by opening the center (column 4). The two columns next to center are a draw; the four outer columns actually <b>lose</b> for the first player. (Wikipedia; Allen &amp; Allis 1988.)" }; } },
+
+  parity:{ kind:"choice",
+    gen(){ const c=rnd(7); const r=rnd(6); const b=nb();
+      for(let rr=0;rr<r;rr++){ b.cells[rr*W+c]=1+((rr+c)%2); b.heights[c]=rr+1; } // fill below to show reachability
+      const favorsP1 = (r%2===0);  // row r (0-based) -> 1-based r+1; odd 1-based => P1
+      return { b, hl:r*W+c,
+        prompt:`The highlighted empty square is a <b>threat</b> — a four completes there. It is on <b>row ${r+1}</b> (counting from the bottom). Whose threat does this favor?`,
+        options:["Player 1 (1st)","Player 2 (2nd)"], answer: favorsP1?0:1, two:true,
+        explain:`Under neutral play the first player ends up on the <b>odd</b> rows (1, 3, 5) and the second player on the <b>even</b> rows (2, 4, 6). So a winning square on an odd row is an <b>odd hole</b> that favors Player 1; an even row is an <b>even hole</b> that favors Player 2. Row ${r+1} is ${favorsP1?"odd → Player 1":"even → Player 2"}.` }; } },
+
+  matchup:{ kind:"choice",
+    gen(){ // three unambiguous Allis cases: P1 parity, P2 parity, winner index (0=P1,1=P2,2=draw)
+      const cases=[ {p1:"odd", p2:"even", w:0}, {p1:"even", p2:"even", w:1}, {p1:"even", p2:"odd", w:2} ];
+      const k=cases[rnd(cases.length)];
+      const ra = k.p1==="odd"?[1,3,5][rnd(3)]:[2,4,6][rnd(3)];
+      const rb = k.p2==="odd"?[1,3,5][rnd(3)]:[2,4,6][rnd(3)];
+      const b=nb();
+      return { b, prompt:`Late game, the only threats left are in <b>different columns</b>: Player 1 has one whose winning square is on <b>row ${ra}</b> (${k.p1}), Player 2 has one on <b>row ${rb}</b> (${k.p2}). With neutral filling, who wins?`,
+        options:["Player 1","Player 2","Draw"], answer:k.w,
+        explain:`Player 1 cashes <b>odd</b> threats, Player 2 cashes <b>even</b> ones. Rule of thumb: P1-odd vs P2-even → <b>P1 wins</b>; both even → <b>P2 wins</b> (P2 refutes P1's even threat then scores its own); P1-even vs P2-odd → <b>draw</b> (neither threat is usable). Here: P1 ${k.p1} vs P2 ${k.p2}.` }; } },
+
+  followup:{ kind:"move",
+    gen(){ const b=genUntil(12, b=> b.last>=0 && b.heights[b.last]<H &&
+        winningCols(b,1).length===0 && winningCols(b,2).length===0 && !poisoned(b,b.last,1));
+      return { b, prompt:`<b style='color:#f4c02b'>Yellow</b> just played the highlighted column. Apply <b>follow-up</b>: answer directly on top, in the <b>same column</b>.`,
+        correct:new Set([b.last]), markLast:b.last,
+        explain:"Follow-up means replying directly above the opponent's disc. Doing this consistently lets the responder take all the even squares (the heart of the <b>Claimeven</b> defense) and keeps control of the zugzwang — as long as that square isn't poisoned and there's no urgent threat to handle first." }; } },
+};
+
+/* lessons + tile metadata */
+const CONCEPTS=[
+  // Fundamentals
+  { id:"center", cat:"Fundamentals", name:"Center control", tag:"The most valuable column",
+    lesson:`<h3>Own the middle</h3>
+      <p>The center column (column 4) is the single most valuable place on the board. Every horizontal four and the two longest diagonals pass through the central files, so a disc there belongs to far more potential four-in-a-rows than a disc on the edge.</p>
+      <p>As the first player, <b>always open in the center.</b> As the second player, fight to contest it. Edge play throws away your best lines.</p>
+      <p class="why">Strong solvers literally search center-first because central moves are, on average, the best — they sit in the most alignments.</p>
+      <div class="src">Source: Pons, gamesolver.org; Tromp, "Expert Play in Connect-Four".</div>` },
+  { id:"openingmap", cat:"Fundamentals", name:"The opening map", tag:"Solved: center wins, edges lose",
+    lesson:`<h3>Connect 4 is solved</h3>
+      <p>With perfect play the <b>first player wins</b> — but only by opening the <b>center</b>. The result depends entirely on that first move:</p>
+      <table><tr><th>Opening column</th><th>Result (player 1)</th></tr>
+      <tr><td>4 (center)</td><td><b>Win</b></td></tr>
+      <tr><td>3 or 5 (next to center)</td><td>Draw</td></tr>
+      <tr><td>1, 2, 6, 7 (outer)</td><td><b>Loss</b></td></tr></table>
+      <p>So if you go first, the center is not just "good" — it is the difference between a forced win and a forced loss. If you go second and your opponent opens off-center, you are not losing; if they open on an outer column, <i>you</i> can force the win.</p>
+      <p class="why">The game was solved independently by James Dow Allen and Victor Allis, both in 1988.</p>
+      <div class="src">Source: Wikipedia, "Connect Four"; Allen &amp; Allis (1988).</div>` },
+
+  // Tactics
+  { id:"win1", cat:"Tactics", name:"Take the win", tag:"Always scan for your own four first",
+    lesson:`<h3>See your own win</h3>
+      <p>Before anything else, every turn, check: <b>can I make four right now?</b> It sounds obvious, but in the heat of building threats it's the most common win that gets missed.</p>
+      <p>Look across all four directions — horizontal, vertical, and both diagonals — for three of your discs with a playable fourth square.</p>
+      <div class="src">Practice: a winning move always exists below; find it.</div>` },
+  { id:"block", cat:"Tactics", name:"Block the threat", tag:"Stop their four before it lands",
+    lesson:`<h3>Then stop theirs</h3>
+      <p>Right after checking for your own win, check the opponent's: <b>can they win next move?</b> If yes, and you can't win first, you are <b>forced</b> to block that square.</p>
+      <p>Recognizing forced moves is half of defense. The other half (next lessons) is not creating these threats for them in the first place.</p>` },
+  { id:"poison", cat:"Tactics", name:"Poisoned squares", tag:"Never play below their winning spot",
+    lesson:`<h3>Don't build their staircase</h3>
+      <p>Because of gravity, a high winning square is only reachable once the square beneath it is filled. So if you drop a disc <b>directly below</b> a square that completes the opponent's four, you hand them the win on their next turn.</p>
+      <p>That square is <b>poisoned</b>. Before every move, glance one cell up: "if I play here, can they win on top?" If so, play elsewhere — unless you're forced.</p>
+      <p class="why">This single idea is also the engine behind odd/even threat theory: a threat "freezes" the column beneath it, because the opponent dare not play there.</p>` },
+
+  // Double threats
+  { id:"fork", cat:"Double threats", name:"Forks (double threats)", tag:"Two threats, one move — unstoppable",
+    lesson:`<h3>Make two threats at once</h3>
+      <p>A single threat gets blocked. The way to actually win is to create <b>two threats in one move</b> — your opponent can only answer one, and you complete the other.</p>
+      <h3>Shapes that fork</h3>
+      <ul>
+        <li><b>The open-ended three ( _OO_ ):</b> three in a row with <i>both</i> ends open and playable. Strongest on the bottom row, where both ends are immediately reachable. This is the classic "three on the bottom — play toward the center" trap.</li>
+        <li><b>The "7":</b> a diagonal plus a connected line arranged so two winning squares end up stacked in one column. Block the lower, you lose to the upper.</li>
+        <li><b>Stacked threats:</b> two winning squares directly above each other (with no opponent threat below) — just start filling the column.</li>
+      </ul>
+      <p><b>Caution:</b> a fork only works if the opponent can't win first, and if neither winning square sits on top of one of <i>their</i> threats.</p>
+      <div class="src">Source: Allis (1988), §3.4; community trap names.</div>` },
+
+  // Odd/even theory
+  { id:"parity", cat:"Odd / even threat theory", name:"Odd holes & even holes", tag:"Which player a threat belongs to",
+    lesson:`<h3>The rows are pre-assigned</h3>
+      <p>Number the rows 1–6 from the bottom. If a board fills up "neutrally," the <b>first player ends up on the odd rows (1, 3, 5)</b> and the <b>second player on the even rows (2, 4, 6)</b>. Each vertical pair of cells — odd below, even above — gets split that way.</p>
+      <h3>So a threat's row tells you whose it is</h3>
+      <ul>
+        <li>A winning square on an <b>odd</b> row is an <b>odd hole</b> → it belongs to <b>Player 1</b>.</li>
+        <li>A winning square on an <b>even</b> row is an <b>even hole</b> → it belongs to <b>Player 2</b>.</li>
+      </ul>
+      <p>This is why counting "three in a row!" isn't enough — you have to check the <b>row</b> of the empty fourth square. Player 1 should aim to build odd threats; Player 2, even threats.</p>
+      <div class="src">Source: Allis (1988), §3.3.</div>` },
+  { id:"matchup", cat:"Odd / even threat theory", name:"Who wins? (threat matchup)", tag:"Reading the endgame by parity",
+    lesson:`<h3>Two threats, who scores?</h3>
+      <p>Late in the game it often comes down to one threat each, in different columns. Parity decides it:</p>
+      <table><tr><th>Player 1</th><th>Player 2</th><th>Result</th></tr>
+      <tr><td>odd</td><td>even</td><td><b>Player 1 wins</b></td></tr>
+      <tr><td>even</td><td>even</td><td><b>Player 2 wins</b></td></tr>
+      <tr><td>even</td><td>odd</td><td>Draw</td></tr></table>
+      <p>The logic: each side can only cash a threat on "their" parity. If your threat is on the wrong parity it's dead weight; if it's on the right parity and the opponent's isn't, you score.</p>
+      <p class="why">When both have odd threats it's murkier — the player forced to move first usually has to give way — so this drill sticks to the three clean cases.</p>
+      <div class="src">Source: Allis (1988), §3.3.</div>` },
+  { id:"followup", cat:"Odd / even threat theory", name:"Follow-up & Claimeven", tag:"Answer on top — and own the even rows",
+    lesson:`<h3>Follow-up</h3>
+      <p><b>Follow-up</b> is the simplest, most powerful defensive habit: reply <b>directly on top</b> of the opponent's last disc, in the same column. Do it consistently and you collect every <b>even</b> square — which, for the second player, is exactly the rows they want.</p>
+      <h3>Claimeven</h3>
+      <p>Pair each even square with the odd square directly beneath it. Whenever the opponent takes the lower (odd) square, you take the even one. If every one of the opponent's possible fours contains one of your claimed even squares, none of them can ever complete — at worst a draw, and a win if you simultaneously hold an even four "undercutting" theirs.</p>
+      <h3>Zugzwang</h3>
+      <p>You can never pass, so eventually someone is forced to play a square they'd rather not. Whoever controls this — the second player does, from the start — dictates how the odd/even squares divide up. Player 1 steals control by making a strong <b>odd threat</b>, which freezes a column and flips the parity in their favor.</p>
+      <p><b>But not blindly:</b> never follow into a square that lets the opponent win, and always handle an urgent threat first.</p>
+      <div class="src">Source: Allis (1988), §5–6; "Claimeven".</div>` },
+];
+
+/* =================== APP =================== */
+const app={
+  cur:null, drill:null, picked:null, answered:false,
+  total:0, correct:0, streak:0, best:0,
+  diff:"medium", first:"you", hints:false, sand:null, sandOver:false,
+
+  init(){
+    const list=$("trickList"); const order=["Fundamentals","Tactics","Double threats","Odd / even threat theory"];
+    const DESC={ "Fundamentals":"Where to play and why the first move decides the game.",
+      "Tactics":"The one-move skills: take wins, block threats, dodge traps.",
+      "Double threats":"How games are actually won — two threats at once.",
+      "Odd / even threat theory":"The deep idea: odd holes, even holes, and follow-up." };
+    let lastCat="";
+    [...CONCEPTS].sort((a,b)=>order.indexOf(a.cat)-order.indexOf(b.cat)).forEach(t=>{
+      if(t.cat!==lastCat){ const h=document.createElement("div"); h.className="cat"; h.textContent=t.cat; list.appendChild(h);
+        if(DESC[t.cat]){ const p=document.createElement("p"); p.className="catdesc"; p.textContent=DESC[t.cat]; list.appendChild(p); }
+        lastCat=t.cat; }
+      const btn=document.createElement("button"); btn.className="tile";
+      btn.innerHTML=`<b>${t.name}</b><span>${t.tag}</span>`; btn.onclick=()=>this.lesson(t.id);
+      list.appendChild(btn);
+    });
+  },
+  home(){ show("home"); },
+  lesson(id){ this.cur=CONCEPTS.find(t=>t.id===id);
+    $("lessonTitle").textContent=this.cur.name; $("lessonBody").innerHTML=this.cur.lesson;
+    $("lessonGo").classList.toggle("hidden", !DRILLS[id]); show("lesson"); },
+  practice(){ this.total=0;this.correct=0;this.streak=0;this.best=0;
+    $("practiceTitle").textContent=this.cur.name; show("practice"); this.nextDrill(); },
+
+  nextDrill(){
+    this.answered=false; this.picked=null;
+    $("fb").textContent=""; $("fb").className="fb";
+    $("explain").className="explain"; $("explain").innerHTML="";
+    $("nextBtn").classList.add("hidden");
+    $("drillChoices").innerHTML=""; $("drillBoard").innerHTML="";
+    const def=DRILLS[this.cur.id];
+    this.drill=def.gen();
+    if(!this.drill.b){ this.drill.b=nb(); } // safety
+    $("prompt").innerHTML=this.drill.prompt;
+    if(def.kind==="move"){
+      this.renderMove();
+    } else {
+      this.renderChoice();
+    }
+  },
+  renderMove(){
+    const d=this.drill;
+    const marks={};
+    if(d.markLast!=null) marks.hl=this.drill.b.heights[d.markLast]>0 ? (this.drill.b.heights[d.markLast]-1)*W+d.markLast : -1;
+    renderBoard($("drillBoard"), d.b, { onCol:(c)=>this.answerMove(c), marks });
+  },
+  answerMove(c){
+    if(this.answered) return; this.answered=true; this.total++;
+    const d=this.drill; const ok=d.correct.has(c);
+    const marks={ win:new Set(d.correct) }; if(d.bad) marks.bad=d.bad;
+    if(d.markLast!=null) marks.hl=this.drill.b.heights[d.markLast]>0 ? (this.drill.b.heights[d.markLast]-1)*W+d.markLast : -1;
+    renderBoard($("drillBoard"), d.b, { marks });
+    this.finish(ok, d.explain, ok?"":`You played column ${c+1}.`);
+  },
+  renderChoice(){
+    const d=this.drill;
+    if(d.hl!=null){ renderBoard($("drillBoard"), d.b, { marks:{ hl:d.hl } }); }
+    else if(d.b && d.b.heights.some(h=>h>0)){ renderBoard($("drillBoard"), d.b, {}); }
+    const wrap=$("drillChoices"); wrap.className = "choices"+(d.two?" two":"");
+    d.options.forEach((opt,i)=>{ const btn=document.createElement("button"); btn.className="choice"; btn.textContent=opt;
+      btn.onclick=()=>this.answerChoice(i,btn); wrap.appendChild(btn); });
+  },
+  answerChoice(i,btn){
+    if(this.answered) return; this.answered=true; this.total++;
+    const d=this.drill; const ok=i===d.answer;
+    const btns=$("drillChoices").querySelectorAll(".choice");
+    btns[d.answer].classList.add("right"); if(!ok) btn.classList.add("wrongkey");
+    btns.forEach(b=>b.onclick=null);
+    this.finish(ok, d.explain, "");
+  },
+  finish(ok, explain, extra){
+    const fb=$("fb");
+    if(ok){ this.correct++; this.streak++; this.best=Math.max(this.best,this.streak); fb.textContent="✓ correct"; fb.className="fb ok"; }
+    else { this.streak=0; fb.textContent="✗ not quite"+(extra?" — "+extra:""); fb.className="fb bad"; }
+    const ex=$("explain"); ex.innerHTML=explain; ex.classList.add("show");
+    $("scCorrect").textContent=this.correct; $("scTotal").textContent=this.total;
+    $("scStreak").textContent=this.streak; $("scBest").textContent=this.best;
+    $("nextBtn").classList.remove("hidden");
+  },
+
+  /* ---------- sandbox ---------- */
+  sandbox(){ show("sand");
+    $("diffSeg").querySelectorAll("button").forEach(b=>b.onclick=()=>{ this.diff=b.dataset.d;
+      $("diffSeg").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b)); });
+    $("firstSeg").querySelectorAll("button").forEach(b=>b.onclick=()=>{ this.first=b.dataset.f;
+      $("firstSeg").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b)); this.newSand(); });
+    $("hintBtn").onclick=()=>{ this.hints=!this.hints; $("hintBtn").textContent="Hints: "+(this.hints?"on":"off"); this.drawSand(); };
+    this.newSand();
+  },
+  newSand(){ this.sand=nb(); this.sandOver=false; this.drawSand();
+    if(this.first==="cpu") setTimeout(()=>this.cpuTurn(),250);
+  },
+  drawSand(){
+    const b=this.sand; const human=1;
+    const marks={};
+    if(this.hints && !this.sandOver){
+      marks.win=new Set(winningCols(b,human));
+      const block=new Set(winningCols(b,2));
+      marks.bad=new Set(legalCols(b).filter(c=>poisoned(b,c,human)));
+      // show opponent threats as colmark, poisoned with skull
+      marks.colmark=(c)=>{
+        if(marks.win.has(c)) return {t:"WIN",color:"var(--good)"};
+        if(block.has(c)) return {t:"blk",color:"#ff8a8a"};
+        if(marks.bad.has(c)) return {t:"✗",color:"#ff6b6f"};
+        return {t:""};
+      };
+    }
+    renderBoard($("sandBoard"), b, { onCol:this.sandOver?null:(c)=>this.humanMove(c), marks });
+    $("legend").innerHTML = this.hints
+      ? "<span style='color:var(--good)'>WIN</span> your winning move · <span style='color:#ff8a8a'>blk</span> block here · <span style='color:#ff6b6f'>✗</span> poisoned (gives Yellow a win)"
+      : "You are Red. Tap a column to drop.";
+    if(!this.sandOver) $("turn").textContent="Your move (Red)";
+  },
+  humanMove(c){ if(this.sandOver) return; const b=this.sand; const r=drop(b,c,1); if(r<0) return;
+    if(winCell(b,c,r,1)){ this.endSand("You win! 🔴"); return; }
+    if(full(b)){ this.endSand("Draw."); return; }
+    this.drawSand(); $("turn").textContent="Computer thinking…";
+    setTimeout(()=>this.cpuTurn(),180);
+  },
+  cpuTurn(){ if(this.sandOver) return; const b=this.sand; const c=aiMove(b,2,this.diff); const r=drop(b,c,2);
+    if(winCell(b,c,r,2)){ this.drawSand(); this.endSand("Computer wins. 🟡"); return; }
+    if(full(b)){ this.drawSand(); this.endSand("Draw."); return; }
+    this.drawSand();
+  },
+  endSand(msg){ this.sandOver=true; this.drawSand(); $("turn").textContent=msg; },
+};
+app.init();
+</script>
+</body>
+</html>
