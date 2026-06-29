@@ -427,13 +427,17 @@ const DRILLS={
           : "No — this is a <b>vertical</b> four, the only kind that can dodge the center. There are 18 of those; the other 51 lines all pass through column 4." }; } },
 
   forkdefense:{ kind:"move",
-    gen(){ const b=genUntil(13+rnd(4), b=> winningCols(b,1).length===0 && winningCols(b,2).length===0 &&
-        legalCols(b).some(c=>!allowsOppTrouble(b,c,1)) && legalCols(b).some(c=>allowsOppTrouble(b,c,1)) );
+    gen(){ const b=genUntil(13+rnd(4), b=> {
+        if(winningCols(b,1).length || winningCols(b,2).length) return false;
+        const L=legalCols(b); if(L.length<5) return false;
+        const safe=L.filter(c=>!allowsOppTrouble(b,c,1));
+        return safe.length>=1 && safe.length<=2 && (L.length-safe.length)>=2;   // safe is the needle
+      });
       const bad=new Set(legalCols(b).filter(c=>allowsOppTrouble(b,c,1)));
       const safe=new Set(legalCols(b).filter(c=>!allowsOppTrouble(b,c,1)));
-      return { b, prompt:"You are <b style='color:#ff6b6f'>Red</b>. Some moves let <b style='color:#f4c02b'>Yellow</b> set up a winning double threat next turn. <b>Play a safe move</b> that doesn't hand Yellow a fork.",
+      return { b, prompt:`You are <b style='color:#ff6b6f'>Red</b>. <b>Almost every move here lets <span style='color:#f4c02b'>Yellow</span> win or fork next turn.</b> Find the ${safe.size===1?"one safe move":"safe move"}.`,
         correct:safe, bad,
-        explain:"Defense isn't only blocking — it's not <i>creating</i> the opponent's chances. Before you move, check: does this give Yellow an immediate win, or a fork next turn? The columns ringed in red do; avoid them." }; } },
+        explain:"Defense isn't only blocking — it's not <i>creating</i> the opponent's chances. Before you move, check every option: does it give Yellow an immediate win, or a fork next turn? Only the unringed column(s) stay safe." }; } },
 
   // -------- evaluation drills (exact-graded endgames) --------
   evaluate:{ kind:"choice",
