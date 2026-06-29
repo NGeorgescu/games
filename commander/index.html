@@ -159,6 +159,7 @@
     </div>
     <label class="fld" style="margin-top:12px" for="topdeck">Decklist <span style="text-transform:none;letter-spacing:0">(optional — paste a Moxfield link or list; fills every deck step below, and sets the commander from a Moxfield link)</span></label>
     <textarea id="topdeck" class="deckbox" oninput="onDeck(this.value)" placeholder="Paste a Moxfield deck link, or your decklist (one card per line)…" style="min-height:64px"></textarea>
+    <button class="btn" id="topsubmit" style="width:100%;margin-top:6px" onclick="submitTopDeck()">Load deck</button>
     <div class="deckwarn" style="display:none"></div>
   </div>
 
@@ -351,10 +352,11 @@ function load(){
   const i2=$('#cmd2'); if(i2) i2.value=state.cmd2;
   const td=$('#topdeck'); if(td) td.value=state.deck;
 }
-let deckCmdTimer=null;
-function onDeck(v){ state.deck=v; save(); document.querySelectorAll('.deckbox').forEach(t=>{ if(t.value!==v) t.value=v; });
-  clearTimeout(deckCmdTimer);
-  if(/moxfield\.com\/decks\//i.test(v||'')) deckCmdTimer=setTimeout(autoCommanderFromDeck, 600);   // a pasted Moxfield link sets the commander too
+function onDeck(v){ state.deck=v; save(); document.querySelectorAll('.deckbox').forEach(t=>{ if(t.value!==v) t.value=v; }); }
+// explicit submit: sync the deck everywhere and (for a Moxfield link) resolve + select the commander
+function submitTopDeck(){
+  const b=document.getElementById('topsubmit'); if(b){ b.textContent='Loading…'; b.disabled=true; }
+  Promise.resolve(autoCommanderFromDeck()).finally(()=>{ const x=document.getElementById('topsubmit'); if(x){ x.textContent='Load deck'; x.disabled=false; } });
 }
 // pull the commander(s) from a pasted Moxfield deck and select them, keeping the pasted decklist
 async function autoCommanderFromDeck(){
