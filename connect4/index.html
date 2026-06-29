@@ -169,6 +169,20 @@ function poisoned(b,c,p){ const opp=3-p, r=b.heights[c]; if(r>=H) return false;
   b.cells[r*W+c]=p; b.heights[c]++; const lose=winningCols(b,opp).length>0; b.heights[c]--; b.cells[r*W+c]=0; return lose; }
 function isFork(b,c,p){ const r=b.heights[c]; if(r>=H) return false;
   b.cells[r*W+c]=p; b.heights[c]++; const n=winningCols(b,p).length; b.heights[c]--; b.cells[r*W+c]=0; return n>=2; }
+// after p moves, is there a column with a winning square AND a winning square directly above it (the "7" / stacked trap)?
+function stackedAfter(b,p){ const opp=3-p;
+  for(let c2=0;c2<W;c2++){ const k=b.heights[c2]; if(k>=H-1) continue;
+    b.cells[k*W+c2]=p; const low=winCell(b,c2,k,p); b.cells[k*W+c2]=0; if(!low) continue;
+    b.cells[k*W+c2]=opp; b.cells[(k+1)*W+c2]=p; const up=winCell(b,c2,k+1,p); b.cells[k*W+c2]=0; b.cells[(k+1)*W+c2]=0;
+    if(up) return c2; }
+  return -1; }
+// does playing c set a stacked "7" trap (a forced win that is NOT an immediate win)?
+function setsTrap(b,c,p){ const r=b.heights[c]; if(r>=H) return false;
+  b.cells[r*W+c]=p; const immediate=winCell(b,c,r,p); b.cells[r*W+c]=0; if(immediate) return false;
+  drop(b,c,p); const ok = winningCols(b,3-p).length===0 && stackedAfter(b,p)>=0; undrop(b,c); return ok; }
+// does playing c on the bottom row create an open three across the bottom (two row-1 winning squares)?
+function bottomFork(b,c,p){ if(b.heights[c]!==0) return false;
+  drop(b,c,p); const n=winningCols(b,p).filter(cc=>b.heights[cc]===0).length; undrop(b,c); return n>=2; }
 function full(b){ return b.heights.every(h=>h>=H); }
 
 // random no-win position; toMove discs already placed (toMove player1 if discs even). tracks last move.
@@ -309,6 +323,22 @@ const DRILLS={
         correct:f,
         explain:"A fork creates two winning squares in a single move. The opponent blocks one; you complete the other. Open-ended threes ( _OO_ ) and \"7\"-shapes are the classic fork makers." }; } },
 
+  seventrap:{ kind:"move",
+    gen(){ const b=genUntil(14, b=> winningCols(b,1).length===0 && winningCols(b,2).length===0 &&
+        !legalCols(b).some(c=>isFork(b,c,1)) && legalCols(b).some(c=>setsTrap(b,c,1)) );
+      const t=new Set(legalCols(b).filter(c=>setsTrap(b,c,1)));
+      return { b, prompt:"You are <b style='color:#ff6b6f'>Red</b>. Set the <b>7 trap</b>: a move leaving two winning squares <i>stacked in one column</i>. Yellow can block the lower — but only by handing you the one directly above.",
+        correct:t,
+        explain:"The \"7\": after your move you threaten a win at a square <b>and</b> at the square directly above it. Block the lower one and Yellow fills the cell beneath the upper one — you win on top. Ignore it and you win below. Either reply loses, so it's a forced win." }; } },
+
+  threebottom:{ kind:"move",
+    gen(){ const b=genUntil(12, b=> winningCols(b,1).length===0 && winningCols(b,2).length===0 &&
+        legalCols(b).some(c=>bottomFork(b,c,1)) );
+      const f=new Set(legalCols(b).filter(c=>bottomFork(b,c,1)));
+      return { b, prompt:"You are <b style='color:#ff6b6f'>Red</b>. Make an <b>open three across the bottom row</b> — three in a row with <i>both</i> ends open. <b>Find the move.</b>",
+        correct:f,
+        explain:"An open three on the bottom row is an automatic win: both empty ends are immediately playable, so you threaten four on either side. Yellow blocks one end; you take the other." }; } },
+
   // -------- choice drills --------
   openingmap:{ kind:"choice",
     gen(){ const c=rnd(7); const b=nb(); drop(b,c,1);
@@ -364,6 +394,22 @@ const CONCEPTS=[
       <p>So if you go first, the center is not just "good" — it is the difference between a forced win and a forced loss. If you go second and your opponent opens off-center, you are not losing; if they open on an outer column, <i>you</i> can force the win.</p>
       <p class="why">The game was solved independently by James Dow Allen and Victor Allis, both in 1988.</p>
       <div class="src">Source: Wikipedia, "Connect Four"; Allen &amp; Allis (1988).</div>` },
+  { id:"throughcenter", cat:"Fundamentals", name:"Every win runs through the center", tag:"48 of 48 non-vertical fours use column 4",
+    lesson:`<h3>Count the winning lines</h3>
+      <p>There are exactly <b>69</b> possible four-in-a-rows on the board. <b>48</b> of them are horizontal or diagonal — and <b>every single one passes through the center column (column 4)</b>. Only the 18 off-center vertical fours avoid it.</p>
+      <p>Here's why: a horizontal or diagonal four always spans <b>four consecutive columns</b>, and the only runs of four consecutive columns in 1–7 are 1-2-3-4, 2-3-4-5, 3-4-5-6, 4-5-6-7 — every one of which contains column 4.</p>
+      <p>So unless you are stacking straight up, your win <b>must</b> use the center file. That's the hard reason the center is king: take it and you share in every non-vertical line; deny it to your opponent and you cut off all but their vertical chances.</p>
+      <p class="why">Verified by direct enumeration of all 69 lines: 48 are non-vertical, and all 48 pass through column 4.</p>
+      <div class="src">Structural fact (board-width-specific to 7 columns); cf. Allis (1988) §2.2.</div>` },
+  { id:"openings", cat:"Fundamentals", name:"Opening play", tag:"Responses and early plans",
+    lesson:`<h3>If you go second</h3>
+      <p>Against a center opening, the soundest practical reply is to <b>contest the center — stack column 4 yourself</b>. Adjacent columns (3 or 5) are reasonable; an <b>edge column surrenders the center</b> and is the worst choice.</p>
+      <h3>If you go first</h3>
+      <p>Open the center — but don't fall in love with it. Perfect play actually requires <b>leaving the center at the right moment</b>: lines that stay glued to the middle (like 4-3-4 or 4-5-4) are known to throw the win away and only draw. Use the center to build threats, then branch out to set up an odd-row threat.</p>
+      <h3>From either side</h3>
+      <p>Don't burn early moves on the edges, scan <b>both diagonals</b> every turn (they're the most-missed wins), and never play directly <b>below</b> a square that completes the opponent's four.</p>
+      <p class="why">The exact best continuations form a solved database; the takeaways above are the human-useful part. Move-by-move "best line" claims beyond move 1 are only medium-confidence here.</p>
+      <div class="src">Source: opening-strategy guides + YouTube coaching, cross-checked vs. Wikipedia's solved result.</div>` },
 
   // Tactics
   { id:"win1", cat:"Tactics", name:"Take the win", tag:"Always scan for your own four first",
@@ -393,6 +439,29 @@ const CONCEPTS=[
       </ul>
       <p><b>Caution:</b> a fork only works if the opponent can't win first, and if neither winning square sits on top of one of <i>their</i> threats.</p>
       <div class="src">Source: Allis (1988), §3.4; community trap names.</div>` },
+  { id:"threebottom", cat:"Double threats", name:"Three across the bottom", tag:"An open three on row 1 just wins",
+    lesson:`<h3>The bottom-row guarantee</h3>
+      <p>Three of your discs in a row along the <b>bottom row</b> with <b>both ends open</b> — say columns 3-4-5 with columns 2 and 6 empty — is an automatic win. Both empty ends sit on the floor, so both are <b>immediately playable</b>: you threaten four on either side at once. The opponent blocks one end; you take the other.</p>
+      <h3>The fine print</h3>
+      <ul>
+        <li>It must be open on <b>both</b> ends. If a disc already sits in an end column's base, that side is dead.</li>
+        <li>It must be a <b>solid</b> three. A gapped three like 3-4-_-6 is a single threat (the gap) and is easily blocked.</li>
+        <li>One row up it is <b>not</b> automatic — the opponent can just decline to play the square beneath your winning cell.</li>
+      </ul>
+      <p>Defensively, intervene at the <b>two-in-a-row stage</b>: take an open end before the three forms. This is the single most common way beginners lose.</p>
+      <div class="src">Source: Galli (YouTube); freetoplaypuzzles "Bottom Row Blitz".</div>` },
+  { id:"seventrap", cat:"Double threats", name:"The 7 trap", tag:"Block the lower threat, lose to the one above",
+    lesson:`<h3>Two threats, stacked</h3>
+      <p>The deadliest fork puts your two winning squares <b>in the same column, one directly above the other</b>. The shape usually looks like the numeral <b>7</b>: a vertical stem of your discs plus a diagonal or horizontal arm across the top.</p>
+      <h3>Why it can't be answered</h3>
+      <p>Say you threaten to win at (column 4, row 3) <i>and</i> at (column 4, row 4) right above it:</p>
+      <ul>
+        <li>If the opponent ignores it, you drop in column 4 and win on row 3.</li>
+        <li>If they block by dropping in column 4 (landing on row 3), that disc raises the stack — now row 4 is open, and you drop in and win there.</li>
+      </ul>
+      <p>They can fill only one cell per turn, and blocking the lower threat is exactly the move that exposes the upper one. Forced win.</p>
+      <p class="why">The <b>L-trap / clamp</b> is the same idea from a different shape: you force a block (often of a vertical) and the blocking disc completes a diagonal for you. Whenever a forced block hands you a second line, you've sprung the trap.</p>
+      <div class="src">Source: Galli &amp; Quackalope (YouTube); freetoplaypuzzles.</div>` },
 
   // Odd/even theory
   { id:"parity", cat:"Odd / even threat theory", name:"Odd holes & even holes", tag:"Which player a threat belongs to",
@@ -424,6 +493,14 @@ const CONCEPTS=[
       <p>You can never pass, so eventually someone is forced to play a square they'd rather not. Whoever controls this — the second player does, from the start — dictates how the odd/even squares divide up. Player 1 steals control by making a strong <b>odd threat</b>, which freezes a column and flips the parity in their favor.</p>
       <p><b>But not blindly:</b> never follow into a square that lets the opponent win, and always handle an urgent threat first.</p>
       <div class="src">Source: Allis (1988), §5–6; "Claimeven".</div>` },
+  { id:"baseaftereven", cat:"Odd / even threat theory", name:"Baseinverse, Aftereven & the rest", tag:"More of Allis's nine connection rules",
+    lesson:`<h3>Baseinverse — pair two playable squares</h3>
+      <p>Of any two squares that are both <b>playable right now</b>, you're guaranteed at least one — the opponent can only grab one per turn. So any enemy four that needs <i>both</i> is already dead. Classic use: the bottom line 1-2-3-4 — pair its two open base squares and that line can never form.</p>
+      <h3>Aftereven — a low even line caps the columns</h3>
+      <p>If you complete a four made of <b>even squares</b> down low, the game ends right there — so nothing is ever played above it. Every enemy threat stacked <i>higher</i> in those columns dies, because those squares are never reached. A humble low even threat can defuse a whole tower above it.</p>
+      <h3>The deeper rules</h3>
+      <p>Claimeven, Baseinverse, Vertical, and Aftereven are the four any strong player uses by instinct. The other five of Allis's nine — <b>Lowinverse, Highinverse, Baseclaim, Before, Specialbefore</b> — are finer tools that complete the proof the game is solved. The one worth knowing: <b>Lowinverse</b> — two columns whose upper open cells are both odd lets the <i>defender</i> grab an odd square, which is how the second player manufactures an odd threat. The rest you won't compute at the board; they all rest on the principle you already know — <b>control which squares get filled, and on whose turn.</b></p>
+      <div class="src">Source: Allis (1988), §6 (the nine connection rules) &amp; §6.10.</div>` },
 ];
 
 /* =================== APP =================== */
