@@ -295,12 +295,11 @@ const DRILLS={
 
   poison:{ kind:"move",
     gen(){ const b=genUntil(14, b=> winningCols(b,2).length===0 && winningCols(b,1).length===0 &&
-        legalCols(b).some(c=>poisoned(b,c,1)) && legalCols(b).some(c=>!poisoned(b,c,1)) );
-      const safe=new Set(legalCols(b).filter(c=>!poisoned(b,c,1)));
+        legalCols(b).filter(c=>poisoned(b,c,1)).length===1 && legalCols(b).some(c=>!poisoned(b,c,1)) );
       const bad=new Set(legalCols(b).filter(c=>poisoned(b,c,1)));
-      return { b, prompt:"You are <b style='color:#ff6b6f'>Red</b>. Some columns are <b>poisoned</b> — playing them fills the square <i>below</i> a Yellow winning spot. <b>Pick a safe column.</b>",
-        correct:safe, bad,
-        explain:"Before you move, look one square up: if dropping here lets Yellow win on top, that column is poisoned. Never build the staircase to your opponent's four." }; } },
+      return { b, prompt:"You are <b style='color:#ff6b6f'>Red</b>. One column is <b>poisoned</b> — playing it fills the square <i>below</i> a Yellow winning spot, handing Yellow the win. <b>Identify the poisoned column.</b>",
+        correct:bad, dangerCorrect:true,
+        explain:"Before you move, look one square up: if dropping here lets Yellow win on top, that column is poisoned. Avoid it — never build the staircase to your opponent's four." }; } },
 
   fork:{ kind:"move",
     gen(){ const b=genUntil(14, b=> winningCols(b,2).length===0 && winningCols(b,1).length===0 &&
@@ -481,7 +480,9 @@ const app={
   answerMove(c){
     if(this.answered) return; this.answered=true; this.total++;
     const d=this.drill; const ok=d.correct.has(c);
-    const marks={ win:new Set(d.correct) }; if(d.bad) marks.bad=d.bad;
+    const marks={};
+    if(d.dangerCorrect) marks.bad=new Set(d.correct);
+    else { marks.win=new Set(d.correct); if(d.bad) marks.bad=d.bad; }
     if(d.markLast!=null) marks.hl=this.drill.b.heights[d.markLast]>0 ? (this.drill.b.heights[d.markLast]-1)*W+d.markLast : -1;
     renderBoard($("drillBoard"), d.b, { marks });
     this.finish(ok, d.explain, ok?"":`You played column ${c+1}.`);
