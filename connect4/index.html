@@ -173,6 +173,8 @@ function undrop(b,c){ const r=--b.heights[c]; b.cells[r*W+c]=0; }
 function legalCols(b){ const a=[]; for(let c=0;c<W;c++) if(b.heights[c]<H) a.push(c); return a; }
 function winningCols(b,p){ const out=[]; for(let c=0;c<W;c++){ const r=b.heights[c]; if(r>=H) continue;
   b.cells[r*W+c]=p; if(winCell(b,c,r,p)) out.push(c); b.cells[r*W+c]=0; } return out; }
+// is cell (c,r) an empty square where player p would complete a four? (a "threat" cell, reachable or not)
+function threatCell(b,c,r,p){ if(b.cells[r*W+c]!==0) return false; b.cells[r*W+c]=p; const w=winCell(b,c,r,p); b.cells[r*W+c]=0; return w; }
 function poisoned(b,c,p){ const opp=3-p, r=b.heights[c]; if(r>=H) return false;
   b.cells[r*W+c]=p; b.heights[c]++; const lose=winningCols(b,opp).length>0; b.heights[c]--; b.cells[r*W+c]=0; return lose; }
 function isFork(b,c,p){ const r=b.heights[c]; if(r>=H) return false;
@@ -439,6 +441,30 @@ const DRILLS={
         correct:safe, bad,
         explain:"Defense isn't only blocking — it's not <i>creating</i> the opponent's chances. Before you move, check every option: does it give Yellow an immediate win, or a fork next turn? Only the unringed column(s) stay safe." }; } },
 
+  undercut:{ kind:"choice",
+    gen(){ const target=rnd(2);   // 0 = live, 1 = useless
+      let b=null, X=null;
+      for(let i=0;i<4500;i++){ const cand=genPos(14+rnd(8)); if(!cand) continue;
+        if(winningCols(cand,1).length || winningCols(cand,2).length) continue;
+        const list=[];
+        for(let c=0;c<W;c++) for(let r=1;r<H;r++)
+          if(threatCell(cand,c,r,1) && cand.cells[(r-1)*W+c]===0)
+            list.push({c,r,u:threatCell(cand,c,r-1,2)});
+        const want=list.filter(x=> target?x.u:!x.u);
+        if(want.length){ b=cand; X=want[rnd(want.length)]; break; } }
+      if(!b){ // fallback: take any candidate of either type
+        for(let i=0;i<800;i++){ const cand=genPos(14+rnd(8)); if(!cand) continue;
+          for(let c=0;c<W&&!X;c++) for(let r=1;r<H&&!X;r++)
+            if(threatCell(cand,c,r,1)&&cand.cells[(r-1)*W+c]===0){ b=cand; X={c,r,u:threatCell(cand,c,r-1,2)}; }
+          if(X) break; } }
+      const idx=X.r*W+X.c;
+      return { b, boardMarks:{cell:{[idx]:"ring"}}, two:true,
+        prompt:`The ringed square is a <b style='color:#ff6b6f'>Red</b> threat — Red completes four there. Is it <b>useless</b>, undercut by a <b style='color:#f4c02b'>Yellow</b> threat in the square <i>directly below</i> it?`,
+        options:["Useless","Still live"], answer: X.u?0:1,
+        explain: X.u
+          ? "Useless. Yellow threatens the square <b>directly below</b>. To ever reach your square, that one must fill first — and Yellow wins there before you can. A threat <b>one square above</b> the opponent's is dead weight."
+          : "Still live. The square <b>directly below</b> is not a Yellow threat, so the column can fill and hand you your square later. Only a threat <i>directly</i> above an enemy threat dies — a gap (even an enemy threat two below) is fine." }; } },
+
   // -------- evaluation drills (exact-graded endgames) --------
   evaluate:{ kind:"choice",
     gen(){ const want=[1,-1,0][rnd(3)]; let b=null, v=null;   // target a verdict so answers stay balanced
@@ -602,18 +628,21 @@ const CONCEPTS=[
       <div class="src">Source: Allis (1988), §3.3.</div>` },
 
   { id:"undercut", cat:"4 · Reading the board", name:"Undercut & useless threats", tag:"Why most threats never actually fire",
-    lesson:`<h3>The lower threat wins</h3>
-      <p>Two threats in the <b>same column</b>? The column fills from the bottom, so the <b>lower</b> one resolves first — and the higher threat above it is <b>dead</b>, because the game ends (or the cell is taken) before play ever reaches it.</p>
-      ${diagram([[1,2,2],[2,2,2],[3,2,2],[1,4,1],[2,4,1],[3,4,1],[1,1,1],[1,3,1],[2,1,1],[2,3,2],[3,1,2],[3,3,1],[4,1,1]], [[4,2,"ring","Y"],[4,4,"bad","✗"]], "Yellow needs (4,2); Red needs (4,4) above it. The lower square is reached first — Red's upper threat never fires.")}
-      <h3>Useless threats</h3>
-      <p>A threat is <b>dead weight</b> if the opponent can never be forced to give it to you. Three ways that happens:</p>
+    lesson:`<h3>Undercut: directly above an enemy threat = dead</h3>
+      <p>The exact rule: <b>a threat one square <i>directly</i> above an opponent's threat is useless.</b> To ever reach your square, the square below it must fill first — but that square is the opponent's win, so they get there before you.</p>
+      ${diagram([[1,2,2],[2,2,2],[3,2,2],[1,3,1],[2,3,1],[3,3,1],[1,1,1],[2,1,1],[3,1,2],[4,1,2]], [[4,2,"ring","Y"],[4,3,"bad","✗"]], "Yellow threatens (4,2); Red's threat at (4,3) sits one square directly above. Useless — fill (4,2) and Yellow wins there first.")}
+      <h3>But a gap is fine</h3>
+      <p>Move your threat up by one and it comes alive. Same Yellow threat at (4,2), but now Red threatens <b>(4,4)</b> with an empty gap at (4,3). The square <i>directly below</i> yours (4,3) isn't a Yellow win, so the column can fill and hand you the square. <b>Opponent on row 2, you on row 3 → useless; opponent on row 2, you on row 4 → still live.</b></p>
+      ${diagram([[1,2,2],[2,2,2],[3,2,2],[1,4,1],[2,4,1],[3,4,1],[1,1,1],[1,3,1],[2,1,1],[2,3,1],[3,1,2],[3,3,2],[4,1,2]], [[4,2,"ring","Y"],[4,4,"win","✓"]], "Red's threat at (4,4) has a free square below it — not undercut, still live.")}
+      <h3>The full "useless" checklist</h3>
+      <p>A threat is dead weight if the opponent can never be forced to give it to you. The three ways:</p>
       <ul>
-        <li>It sits <b>above</b> the opponent's threat in the same column (undercut, as above).</li>
-        <li>It's <b>surplus</b> — stacked above another of your own threats lower down; only the lowest one counts.</li>
-        <li>It's on the <b>wrong parity</b> for you (an even-row threat for Red, an odd-row threat for Yellow).</li>
+        <li><b>Undercut</b> — one square directly above an enemy threat (above).</li>
+        <li><b>Surplus</b> — stacked above another of <i>your own</i> threats; only the lowest one in a column can be cashed.</li>
+        <li><b>Wrong parity</b> — an even-row threat for Red, or an odd-row threat for Yellow (see "Odd holes").</li>
       </ul>
       <p>Reading a position starts by throwing these out — only the live threats decide the game.</p>
-      <div class="src">Source: Allis (1988), §3.1–3.2; Tromp/Pomakis.</div>` },
+      <div class="src">Source: Allis (1988), §3.2 ("one square above a threat is useless"); Tromp/Pomakis.</div>` },
 
   { id:"claiming", cat:"4 · Reading the board", name:"Claiming squares (can the defender survive?)", tag:"Claimeven & Baseinverse as a draw proof",
     lesson:`<h3>Defence as a guarantee, not a move</h3>
