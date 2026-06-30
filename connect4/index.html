@@ -339,10 +339,13 @@ function renderBoard(host,b,opts={}){
 const DRILLS={
   // -------- move drills --------
   center:{ kind:"move",
-    gen(){ const b=genUntil(rnd(3)*2, b=>b.heights[3]<H) || nb();
-      return { b, prompt:"The center column is the most valuable square on the board. <b>Play the center.</b>",
-        correct:new Set([3]),
-        explain:"The center file sits in more possible four-in-a-rows than any other column — every horizontal four and the longest diagonals run through it. Fight for it early; as the first player, always open here." }; } },
+    gen(){ const b=genPos(2+rnd(5)*2) || nb();                 // a few discs, varied
+      if(rnd(2)){ while(b.heights[3]<H) drop(b, 3, 1+rnd(2)); }  // sometimes the centre is already full
+      const legal=legalCols(b); const best=Math.min(...legal.map(c=>Math.abs(c-3)));
+      const correct=new Set(legal.filter(c=>Math.abs(c-3)===best));
+      return { b, prompt:"The centre is the most valuable column — and when it's taken, the next-most-central is. <b>Play as central as you can.</b>",
+        correct,
+        explain:"Every horizontal four and the longest diagonals run through column 4, so central discs join the most winning lines. Always head for the middle; if it's full, take the column nearest it." }; } },
 
   win1:{ kind:"move",
     gen(){ const b=genUntil(12, b=>winningCols(b,2).length===0 && winningCols(b,1).length>=1);
@@ -392,8 +395,8 @@ const DRILLS={
 
   // -------- choice drills --------
   openingmap:{ kind:"choice",
-    gen(){ const c=rnd(7); const b=nb(); drop(b,c,1);
-      const ans = c===3?0 : (c===2||c===4)?1 : 2;   // 0 win,1 draw,2 loss
+    gen(){ const pools=[[3],[2,4],[0,1,5,6]]; const ans=rnd(3);   // pick win/draw/loss equally, then a matching column
+      const cols=pools[ans]; const c=cols[rnd(cols.length)]; const b=nb(); drop(b,c,1);
       return { b, prompt:`The <b style='color:#ff6b6f'>first player</b> opens column <b>${c+1}</b>. With perfect play by both sides, the result for the first player is…`,
         options:["First player wins","Draw","First player loses"], answer:ans,
         explain:"Connect 4 is solved. The first player forces a win <b>only</b> by opening the center (column 4). The two columns next to center are a draw; the four outer columns actually <b>lose</b> for the first player. (Wikipedia; Allen &amp; Allis 1988.)" }; } },
@@ -471,10 +474,10 @@ const DRILLS={
   // -------- evaluation drills (exact-graded endgames) --------
   evaluate:{ kind:"choice",
     gen(){ const want=[1,-1,0][rnd(3)]; let b=null, v=null;   // target a verdict so answers stay balanced
-      for(let i=0;i<2500;i++){ const e=10+rnd(6); const cand=genPos(42-e);
+      for(let i=0;i<2500;i++){ const e=6+rnd(4); const cand=genPos(42-e);   // 6-9 empties: near-terminal, readable by the parity method
         if(!cand||legalCols(cand).length<3) continue; const cv=solveExact(cand,1);
         if(cv===want){ b=cand; v=cv; break; } }
-      if(!b){ for(let i=0;i<300;i++){ const cand=genPos(42-(10+rnd(6))); if(cand&&legalCols(cand).length>=3){ b=cand; v=solveExact(b,1); break; } } }
+      if(!b){ for(let i=0;i<300;i++){ const cand=genPos(42-(6+rnd(4))); if(cand&&legalCols(cand).length>=3){ b=cand; v=solveExact(b,1); break; } } }
       const ans = v>0?0 : v<0?1 : 2;
       return { b, prompt:`<b style='color:#ff6b6f'>Red</b> (first player) is to move. With <b>best play by both sides</b>, what is the result?`,
         options:["Red wins","Yellow wins","Draw"], answer:ans,
@@ -546,7 +549,7 @@ const CONCEPTS=[
   { id:"center", cat:"2 · The center", name:"Center control", tag:"Open the middle; fight for D3 and D5",
     lesson:`<h3>Own the middle</h3>
       <p>The centre column (column 4) is the most valuable real estate on the board. As <b>Player 1, always open in the centre.</b> As Player 2, fight to contest it.</p>
-      <p>Within the centre, the prize cells are <b>(4,3)</b> and <b>(4,5)</b> — the central squares feed the most diagonals. Experts note (4,3) is the single best square after the opening, and grabbing it often wins (4,5) too.</p>
+      <p>Within the centre, the prize square is <b>(4,3)</b> — experts note it's the single best cell on the board after the opening, because the central squares feed the most diagonals. The higher central cells (like (4,5)) matter too, but (4,3) is the one to fight for.</p>
       ${diagram([[4,1,1]], [[4,3,"ring","D3"],[4,5,"ring","D5"]], "Open (4,1); the ringed central squares are the ones to fight for.")}
       <div class="src">Source: Tromp/Pomakis, "Expert Play in Connect-Four"; Pons, gamesolver.org.</div>` },
 
@@ -589,7 +592,7 @@ const CONCEPTS=[
   { id:"fork", cat:"3 · Tactics & traps", name:"Forks (double threats)", tag:"Two threats, one move — unstoppable",
     lesson:`<h3>Make two threats at once</h3>
       <p>A single threat just gets blocked. You win by creating <b>two threats in one move</b> — the opponent answers one, you take the other.</p>
-      ${diagram([[3,1,1],[4,1,1],[3,2,2],[4,2,2],[2,2,2]], [[2,1,"win","✓"],[5,1,"win","✓"]], "Red plays (5,1) or (2,1) to make an open three _RRR_ on the bottom with two live ends.")}
+      ${diagram([[3,1,1],[4,1,1],[5,1,1],[3,2,2],[4,2,1],[5,2,2]], [[2,1,"win","✓"],[6,1,"win","✓"]], "Red's open three threatens (2,1) AND (6,1) at once — Yellow blocks one, Red wins the other.")}
       <p>The classic fork-makers: the <b>open-ended three</b> (_RRR_ with both ends playable), the <b>"7"</b> (next lesson), and <b>stacked threats</b>. A fork only works if the opponent can't win first.</p>
       <div class="src">Source: Allis (1988), §3.4.</div>` },
 
@@ -686,7 +689,7 @@ const CONCEPTS=[
       ${diagram([[4,1,2],[4,2,1]], [[4,3,"ring","odd"],[4,4,"ring","even"]], "Claimeven pair: when Yellow's foe takes the odd cell (4,3), Yellow takes the even (4,4).")}
       <h3>Baseinverse — pair two playable squares</h3>
       <p>Of any <b>two squares playable right now</b>, you're guaranteed at least one (one move each per turn). So any enemy four needing <i>both</i> is dead.</p>
-      ${diagram([[3,1,2],[4,1,2]], [[1,1,"ring","A"],[2,1,"ring","B"]], "The bottom line 1-2-3-4 needs both (1,1) and (2,1). Take either when the opponent takes the other.")}
+      ${diagram([[3,1,1],[4,1,1]], [[1,1,"ring","A"],[2,1,"ring","B"]], "Red's bottom line 1-2-3-4 already holds (3,1) and (4,1) — it still needs BOTH (1,1) and (2,1). Take either when Red takes the other, and the line is dead.")}
       <p class="why">These are the two most useful of Allis's nine "connection rules" — the ones strong players apply by instinct. (The other seven are finer machinery for the full proof.)</p>
       <div class="src">Source: Allis (1988), §6 (Claimeven, Baseinverse).</div>` },
 
