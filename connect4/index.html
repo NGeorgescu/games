@@ -419,7 +419,10 @@ const DRILLS={
         explain:`Player 1 cashes <b>odd</b> threats, Player 2 cashes <b>even</b> ones. Rule of thumb: P1-odd vs P2-even → <b>P1 wins</b>; both even → <b>P2 wins</b> (P2 refutes P1's even threat then scores its own); P1-even vs P2-odd → <b>draw</b> (neither threat is usable). Here: P1 ${k.p1} vs P2 ${k.p2}.` }; } },
 
   throughcenter:{ kind:"choice",
-    gen(){ const line=WINDOWS[rnd(WINDOWS.length)]; const cols=line.map(i=>i%W);
+    gen(){ const thru=[], notThru=[];                     // balance the answer ~50/50
+      for(const w of WINDOWS){ (w.map(i=>i%W).includes(3)?thru:notThru).push(w); }
+      const line = rnd(2) ? thru[rnd(thru.length)] : notThru[rnd(notThru.length)];
+      const cols=line.map(i=>i%W);
       const through=cols.includes(3); const cell={}; for(const i of line) cell[i]="ring";
       return { b:nb(), boardMarks:{cell}, two:true,
         prompt:`Does this four-in-a-row pass through the <b>center column (4)</b>?`,
@@ -478,16 +481,26 @@ const DRILLS={
         explain:`Read it like an expert: list every live threat, throw out the dead ones (above a finished line, wrong parity, or a pair the defender can split), tag each survivor's row — <b>odd → Red, even → Yellow</b> — then apply the matchup. This position is a <b>${["Red win","Yellow win","draw"][ans]}</b> with perfect play.` }; } },
 
   bestmove:{ kind:"move",
-    gen(){ let b, bm;
-      for(let i=0;i<500;i++){ const e=10+rnd(6); b=genUntil(42-e, x=> winningCols(x,2).length===0 && legalCols(x).length>=3);
-        if(!b) continue; bm=bestMoves(b,1);
-        if(bm.moves.length>=1 && bm.moves.length<legalCols(b).length) break;   // a real choice exists
-        bm=null; }
-      if(!bm){ bm=bestMoves(b,1); }
+    gen(){ let b=null, bm=null;
+      for(let i=0;i<700;i++){ const e=8+rnd(4); const cand=genUntil(42-e, x=> winningCols(x,2).length===0 && legalCols(x).length>=5);
+        if(!cand) continue; const m=bestMoves(cand,1);
+        if(m.moves.length>=1 && m.moves.length<=2 && legalCols(cand).length-m.moves.length>=2){ b=cand; bm=m; break; } }  // sharp: <=2 best of >=5
+      if(!bm){ b=genUntil(42-(9+rnd(6)), x=>legalCols(x).length>=4)||nb(); bm=bestMoves(b,1); }
       const tag = bm.val>0?"win":bm.val<0?"hold on (you're worse)":"hold the draw";
       return { b, prompt:`You are <b style='color:#ff6b6f'>Red</b>. <b>Find a best move</b> — one that gives the strongest result the position allows.`,
         correct:new Set(bm.moves),
         explain:`Graded by the exact solver: the marked column(s) achieve the best outcome here (${["Yellow wins anyway","this is a draw with best play","Red wins with best play"][bm.val+1]}). Every other move throws away part of that. Best play = win when you can, otherwise keep the draw, and never hand over a square.` }; } },
+
+  forcewin:{ kind:"move",
+    gen(){ let b=null, m=null;
+      for(let i=0;i<700;i++){ const e=7+rnd(4);
+        const cand=genUntil(42-e, x=> winningCols(x,1).length===0 && winningCols(x,2).length===0 && legalCols(x).length>=4);
+        if(!cand) continue; const mm=bestMoves(cand,1);
+        if(mm.val===1 && mm.moves.length>=1 && mm.moves.length<=2 && legalCols(cand).length-mm.moves.length>=2){ b=cand; m=mm; break; } }
+      if(!m){ b=genUntil(42-(7+rnd(4)), x=>legalCols(x).length>=4)||nb(); m=bestMoves(b,1); }
+      return { b, prompt:`You are <b style='color:#ff6b6f'>Red</b>. There is <b>no win this move</b> — but you can <b>force</b> one. Find the move that wins with best play.`,
+        correct:new Set(m.moves),
+        explain:"No immediate four — but the marked move starts a forced win: it makes a threat (or springs a trap) the opponent can't fully answer, and you finish next. Graded by the exact solver — every other move lets the win slip." }; } },
 };
 
 /* lessons + tile metadata */
@@ -607,6 +620,15 @@ const CONCEPTS=[
       <p>A move is bad if, right after it, Yellow can either win immediately or make a <b>fork</b> (a double threat you can't answer). Treat those moves as off-limits unless forced.</p>
       <p>This is the same family as poisoned squares — you're refusing to build the position your opponent wants.</p>` },
 
+  { id:"forcewin", cat:"3 · Tactics & traps", name:"Forcing moves & tempo", tag:"Use threats to steer — then strike",
+    lesson:`<h3>Make them dance</h3>
+      <p>A <b>forcing move</b> ("sente") makes a threat the opponent <i>must</i> answer — so their reply is your choice, not theirs. A move that threatens nothing ("gote") hands them a free turn.</p>
+      ${diagram([[2,1,1],[3,1,1],[4,1,1],[1,1,2],[2,2,2],[3,2,2]], [[5,1,"win","!"]], "Red threatens (5,1); Yellow is forced to block there. Red keeps the initiative and plays again.")}
+      <p>The payoff: spend forcing moves to <b>place the pieces you need</b> while the opponent is stuck blocking — until one move makes <b>two</b> threats at once, which they can't answer. Every trap you've learned is a forcing chain that ends in a double threat.</p>
+      <p>So don't fire your threats off for nothing. Save them until they build toward a real second threat — then the win is forced even though no single move was a four.</p>
+      <p>The drill gives you positions with <b>no immediate win</b> where a forced win is hiding. Find the move that starts it.</p>
+      <div class="src">Source: Allen, "Expert Play in Connect-Four" (Sente vs Gote).</div>` },
+
   // ===== 4 · Reading the board =====
   { id:"clock", cat:"4 · Reading the board", name:"The 42-square clock", tag:"Who is forced to move — and why it matters",
     lesson:`<h3>You can never pass</h3>
@@ -627,6 +649,17 @@ const CONCEPTS=[
       <p>Counting "three in a row!" isn't enough — check the <b>row</b> of the empty fourth square. Red should aim for odd threats; Yellow for even.</p>
       <div class="src">Source: Allis (1988), §3.3.</div>` },
 
+  { id:"gameplan", cat:"4 · Reading the board", name:"Your game plan", tag:"What each side is actually trying to do",
+    lesson:`<h3>Player 1 (Red): manufacture an odd threat</h3>
+      <p>You collect the <b>odd</b> squares in the endgame, so your plan is to build a threat whose winning cell is on an <b>odd row (3 or 5)</b>, then keep the initiative until the board forces the opponent to hand it over. A single live odd <i>major</i> threat (row 3 or 5) usually wins; two odd threats stacked in one column count as one.</p>
+      ${diagram([[1,3,1],[2,3,1],[3,3,1],[1,1,2],[1,2,1],[2,1,1],[2,2,2],[3,1,2],[3,2,1]], [[4,3,"win","odd"]], "A Red threat at (4,3) — an odd row. Exactly what Red wants.")}
+      <p>Fight for the central squares (D3, D5), and don't play the square directly under a good odd cell — you'd hand it to the opponent.</p>
+      <h3>Player 2 (Yellow): Claimeven and aim even</h3>
+      <p>You collect the <b>even</b> squares, so aim for threats on <b>even rows (2,4,6)</b> and lean on <b>Claimeven</b> to neutralise Red's lines. The classic plan: build threats on the second row and <b>stay out of row 1</b> as long as you can — when Red finally runs out of safe moves and drops into a column, you answer on top and complete your even four.</p>
+      ${diagram([[4,2,2],[5,2,2],[6,2,2],[4,1,1],[5,1,1],[6,1,2],[3,2,1],[3,1,1]], [[7,2,"win","even"]], "A Yellow threat at (7,2) — an even row. Exactly what Yellow wants.")}
+      <p class="why">A threat on the wrong parity is dead weight — Red's even threats and Yellow's odd threats usually don't count.</p>
+      <div class="src">Source: Allen, "Expert Play in Connect-Four" (the P1/P2 plans, the "J").</div>` },
+
   { id:"undercut", cat:"4 · Reading the board", name:"Undercut & useless threats", tag:"Why most threats never actually fire",
     lesson:`<h3>Undercut: directly above an enemy threat = dead</h3>
       <p>The exact rule: <b>a threat one square <i>directly</i> above an opponent's threat is useless.</b> To ever reach your square, the square below it must fill first — but that square is the opponent's win, so they get there before you.</p>
@@ -640,6 +673,7 @@ const CONCEPTS=[
         <li><b>Undercut</b> — one square directly above an enemy threat (above).</li>
         <li><b>Surplus</b> — stacked above another of <i>your own</i> threats; only the lowest one in a column can be cashed.</li>
         <li><b>Wrong parity</b> — an even-row threat for Red, or an odd-row threat for Yellow (see "Odd holes").</li>
+        <li><b>Capped</b> — sitting above a low four the opponent can complete first (even with a gap): their four ends the game, so the cells above it are never reached. (This is Allis's "Aftereven": a completable low even line caps every cell above it.)</li>
       </ul>
       <p>Reading a position starts by throwing these out — only the live threats decide the game.</p>
       <div class="src">Source: Allis (1988), §3.2 ("one square above a threat is useless"); Tromp/Pomakis.</div>` },
