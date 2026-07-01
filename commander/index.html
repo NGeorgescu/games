@@ -509,6 +509,9 @@ function unionCI(){
 /* ---------- card prices (Scryfall collection API, batched ≤75 + cached) ---------- */
 const priceCache=new Map();   // normName -> usd Number | null (null = no price / not found, won't refetch)
 function priceTag(name){ return `<span class="rprice" data-price="${String(name).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}"></span>`; }
+// Scryfall's collection `name` identifier matches the FRONT face, not the full "A // B" name that
+// Commander Spellbook uses — so DFC / split / adventure cards must be queried by their front face.
+function frontFace(nm){ return String(nm).split('//')[0].trim(); }
 async function fetchPrices(names){
   const want=[], seen=new Set();
   for(const nm of names){ const k=normName(nm); if(!k||seen.has(k)||priceCache.has(k)) continue; seen.add(k); want.push(nm); }
@@ -517,9 +520,11 @@ async function fetchPrices(names){
     try{
       const r=await fetch('https://api.scryfall.com/cards/collection',{method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({identifiers:chunk.map(n=>({name:n}))})});
+        body:JSON.stringify({identifiers:chunk.map(n=>({name:frontFace(n)}))})});
       if(r.ok){ const j=await r.json();
-        for(const c of (j.data||[])){ const p=c.prices&&c.prices.usd; priceCache.set(normName(c.name), p?+p:null); } }
+        for(const c of (j.data||[])){ const p=c.prices&&c.prices.usd, usd=p?+p:null;
+          priceCache.set(normName(c.name), usd);                                        // full returned name (e.g. "A // B")
+          if(c.name.includes('//')) priceCache.set(normName(frontFace(c.name)), usd); } }// and its front face
     }catch(e){}
     for(const nm of chunk){ const k=normName(nm); if(!priceCache.has(k)) priceCache.set(k,null); }   // record misses so we don't refetch
   }
@@ -561,9 +566,10 @@ async function fetchMeta(names){
     const chunk=want.slice(i,i+75);
     try{
       const r=await fetch('https://api.scryfall.com/cards/collection',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({identifiers:chunk.map(n=>({name:n}))})});
+        body:JSON.stringify({identifiers:chunk.map(n=>({name:frontFace(n)}))})});
       if(r.ok){ const j=await r.json();
-        for(const c of (j.data||[])) metaCache.set(normName(c.name), {name:c.name, cmc:c.cmc||0, type:c.type_line||'', mana:!!(c.produced_mana&&c.produced_mana.length)}); }
+        for(const c of (j.data||[])){ const meta={name:c.name, cmc:c.cmc||0, type:c.type_line||'', mana:!!(c.produced_mana&&c.produced_mana.length)};
+          metaCache.set(normName(c.name), meta); if(c.name.includes('//')) metaCache.set(normName(frontFace(c.name)), meta); } }
     }catch(e){}
     for(const nm of chunk){ const k=normName(nm); if(!metaCache.has(k)) metaCache.set(k,{name:nm,cmc:0,type:'',mana:false}); }
   }
