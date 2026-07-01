@@ -88,6 +88,7 @@ h1 { margin: 0 0 8px; font-size: 20px; font-weight: 500; }
       <button class="help-btn" onclick="document.getElementById('help-modal').style.display='flex'" title="What is this?">?</button>
     </h1>
     <div class="meta" id="meta"></div>
+    <div id="opening-name" style="font-size:13px;color:#c8a95c;margin:4px 0 2px 0;min-height:16px;"></div>
     <div style="margin:4px 0 10px 0;"><a id="analyze-link" href="#" target="_blank" rel="noopener" style="color:#6ab2d4;font-size:13px;text-decoration:underline;">Analyze current position on Lichess →</a></div>
     <div class="hero-toggle">
       <span style="font-size:13px;color:#888;margin-right:8px;">Playing as:</span>
@@ -177,6 +178,7 @@ async function render() {
   document.getElementById('line-display').textContent = history.join(' ');
   document.getElementById('meta').textContent =
     `${MANIFEST.positionCount} positions in repertoire`;
+  document.getElementById('opening-name').textContent = data.op || '';
   // Update Analyze-on-Lichess link to reflect current line.
   const analyze = document.getElementById('analyze-link');
   if (history.length === 0) {
