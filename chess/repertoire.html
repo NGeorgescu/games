@@ -10,11 +10,13 @@
 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
        background: #1e1f22; color: #ddd; margin: 0; padding: 16px; }
 .wrap { display: flex; gap: 24px; max-width: 1200px; margin: 0 auto; }
+.board-col { width: 480px; flex-shrink: 0; min-width: 0; }
 #board { width: 480px; max-width: 100%; }
 .panel { flex: 1; min-width: 0; }
 @media (max-width: 800px) {
   body { padding: 8px; }
   .wrap { flex-direction: column; gap: 12px; }
+  .board-col { width: 100%; }
   #board { width: 100%; }
   .nav { justify-content: center; }
 }
@@ -74,7 +76,7 @@ h1 { margin: 0 0 8px; font-size: 20px; font-weight: 500; }
   </div>
 </div>
 <div class="wrap">
-  <div>
+  <div class="board-col">
     <div id="board"></div>
     <div class="nav">
       <button onclick="navBack()">⟵ Back</button>
