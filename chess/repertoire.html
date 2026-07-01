@@ -197,7 +197,7 @@ async function render() {
   }
   const moves = document.getElementById('moves');
   const info = document.getElementById('header-info');
-  if (!data) {
+  if (!data || !data.m || data.m.length === 0) {
     // Build PGN like "1.e4_e5_2.Nf3" — lichess accepts underscore-separated PGN.
     // Fall back to FEN if there's no history yet.
     let lichessUrl;
