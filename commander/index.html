@@ -64,6 +64,9 @@
     font-size:13px;font-weight:600;color:var(--accent);text-decoration:none}
   a.lnk:active{background:#222a36}
   a.lnk.warn{color:#ffd07c;border-color:#5a4a20}
+  .linkgroups{display:flex;flex-direction:column;gap:11px;margin:11px 0 2px}
+  .lglabel{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:5px}
+  .lgroup .links{margin:0}
   .mini{display:flex;gap:7px;margin:8px 0 2px}
   .mini input{flex:1}
   .mini button,.btn{appearance:none;border:0;border-radius:9px;padding:9px 13px;font-size:13px;font-weight:700;
@@ -259,28 +262,25 @@ const HYPERGEO = 'https://aetherhub.com/Apps/HyperGeometric';
 /* ---------- the steps ---------- */
 function steps(){ return [
   { t:"See what others are up to",
-    body:`<p>Scout the field before you build — all the "what does everyone else run" links in one place:</p>
-      <ul class="note" style="margin:.3em 0 .6em 1.1em;padding:0">
-        <li><b>Spellbook</b> — combos your commander is in or enables, plus every combo in your colors.</li>
-        <li><b>Web hunt</b> — real decklists &amp; primers out on the open web.</li>
-        <li><b>EDHREC</b> — combos the general population puts in this deck, and the high-synergy cards in
-          optimized (bracket 4) / cEDH (bracket 5) builds.</li>
-        <li><b>EDHTop16</b> — actual cEDH tournament results.</li>
-        <li><b>Staples</b> — a full curated cEDH staples list.</li>
-      </ul>
+    body:`<p>Scout the field before you build — everyone-else-runs links, grouped by source. Combos your commander
+      enables, real decklists, what the population plays, and optimized / cEDH data.</p>
       <p class="note">Don't worry if your deck isn't true cEDH — search "cedh" anyway. Plenty of people label
       and write up bracket-4 decks as "cedh," so it's the best keyword for finding optimized lists either way.</p>`,
-    links:[['Spellbook · '+(state.cmd2?(state.cmd||'cmdr 1'):'this commander'), csbCommander]]
-      .concat(state.cmd2 ? [['Spellbook · '+state.cmd2, csbCommander2]] : [])
-      .concat([
-        ['Spellbook · combos in these colors', csbColorCombos],
-        ['Ultra-high-power decks', ()=>ddg(deckNames()+' cedh')],
-        ['Moxfield primers', ()=>ddg(deckNames()+' cedh primer site:moxfield.com')],
-        ['EDHREC · combos for this deck', edhrecCombos],
-        ['EDHREC · optimized (b4)', ()=>edhrecBracket('optimized')],
-        ['EDHREC · cEDH (b5)', ()=>edhrecBracket('cedh')],
-        ['EDHTop16 · tournaments', edhtop16Link],
-        ['Browse a full cEDH staples list', ()=>MOX_STAPLES]]) },
+    linkGroups:[
+      { label:'Commander Spellbook', links:
+          [['This commander'+(state.cmd2?' — '+(state.cmd||'cmdr 1'):''), csbCommander]]
+          .concat(state.cmd2 ? [[state.cmd2, csbCommander2]] : [])
+          .concat([['Combos in your colors', csbColorCombos]]) },
+      { label:'EDHREC', links:[
+          ['Combos for this deck', edhrecCombos],
+          ['Optimized (b4)', ()=>edhrecBracket('optimized')],
+          ['cEDH (b5)', ()=>edhrecBracket('cedh')]] },
+      { label:'Web search', links:[
+          ['High-power decks', ()=>ddg(deckNames()+' cedh')],
+          ['Moxfield primers', ()=>ddg(deckNames()+' cedh primer site:moxfield.com')]] },
+      { label:'Tournaments & staples', links:[
+          ['EDHTop16 results', edhtop16Link],
+          ['Full cEDH staples list', ()=>MOX_STAPLES]] } ] },
 
   { t:"Analyze the deck you have",
     body:`<p>Paste a <b>Moxfield deck link</b> (it'll fetch the list) or your decklist text, one card per line —
@@ -448,6 +448,12 @@ function render(){
         const w=l[0].toLowerCase().includes('staples')?'':'';
         return `<a class="lnk" id="lnk${n}_${j}" href="${href}" target="_blank" rel="noopener">${lbl}</a>`;
       }).join('')+'</div>';
+    }
+    if(s.linkGroups){
+      html+='<div class="linkgroups">'+s.linkGroups.map(g=>
+        '<div class="lgroup"><div class="lglabel">'+g.label+'</div><div class="links">'+
+        g.links.map(l=>{ const href=(typeof l[1]==='function')?l[1]():l[1]; return `<a class="lnk" href="${href}" target="_blank" rel="noopener">${l[0]}</a>`; }).join('')+
+        '</div></div>').join('')+'</div>';
     }
     if(s.pre){ html+=`<pre>${s.pre.replace(/</g,'&lt;')}</pre>`; }
     html+='</div>';
