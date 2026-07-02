@@ -262,6 +262,7 @@ function steps(){ return [
         <li><b>EDHREC</b> — combos the general population puts in this deck, and the high-synergy cards in
           optimized (bracket 4) / cEDH (bracket 5) builds.</li>
         <li><b>EDHTop16</b> — actual cEDH tournament results.</li>
+        <li><b>Staples</b> — a full curated cEDH staples list.</li>
       </ul>
       <p class="note">Don't worry if your deck isn't true cEDH — search "cedh" anyway. Plenty of people label
       and write up bracket-4 decks as "cedh," so it's the best keyword for finding optimized lists either way.</p>`,
@@ -274,12 +275,8 @@ function steps(){ return [
         ['EDHREC · combos for this deck', edhrecCombos],
         ['EDHREC · optimized (b4)', ()=>edhrecBracket('optimized')],
         ['EDHREC · cEDH (b5)', ()=>edhrecBracket('cedh')],
-        ['EDHTop16 · tournaments', edhtop16Link]]) },
-
-  { t:"Find the cards those combos lean on",
-    body:`<p>Click around and spot the glue pieces — e.g. if a card shows up in every combo, look up <i>which
-      combos that specific card enables in your colors</i>:</p>`,
-    cardbox:true },
+        ['EDHTop16 · tournaments', edhtop16Link],
+        ['Browse a full cEDH staples list', ()=>MOX_STAPLES]]) },
 
   { t:"Analyze the deck you have",
     body:`<p>Paste a <b>Moxfield deck link</b> (it'll fetch the list) or your decklist text, one card per line —
@@ -298,9 +295,7 @@ function steps(){ return [
       <p class="note"><b>Wincons:</b> your one-away combos are finishers — lock in a small, focused set that fits your
       gameplan and wins along different axes (stax-locked, instant-speed, etc.) rather than jamming every line.</p>`,
     auto:['winning','oneaway','audit','staples','recs'],
-    links:[['Cross-check on Spellbook · Find My Combos', ()=>FIND_MY_COMBOS],
-           ['Browse a full cEDH staples list', ()=>MOX_STAPLES],
-           ['Spellbook · all combos in your colors', csbColorCombos]] },
+    links:[['Cross-check on Spellbook · Find My Combos', ()=>FIND_MY_COMBOS]] },
 
   { t:"Fill the gaps & tune",
     body:`<p>Plug the holes, then pressure-test speed. Combo-piece heavy on artifacts/enchantments → add the matching
