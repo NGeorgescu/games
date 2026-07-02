@@ -54,8 +54,11 @@
   .sbody{font-size:13.5px;color:#cfd6e2;line-height:1.6;margin:9px 0 0;padding-left:36px}
   .sbody p{margin:0 0 8px}
   .submark{font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--accent);text-transform:uppercase;
-    margin:18px 0 2px;padding-top:12px;border-top:1px solid var(--line)}
+    margin:14px 0 2px;padding-top:12px;border-top:1px solid var(--line);cursor:pointer;user-select:none}
   .submark:first-of-type{margin-top:10px}
+  .submark:hover{color:#fff}
+  .subarrow{display:inline-block;width:1.1em;color:var(--muted)}
+  .subsec{margin-top:2px}
   .links{display:flex;flex-wrap:wrap;gap:7px;margin:9px 0 2px}
   a.lnk{display:inline-block;background:#1c222c;border:1px solid #2c3543;border-radius:9px;padding:8px 11px;
     font-size:13px;font-weight:600;color:var(--accent);text-decoration:none}
@@ -196,6 +199,7 @@ const WUBRG = ['w','u','b','r','g'];
 function defaultMull(){ return {L:17,R:4,I:4,N:99,h:7,combos:'LLL LLR LRI',open:false}; }
 let state = { cmd:'', cmd2:'', ci1:[], ci2:[], bg2:false, slot2q:null, colors:new Set(), done:{}, notes:'', deck:'', staplesMode:'commander', hg:{k:2,copies:10}, mull:defaultMull() };
 let oneAwayHTML = '', staplesHTML = '', deckWarning = '', winHTML = '', cutHTML = '', recHTML = '', auditHTML = '', questHTML = '';
+let subOpen = {};   // which collapsible analysis subsections (winning/oneaway/audit/staples/recs) are expanded
 let auditHideMana = false;
 let pendingAdds = new Map();   // one-away "what if I add this" simulation: normName -> display name
 let oneAwayBundle = null;      // current combo bundle, so the add checkboxes can resolve idx -> card name
@@ -374,41 +378,47 @@ function render(){
     const A = Array.isArray(s.auto)?s.auto:(s.auto?[s.auto]:[]);
     const needsDeck = A.some(a=>['winning','oneaway','audit','staples','recs'].includes(a));
     const multi = A.length>1;
-    const sublabel = t => multi ? `<div class="submark">${t}</div>` : '';
+    const sub = (k,title,inner)=> multi
+      ? `<div class="submark" id="submk-${k}" onclick="toggleSub('${k}')"><span class="subarrow">${subOpen[k]?'▾':'▸'}</span>${title}</div>`
+        +`<div class="subsec" id="subsec-${k}"${subOpen[k]?'':' style="display:none"'}>${inner}</div>`
+      : inner;
     if(needsDeck) html+=deckBoxHTML();
     if(A.includes('winning')){
-      html+=sublabel('Winningest cards');
-      html+=`<button class="btn" style="width:100%;margin-top:8px" onclick="findWinners()">Show winningest cards (EDHTop16)</button>
-        <div id="winout">${winHTML||''}</div>
-        <button class="btn ghost" style="width:100%;margin-top:8px" onclick="findCuts()">Show least-winningest (cut candidates)</button>
-        <div id="cutout">${cutHTML||''}</div>`;
+      html+=sub('winning','Winningest cards',
+        `<button class="btn" style="width:100%;margin-top:8px" onclick="findWinners()">Show winningest cards (EDHTop16)</button>
+        <div id="winout">${winHTML||''}</div>`);
     }
     if(A.includes('oneaway')){
-      html+=sublabel('Combos you\'re one away from');
-      html+=`<button class="btn" style="width:100%;margin-top:8px" onclick="findOneAway()">Find cards I'm one away from</button>
-        <div id="oneaway">${oneAwayHTML||''}</div>`;
+      html+=sub('oneaway','Combos you\'re one away from',
+        `<button class="btn" style="width:100%;margin-top:8px" onclick="findOneAway()">Find cards I'm one away from</button>
+        <div id="oneaway">${oneAwayHTML||''}</div>`);
     }
     if(A.includes('audit')){
-      html+=sublabel('Audit the deck you have');
-      html+=`<button class="btn" style="width:100%;margin-top:8px" onclick="findDeckAudit()">Audit my deck — combo cards by type</button>
-        <div id="auditout">${auditHTML||''}</div>
-        <button class="btn ghost" style="width:100%;margin-top:8px" onclick="findQuestionable()">Find my most questionable includes</button>
-        <div id="questout">${questHTML||''}</div>`;
+      html+=sub('audit','Audit the deck you have',
+        `<button class="btn" style="width:100%;margin-top:8px" onclick="findDeckAudit()">Audit my deck — combo cards by type</button>
+        <div id="auditout">${auditHTML||''}</div>`);
     }
     if(A.includes('staples')){
       const sm=state.staplesMode;
-      html+=sublabel('Competitive staples you\'re missing');
-      html+=`<div class="staptoggle">
+      html+=sub('staples','Competitive staples you\'re missing',
+        `<div class="staptoggle">
           <button class="${sm==='commander'?'on':''}" onclick="setStaplesMode('commander')">This commander</button>
           <button class="${sm==='colors'?'on':''}" onclick="setStaplesMode('colors')">These colors</button>
         </div>
         <button class="btn" style="width:100%;margin-top:8px" onclick="findStaples()">Find competitive staples I'm missing</button>
-        <div id="staplesout">${staplesHTML||''}</div>`;
+        <div id="staplesout">${staplesHTML||''}</div>`);
     }
     if(A.includes('recs')){
-      html+=sublabel('★ What to add — all signals combined');
-      html+=`<button class="btn" style="width:100%;margin-top:8px" onclick="findRecs()">Build my recommendations</button>
-        <div id="recout">${recHTML||''}</div>`;
+      html+=sub('recs','★ What to add — all signals combined',
+        `<button class="btn" style="width:100%;margin-top:8px" onclick="findRecs()">Build my recommendations</button>
+        <div id="recout">${recHTML||''}</div>`);
+    }
+    if(A.includes('winning')||A.includes('audit')){
+      html+=sub('cuts','Cut candidates — what to drop',
+        `<button class="btn ghost" style="width:100%;margin-top:8px" onclick="findCuts()">Show least-winningest cards (EDHTop16)</button>
+        <div id="cutout">${cutHTML||''}</div>
+        <button class="btn ghost" style="width:100%;margin-top:8px" onclick="findQuestionable()">Find my most questionable includes</button>
+        <div id="questout">${questHTML||''}</div>`);
     }
     if(A.includes('mull')){
       const M=state.mull, H=state.hg, N=state.cmd2?98:99;
@@ -451,6 +461,11 @@ function render(){
   ['#oneaway','#winout','#cutout','#recout','#staplesout','#auditout','#questout'].forEach(id=>{ const b=$(id); if(b) annotatePrices(b); });   // re-fill price tags from cache after re-render
 }
 function toggle(n){ state.done[n]=!state.done[n]; save(); render(); }
+function toggleSub(k){                                   // expand/collapse an analysis subsection in place (no full re-render)
+  subOpen[k]=!subOpen[k];
+  const sec=document.getElementById('subsec-'+k); if(sec) sec.style.display=subOpen[k]?'':'none';
+  const mk=document.getElementById('submk-'+k); const ar=mk&&mk.querySelector('.subarrow'); if(ar) ar.textContent=subOpen[k]?'▾':'▸';
+}
 function cardSearch(n){
   const v=$('#cardin'+n).value.trim(); if(!v) return;
   window.open(csbCardInColors(v),'_blank','noopener');   // combos this card enables in your colors (Spellbook)
@@ -581,6 +596,23 @@ async function deckComboCounts(allNames){
     }
   }catch(e){}
   return {comboCount, live, code};
+}
+// how many combos (in your colors) each card PARTICIPATES in — regardless of whether you own the other pieces
+async function comboParticipation(){
+  const cu=unionCI(), code=(WUBRG.filter(x=>cu.has(x)).join('')||'c').toUpperCase();
+  const count=new Map();
+  try{
+    const bundle=await fetch('data/'+code+'.json').then(r=>r.ok?r.json():null);
+    const ban=await loadBanlist();
+    if(bundle){
+      const bannedIdx=new Set(); bundle.cards.forEach((nm,i)=>{ if(ban.has(normName(nm))) bannedIdx.add(i); });
+      for(const combo of bundle.combos){
+        if(combo.some(i=>bannedIdx.has(i))) continue;
+        for(const i of combo){ const k=normName(bundle.cards[i]); count.set(k,(count.get(k)||0)+1); }
+      }
+    }
+  }catch(e){}
+  return {count, code};
 }
 // EDHTop16 lift per card (from this commander's winners + cuts bundle), if it exists
 async function winLiftMap(){
@@ -889,14 +921,15 @@ async function findStaplesColors(box){
     if(!r.ok) throw 0;
     const t=await r.text(); js=JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}')+1));
   }catch(e){ staplesHTML='<div class="oahead">Couldn’t load the staples list right now — try again in a moment.</div>'; box.innerHTML=staplesHTML; return; }
+  const {count:comboCount}=await comboParticipation();
   const mb=js.mainboard||{}, inCI=ci=>(ci||[]).every(c=>target.includes(c));
   const cards=[];
-  for(const name in mb){ const c=mb[name].card||{}; if(!inCI(c.color_identity||[])) continue; if(deckSet.has(normName(name))) continue; cards.push({name, cmc:c.cmc||0}); }
-  cards.sort((a,b)=>a.name.localeCompare(b.name));
+  for(const name in mb){ const c=mb[name].card||{}; if(!inCI(c.color_identity||[])) continue; if(deckSet.has(normName(name))) continue; cards.push({name, cnt:comboCount.get(normName(name))||0}); }
+  cards.sort((a,b)=> b.cnt-a.cnt || a.name.localeCompare(b.name));
   const clabel=target.length?target.join(''):'colorless';
-  let h=`<div class="oahead">cEDH staples that fit your colors (${clabel}) and aren't in your list — from a maintained staples list. Number = mana value.</div>`;
+  let h=`<div class="oahead">cEDH staples that fit your colors (${clabel}) and aren't in your list — from a maintained staples list. Number = combos in your colors this card is part of.</div>`;
   if(!cards.length){ h+='<div class="oahead">Nothing missing — you\'re on all the in-color staples.</div>'; }
-  else h+='<div class="oalist">'+cards.slice(0,60).map(c=>`<div class="oarow"><span class="oacnt">${c.cmc}</span><a class="oaname" href="${scry('!"'+c.name.replace(/"/g,'')+'"')}" target="_blank" rel="noopener">${c.name.replace(/</g,'&lt;')}</a>${priceTag(c.name)}</div>`).join('')+'</div><div class="rpricetotal"></div>';
+  else h+='<div class="oalist">'+cards.slice(0,60).map(c=>`<div class="oarow"><span class="oacnt"${c.cnt?'':' style="background:#1c2230;color:#9aa3b2"'}>${c.cnt}</span><a class="oaname" href="${scry('!"'+c.name.replace(/"/g,'')+'"')}" target="_blank" rel="noopener">${c.name.replace(/</g,'&lt;')}</a>${priceTag(c.name)}</div>`).join('')+'</div><div class="rpricetotal"></div>';
   staplesHTML=h; box.innerHTML=h; annotatePrices(box);
 }
 
