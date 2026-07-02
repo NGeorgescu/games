@@ -251,32 +251,27 @@ const HYPERGEO = 'https://aetherhub.com/Apps/HyperGeometric';
 
 /* ---------- the steps ---------- */
 function steps(){ return [
-  { t:"Combos with your commander",
-    body:`<p>Check Commander Spellbook for combos your commander is in or enables. Note the cards and add them to
-      your list.</p>`,
-    links:[['Spellbook · '+(state.cmd2?(state.cmd||'cmdr 1'):'this commander'), csbCommander]]
-      .concat(state.cmd2 ? [['Spellbook · '+state.cmd2, csbCommander2]] : []) },
-
-  { t:"Web-hunt for real decklists + primers",
-    body:`<p>Search the open web for high-power lists and primers. Moxfield search is good for finding decks with
-      write-ups.</p>
+  { t:"See what others are up to",
+    body:`<p>Scout the field before you build — all the "what does everyone else run" links in one place:</p>
+      <ul class="note" style="margin:.3em 0 .6em 1.1em;padding:0">
+        <li><b>Spellbook</b> — combos your commander is in or enables, plus every combo in your colors.</li>
+        <li><b>Web hunt</b> — real decklists &amp; primers out on the open web.</li>
+        <li><b>EDHREC</b> — combos the general population puts in this deck, and the high-synergy cards in
+          optimized (bracket 4) / cEDH (bracket 5) builds.</li>
+        <li><b>EDHTop16</b> — actual cEDH tournament results.</li>
+      </ul>
       <p class="note">Don't worry if your deck isn't true cEDH — search "cedh" anyway. Plenty of people label
       and write up bracket-4 decks as "cedh," so it's the best keyword for finding optimized lists either way.</p>`,
-    links:[['Ultra-high-power decks', ()=>ddg(deckNames()+' cedh')],
-           ['Moxfield primers', ()=>ddg(deckNames()+' cedh primer site:moxfield.com')]] },
-
-  { t:"Compare to what people actually run",
-    body:`<p>See the combos the general population is putting in this deck, plus the popular combos across your
-      colors generally.</p>`,
-    links:[['EDHREC · combos for this deck', edhrecCombos],
-           ['Spellbook · combos in these colors', csbColorCombos]] },
-
-  { t:"Raid the bracket 4 / 5 lists",
-    body:`<p>What are people putting in optimized (bracket 4) and cEDH (bracket 5) builds? The EDHREC links jump
-      straight to the <b>high-synergy cards</b>; EDHTop16 shows actual cEDH tournament results.</p>`,
-    links:[['EDHREC · optimized (b4)', ()=>edhrecBracket('optimized')],
-           ['EDHREC · cEDH (b5)', ()=>edhrecBracket('cedh')],
-           ['EDHTop16 · tournaments', edhtop16Link]] },
+    links:[['Spellbook · '+(state.cmd2?(state.cmd||'cmdr 1'):'this commander'), csbCommander]]
+      .concat(state.cmd2 ? [['Spellbook · '+state.cmd2, csbCommander2]] : [])
+      .concat([
+        ['Spellbook · combos in these colors', csbColorCombos],
+        ['Ultra-high-power decks', ()=>ddg(deckNames()+' cedh')],
+        ['Moxfield primers', ()=>ddg(deckNames()+' cedh primer site:moxfield.com')],
+        ['EDHREC · combos for this deck', edhrecCombos],
+        ['EDHREC · optimized (b4)', ()=>edhrecBracket('optimized')],
+        ['EDHREC · cEDH (b5)', ()=>edhrecBracket('cedh')],
+        ['EDHTop16 · tournaments', edhtop16Link]]) },
 
   { t:"Find the cards those combos lean on",
     body:`<p>Click around and spot the glue pieces — e.g. if a card shows up in every combo, look up <i>which
