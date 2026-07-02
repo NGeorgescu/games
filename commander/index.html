@@ -53,6 +53,9 @@
   .step.done .chk{background:#16462a;border-color:#2fe06a}
   .sbody{font-size:13.5px;color:#cfd6e2;line-height:1.6;margin:9px 0 0;padding-left:36px}
   .sbody p{margin:0 0 8px}
+  .submark{font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--accent);text-transform:uppercase;
+    margin:18px 0 2px;padding-top:12px;border-top:1px solid var(--line)}
+  .submark:first-of-type{margin-top:10px}
   .links{display:flex;flex-wrap:wrap;gap:7px;margin:9px 0 2px}
   a.lnk{display:inline-block;background:#1c222c;border:1px solid #2c3543;border-radius:9px;padding:8px 11px;
     font-size:13px;font-weight:600;color:var(--accent);text-decoration:none}
@@ -278,64 +281,43 @@ function steps(){ return [
       combos that specific card enables in your colors</i>:</p>`,
     cardbox:true },
 
-  { t:"See the winningest cards",
-    body:`<p>Cards that statistically <b>over-perform</b> in EDHTop16 tournament results for your commander —
-      weighted by how deep each deck finished and how big the event was (a top-4 in a 64-player counts like a win
-      in a 16-player). Score 1.00 = the commander's average; higher = decks running it place better. Paste your
-      deck below and it'll mark which winners you already run and which you're <b>missing</b>.</p>`,
-    auto:'winning' },
-
-  { t:"Find what you're one-away from",
-    body:`<p>Paste a <b>Moxfield deck link</b> (it'll fetch the list for you) or your decklist text, one card per
-      line — <b>shared with the staples step</b>. This computes which single cards would complete the most combos
-      in your colors — ranked. No copy-paste tallying, no upload.</p>
-      <p class="note"><b>Wincons:</b> these combos are your finishers — lock in a small, focused set that (A) fits
-      your gameplan and (B) wins along different axes (stax-locked, instant-speed, etc.) rather than jamming every
-      line you can.</p>`,
-    auto:'oneaway',
-    links:[['Cross-check on Spellbook · Find My Combos', ()=>FIND_MY_COMBOS]] },
-
-  { t:"Audit the deck you have",
-    body:`<p>Two looks at the list you're holding (shared deck box above). <b>By type</b> lays your decklist out by
-      card type, sub-sorted by mana value, with the number on the left = how many combos that card <b>enables that
-      you can fully run</b>. <b>Questionable includes</b> surfaces cards pulling the least weight — no runnable combo,
-      no mana, and a poor or absent EDHTop16 record.</p>`,
-    auto:'audit' },
-
-  { t:"Add the competitive staples you're missing",
-    body:`<p>Paste your decklist or a Moxfield link below — it's <b>shared with the one-away step</b>, so you only
-      paste once. This pulls what cEDH decks of your commander actually run (live EDHREC data) and lists the most-played cards
-      you're <b>not</b> on yet, ranked by the % of competitive decks that play them. The weaker your commander, the
-      more of these you'll want to keep pace.</p>`,
-    auto:'staples',
-    links:[['Browse a full cEDH staples list', ()=>MOX_STAPLES],
+  { t:"Analyze the deck you have",
+    body:`<p>Paste a <b>Moxfield deck link</b> (it'll fetch the list) or your decklist text, one card per line —
+      <b>one box, shared across every check below</b>. Work top to bottom:</p>
+      <ul class="note" style="margin:.3em 0 .6em 1.1em;padding:0">
+        <li><b>Winningest cards</b> — cards that over-perform in EDHTop16 results for your commander, weighted by
+          finish depth and event size (1.00 = the commander's average; higher places better), plus least-winningest
+          cut candidates.</li>
+        <li><b>One-away</b> — single cards that would complete the most combos in your colors, ranked. Tick a card to
+          simulate adding it and recompute.</li>
+        <li><b>Audit</b> — your list by card type, sub-sorted by mana value, left number = combos it fully enables;
+          plus your most questionable includes.</li>
+        <li><b>Staples</b> — most-played cEDH cards for this commander (live EDHREC) you're not on yet.</li>
+        <li><b>★ Recommendations</b> — one ranked list of cards not in your deck, merged across every signal above.</li>
+      </ul>
+      <p class="note"><b>Wincons:</b> your one-away combos are finishers — lock in a small, focused set that fits your
+      gameplan and wins along different axes (stax-locked, instant-speed, etc.) rather than jamming every line.</p>`,
+    auto:['winning','oneaway','audit','staples','recs'],
+    links:[['Cross-check on Spellbook · Find My Combos', ()=>FIND_MY_COMBOS],
+           ['Browse a full cEDH staples list', ()=>MOX_STAPLES],
            ['Spellbook · all combos in your colors', csbColorCombos]] },
 
-  { t:"★ What to add — all signals combined",
-    body:`<p>Paste your decklist (shared above) for one ranked list of cards <b>not in your deck yet</b>, merged
-      across every signal: combo finishers you're <b>one-away</b> from, EDHTop16 <b>winning</b> cards, and EDHREC
-      <b>high-synergy</b> &amp; <b>cEDH inclusion</b>. Cards backed by more signals rank higher.</p>`,
-    auto:'recs' },
-
-  { t:"Fill out the deck",
-    body:`<p>Plug the gaps. Combo-piece heavy on artifacts/enchantments → add the matching tutors. Commander makes
-      no mana → more ramp. Doesn't draw → add engines. Needs a particular card type to function → grab its most
-      abusable, repeatable version on Scryfall. Then fix the mana base with good untapped lands.</p>`,
+  { t:"Fill the gaps & tune",
+    body:`<p>Plug the holes, then pressure-test speed. Combo-piece heavy on artifacts/enchantments → add the matching
+      tutors. Commander makes no mana → more ramp. Doesn't draw → add engines. Fix the mana base with good untapped
+      lands.</p>
+      <p>Then goldfish it: you want to be winning well under turn 6. If you can't, add <b>stax</b> to slow the table —
+      tax effects, prison pieces (Rule-of-Law style), and mana/ability denial. A longer game is OK only if you're a
+      real resource/control deck — hard without oodles of free interaction in your colors.</p>`,
     links:[['Scryfall · tutors in your colors', ()=>scry('id<='+ci()+' o:"search your library" -t:land')],
            ['Scryfall · mana rocks & dorks', ()=>scry('id<='+ci()+' (t:artifact or t:creature) o:" add " mv<=3')],
-           ['Good untapped lands '+(/moxfield\.com\/decks\//i.test(state.deck||'')?'(in your deck)':'(in your colors)'), landsLink]] },
+           ['Good untapped lands '+(/moxfield\.com\/decks\//i.test(state.deck||'')?'(in your deck)':'(in your colors)'), landsLink],
+           ['Scryfall · stax pieces in your colors', ()=>scry('id<='+ci()+' '+STAX_TERMS)]] },
 
   { t:"Check your mulligans",
     body:`<p>Tune toward a ~2-in-3 keepable-hand rate (looser or tighter depending how mull-sensitive the deck is).
       Use the calculators below to get the odds of an acceptable opener.</p>`,
     auto:'mull' },
-
-  { t:"Goldfish — can it win fast?",
-    body:`<p>You want to be winning well under turn 6. If you can't, add stax to slow the table — tax effects,
-      prison pieces (Rule-of-Law style), and mana/ability denial (use the search below for ones in your colors).
-      A longer game is OK only if you're a real resource/control deck — hard without oodles of free interaction
-      in your colors.</p>`,
-    links:[['Scryfall · stax pieces in your colors', ()=>scry('id<='+ci()+' '+STAX_TERMS)]] },
 ];}
 
 /* ---------- render ---------- */
@@ -394,9 +376,33 @@ function render(){
       html+=`<div class="mini"><input type="text" id="cardin${n}" placeholder="glue card name…" autocomplete="off">
         <button onclick="cardSearch(${n})">Combos →</button></div>`;
     }
-    if(s.auto==='staples'){
+    const A = Array.isArray(s.auto)?s.auto:(s.auto?[s.auto]:[]);
+    const needsDeck = A.some(a=>['winning','oneaway','audit','staples','recs'].includes(a));
+    const multi = A.length>1;
+    const sublabel = t => multi ? `<div class="submark">${t}</div>` : '';
+    if(needsDeck) html+=deckBoxHTML();
+    if(A.includes('winning')){
+      html+=sublabel('Winningest cards');
+      html+=`<button class="btn" style="width:100%;margin-top:8px" onclick="findWinners()">Show winningest cards (EDHTop16)</button>
+        <div id="winout">${winHTML||''}</div>
+        <button class="btn ghost" style="width:100%;margin-top:8px" onclick="findCuts()">Show least-winningest (cut candidates)</button>
+        <div id="cutout">${cutHTML||''}</div>`;
+    }
+    if(A.includes('oneaway')){
+      html+=sublabel('Combos you\'re one away from');
+      html+=`<button class="btn" style="width:100%;margin-top:8px" onclick="findOneAway()">Find cards I'm one away from</button>
+        <div id="oneaway">${oneAwayHTML||''}</div>`;
+    }
+    if(A.includes('audit')){
+      html+=sublabel('Audit the deck you have');
+      html+=`<button class="btn" style="width:100%;margin-top:8px" onclick="findDeckAudit()">Audit my deck — combo cards by type</button>
+        <div id="auditout">${auditHTML||''}</div>
+        <button class="btn ghost" style="width:100%;margin-top:8px" onclick="findQuestionable()">Find my most questionable includes</button>
+        <div id="questout">${questHTML||''}</div>`;
+    }
+    if(A.includes('staples')){
       const sm=state.staplesMode;
-      html+=deckBoxHTML();
+      html+=sublabel('Competitive staples you\'re missing');
       html+=`<div class="staptoggle">
           <button class="${sm==='commander'?'on':''}" onclick="setStaplesMode('commander')">This commander</button>
           <button class="${sm==='colors'?'on':''}" onclick="setStaplesMode('colors')">These colors</button>
@@ -404,31 +410,12 @@ function render(){
         <button class="btn" style="width:100%;margin-top:8px" onclick="findStaples()">Find competitive staples I'm missing</button>
         <div id="staplesout">${staplesHTML||''}</div>`;
     }
-    if(s.auto==='oneaway'){
-      html+=deckBoxHTML();
-      html+=`<button class="btn" style="width:100%;margin-top:8px" onclick="findOneAway()">Find cards I'm one away from</button>
-        <div id="oneaway">${oneAwayHTML||''}</div>`;
-    }
-    if(s.auto==='audit'){
-      html+=deckBoxHTML();
-      html+=`<button class="btn" style="width:100%;margin-top:8px" onclick="findDeckAudit()">Audit my deck — combo cards by type</button>
-        <div id="auditout">${auditHTML||''}</div>
-        <button class="btn ghost" style="width:100%;margin-top:8px" onclick="findQuestionable()">Find my most questionable includes</button>
-        <div id="questout">${questHTML||''}</div>`;
-    }
-    if(s.auto==='winning'){
-      html+=deckBoxHTML();
-      html+=`<button class="btn" style="width:100%;margin-top:8px" onclick="findWinners()">Show winningest cards (EDHTop16)</button>
-        <div id="winout">${winHTML||''}</div>
-        <button class="btn ghost" style="width:100%;margin-top:8px" onclick="findCuts()">Show least-winningest (cut candidates)</button>
-        <div id="cutout">${cutHTML||''}</div>`;
-    }
-    if(s.auto==='recs'){
-      html+=deckBoxHTML();
+    if(A.includes('recs')){
+      html+=sublabel('★ What to add — all signals combined');
       html+=`<button class="btn" style="width:100%;margin-top:8px" onclick="findRecs()">Build my recommendations</button>
         <div id="recout">${recHTML||''}</div>`;
     }
-    if(s.auto==='mull'){
+    if(A.includes('mull')){
       const M=state.mull, H=state.hg, N=state.cmd2?98:99;
       html+=`<div class="hgbox">
         <div class="hgline">Chance to draw at least
