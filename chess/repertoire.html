@@ -373,6 +373,11 @@ function setView(v) {
   document.getElementById('explorer-view').style.display = v === 'explorer' ? 'flex' : 'none';
   document.getElementById('openings-view').style.display = v === 'openings' ? 'block' : 'none';
   if (v === 'openings') renderOpenings();
+  else {
+    // chessboard.js caches its container size; when we un-hide the board we
+    // must force a re-measure or it renders at 0×0 in the corner.
+    requestAnimationFrame(() => { board.resize(); board.position(game.fen(), false); });
+  }
 }
 function renderOpenings() {
   const list = document.getElementById('openings-list');
