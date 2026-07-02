@@ -76,6 +76,18 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 .modal-box .close { float: right; background: none; border: none; color: #888;
                      font-size: 20px; cursor: pointer; padding: 0; margin: -8px -8px 0 0; }
 .modal-box .close:hover { color: #fff; }
+/* Tap-to-move highlights (chessboard.js square class is .square-55d63). */
+#board .square-55d63 { position: relative; }
+#board .square-55d63.hl-sel { box-shadow: inset 0 0 0 3px rgba(255,220,120,0.75); }
+#board .square-55d63.hl-legal::after {
+  content: ''; position: absolute; top: 50%; left: 50%;
+  width: 30%; height: 30%; transform: translate(-50%, -50%);
+  background: rgba(30,30,30,0.35); border-radius: 50%; pointer-events: none;
+}
+#board .square-55d63.hl-cap::after {
+  content: ''; position: absolute; inset: 6%;
+  border: 4px solid rgba(30,30,30,0.4); border-radius: 50%; pointer-events: none;
+}
 .card { display: flex; gap: 12px; padding: 10px; background: #232427; border: 1px solid #333;
          border-radius: 6px; margin-bottom: 8px; align-items: center; cursor: pointer; }
 .card:hover { background: #2a2b2f; border-color: #555; }
@@ -214,9 +226,40 @@ function inLens(op) {
   return op === base || op.startsWith(base + ':');
 }
 
+let selectedSq = null;
+function clearHighlights() {
+  $('#board .square-55d63').removeClass('hl-sel hl-legal hl-cap');
+  selectedSq = null;
+}
+function highlightFrom(sq) {
+  selectedSq = sq;
+  $('#board .square-' + sq).addClass('hl-sel');
+  const legal = game.moves({ square: sq, verbose: true });
+  for (const m of legal) {
+    const $sq = $('#board .square-' + m.to);
+    if (m.flags.includes('c') || m.flags.includes('e')) $sq.addClass('hl-cap');
+    else $sq.addClass('hl-legal');
+  }
+}
+// Try to select the piece on `sq`. Returns true if selected.
+function trySelect(sq) {
+  const p = game.get(sq);
+  if (!p || p.color !== game.turn()) return false;
+  clearHighlights();
+  highlightFrom(sq);
+  return true;
+}
+
 const board = Chessboard('board', {
   draggable: true, position: 'start',
   pieceTheme: (piece) => PIECES[piece],
+  // Only allow picking up pieces of the side to move. chess.js also enforces
+  // this, but blocking here avoids the pointless snapback animation.
+  onDragStart: (src, piece) => {
+    const turn = game.turn();
+    if ((turn === 'w' && piece[0] !== 'w') || (turn === 'b' && piece[0] !== 'b')) return false;
+    clearHighlights();
+  },
   onDrop: (src, dst) => {
     const mv = game.move({ from: src, to: dst, promotion: 'q' });
     if (!mv) return 'snapback';
@@ -224,6 +267,26 @@ const board = Chessboard('board', {
     render();
   },
   onSnapEnd: () => board.position(game.fen()),
+});
+
+// Tap-to-move: chessboard.js has no onSquareClick, so bind directly to squares.
+// Delegated on document so it survives board redraws.
+$(document).on('click', '#board .square-55d63', function(e) {
+  const sq = $(this).data('square');
+  if (!sq) return;
+  if (selectedSq && selectedSq !== sq) {
+    const mv = game.move({ from: selectedSq, to: sq, promotion: 'q' });
+    if (mv) {
+      history.push(mv.san);
+      clearHighlights();
+      render();
+      return;
+    }
+    // Illegal destination — fall through to re-select if the tapped square
+    // has one of our pieces.
+  }
+  if (selectedSq === sq) { clearHighlights(); return; }
+  if (!trySelect(sq)) clearHighlights();
 });
 
 function updateAnalyzeLink() {
@@ -345,14 +408,15 @@ function playMove(san, dim) {
   if (mv) {
     history.push(mv.san);
     if (dim) lensName = null;  // silently leave lens
+    clearHighlights();
     render();
   }
 }
 function navBack() {
   const undone = game.undo();
-  if (undone) { history.pop(); render(); }
+  if (undone) { history.pop(); clearHighlights(); render(); }
 }
-function navStart() { game.reset(); history = []; lensName = null; render(); }
+function navStart() { game.reset(); history = []; lensName = null; clearHighlights(); render(); }
 function flipBoard() {
   boardOrientation = (boardOrientation === 'white') ? 'black' : 'white';
   board.orientation(boardOrientation);
