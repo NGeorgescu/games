@@ -519,7 +519,15 @@ Promise.all([
   if (currentView === 'openings') renderOpenings();
 })
   .catch(e => showLoading('Failed to load: ' + e.message));
-requestAnimationFrame(() => board.resize());
+// Belt-and-suspenders: on some browsers the first rAF fires before the
+// board container's final width is committed, so the board renders 0×0
+// and stays that way until the user resizes the window. Re-resize on
+// every reasonable milestone.
+function forceResize() { board.resize(); board.position(game.fen(), false); }
+requestAnimationFrame(forceResize);
+requestAnimationFrame(() => requestAnimationFrame(forceResize));
+setTimeout(forceResize, 100);
+window.addEventListener('load', forceResize);
 window.addEventListener('resize', () => board.resize());
 window.addEventListener('orientationchange', () => board.resize());
 </script>
