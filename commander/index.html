@@ -92,6 +92,9 @@
   .rbadge.miss{background:#3a1f24;color:#ff9aa9}
   .rprice{flex:0 0 auto;font-size:12.5px;font-weight:800;color:#8fe0b0;white-space:nowrap;font-variant-numeric:tabular-nums}
   .rprice:empty{display:none}
+  .oaadd{display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--muted);flex:0 0 auto;cursor:pointer;user-select:none}
+  .oaadd input{margin:0;cursor:pointer}
+  .addchip{display:inline-block;background:#16213a;border:1px solid #2c3e63;border-radius:999px;padding:2px 9px;font-size:12px;color:var(--accent);margin:2px 4px 0 0}
   .rpricetotal{color:var(--muted);font-size:12px;text-align:right;margin-top:7px;line-height:1.5}
   .rpricetotal:empty{display:none}
   .oarow.have{opacity:.5}
@@ -191,6 +194,8 @@ function defaultMull(){ return {L:17,R:4,I:4,N:99,h:7,combos:'LLL LLR LRI',open:
 let state = { cmd:'', cmd2:'', ci1:[], ci2:[], bg2:false, slot2q:null, colors:new Set(), done:{}, notes:'', deck:'', staplesMode:'commander', hg:{k:2,copies:10}, mull:defaultMull() };
 let oneAwayHTML = '', staplesHTML = '', deckWarning = '', winHTML = '', cutHTML = '', recHTML = '', auditHTML = '', questHTML = '';
 let auditHideMana = false;
+let pendingAdds = new Map();   // one-away "what if I add this" simulation: normName -> display name
+let oneAwayBundle = null;      // current combo bundle, so the add checkboxes can resolve idx -> card name
 let deckCache = {key:null, names:null, commanders:null, deckCI:null};
 function deckBoxHTML(){
   return `<textarea class="deckbox" oninput="onDeck(this.value)" placeholder="Paste a Moxfield deck link, or your decklist (one card per line)…">${(state.deck||'').replace(/</g,'&lt;')}</textarea>
@@ -342,7 +347,7 @@ function steps(){ return [
 function key(){ return 'bs:'+slug(state.cmd||'_'); }
 function save(){ localStorage.setItem(key(), JSON.stringify({done:state.done,notes:state.notes,deck:state.deck,colors:[...state.colors],cmd2:state.cmd2,ci1:state.ci1,ci2:state.ci2,bg2:state.bg2,staplesMode:state.staplesMode,hg:state.hg,mull:state.mull})); }
 function load(){
-  state.done={}; state.notes=''; state.deck=''; state.cmd2=''; state.ci2=[]; state.bg2=false; state.staplesMode='commander'; state.hg={k:2,copies:10}; state.mull=defaultMull(); oneAwayHTML=''; staplesHTML=''; deckWarning=''; winHTML=''; cutHTML=''; recHTML=''; auditHTML=''; questHTML=''; deckCache={key:null,names:null,commanders:null,deckCI:null};
+  state.done={}; state.notes=''; state.deck=''; state.cmd2=''; state.ci2=[]; state.bg2=false; state.staplesMode='commander'; state.hg={k:2,copies:10}; state.mull=defaultMull(); oneAwayHTML=''; staplesHTML=''; deckWarning=''; winHTML=''; cutHTML=''; recHTML=''; auditHTML=''; questHTML=''; pendingAdds=new Map(); deckCache={key:null,names:null,commanders:null,deckCI:null};
   try{ const o=JSON.parse(localStorage.getItem(key())||'{}');
     state.done=o.done||{}; state.notes=o.notes||''; state.deck=o.deck||'';
     state.cmd2=o.cmd2||''; state.bg2=!!o.bg2; state.staplesMode=o.staplesMode||'commander'; if(o.hg) state.hg=o.hg; if(o.ci2) state.ci2=o.ci2; if(o.ci1 && !(state.ci1||[]).length) state.ci1=o.ci1;
@@ -695,12 +700,16 @@ async function findOneAway(){
   const cu=unionCI(); const code=(WUBRG.filter(x=>cu.has(x)).join('')||'c').toUpperCase();
   try{ const r=await fetch('data/'+code+'.json'); if(!r.ok) throw 0; bundle=await r.json(); }
   catch(e){ oneAwayHTML='<div class="oahead">Couldn\'t load combo data for '+code+'. (Works on the live site; opening the file locally blocks the fetch.)</div>'; box.innerHTML=oneAwayHTML; return; }
+  oneAwayBundle=bundle;
   const idxByName=indexByName(bundle.cards);
   const ban=await loadBanlist();
   const bannedIdx=new Set(); bundle.cards.forEach((nm,i)=>{ if(ban.has(normName(nm))) bannedIdx.add(i); });
-  const deck=new Set();
-  for(let nm of names){ const ix=lookupIdx(idxByName,nm); if(ix!=null) deck.add(ix); }
-  for(const cn of [state.cmd, state.cmd2]){ const ix=lookupIdx(idxByName,cn||''); if(ix!=null) deck.add(ix); }
+  const realDeck=new Set();
+  for(let nm of names){ const ix=lookupIdx(idxByName,nm); if(ix!=null) realDeck.add(ix); }
+  for(const cn of [state.cmd, state.cmd2]){ const ix=lookupIdx(idxByName,cn||''); if(ix!=null) realDeck.add(ix); }
+  const pendingIdx=new Set();   // cards you've ticked to "add" — treated as owned for the simulation
+  for(const k of pendingAdds.keys()){ const ix=lookupIdx(idxByName,k); if(ix!=null) pendingIdx.add(ix); }
+  const deck=new Set([...realDeck, ...pendingIdx]);
   const tally=new Map(); let already=0;
   for(const combo of bundle.combos){
     if(combo.some(i=>bannedIdx.has(i))) continue;   // skip combos that need a banned card — can't legally play them
@@ -717,14 +726,23 @@ async function findOneAway(){
   const rowHTML=([idx,combos])=>{
     const nm=bundle.cards[idx], cnt=combos.length;
     const inner=combos.slice(0,25).map(combo=>{
-      const parts=combo.map(i=>i===idx?'<b>'+esc(bundle.cards[i])+'</b>':esc(bundle.cards[i]));
+      // bold = this row's missing card; italic = a card you've queued to add; plain = already in your real deck
+      const parts=combo.map(i=> i===idx ? '<b>'+esc(bundle.cards[i])+'</b>' : pendingIdx.has(i) ? '<i>'+esc(bundle.cards[i])+'</i>' : esc(bundle.cards[i]));
       const q=combo.map(i=>'"'+bundle.cards[i].replace(/"/g,'')+'"').join(' ');
       return `<a class="oacombo" href="${CSB+enc(q)}" target="_blank" rel="noopener">${parts.join(' + ')}</a>`;
     }).join('')+(cnt>25?`<div class="oacombo" style="color:var(--muted)">…and ${cnt-25} more</div>`:'');
-    return `<div class="oarow" onclick="toggleOA(${idx})"><span class="oacnt">${cnt}</span><span class="oaname">${esc(nm)} <span class="oacar" id="oacar${idx}">▸</span></span>${priceTag(nm)}</div>`+
+    return `<div class="oarow" onclick="toggleOA(${idx})"><span class="oacnt">${cnt}</span>`+
+      `<label class="oaadd" onclick="event.stopPropagation()" title="add to a simulated deck and recalculate"><input type="checkbox" onchange="toggleAdd(${idx})">add</label>`+
+      `<span class="oaname">${esc(nm)} <span class="oacar" id="oacar${idx}">▸</span></span>${priceTag(nm)}</div>`+
       `<div class="oacombos" id="oac${idx}" style="display:none">${inner}</div>`;
   };
-  let h=`<div class="oahead">From the Commander Spellbook combo database (v${bundle.v}, colors ${code}). You already complete <b>${already}</b> combo${already===1?'':'s'} with this list. The number on each card = how many <i>more</i> combos it would finish — <b>tap a card to list those combos</b>.</div>`;
+  let h='';
+  if(pendingAdds.size){
+    h+=`<div class="oahead">Simulating your deck <b>+ ${pendingAdds.size}</b>: `+
+      [...pendingAdds.entries()].map(([k,dn])=>`<span class="addchip">${esc(dn)} <span onclick="removeAdd('${k}')" style="cursor:pointer;font-weight:800">✕</span></span>`).join('')+
+      `<a href="#" onclick="clearAdds();return false;" style="font-size:12px">clear all</a></div>`;
+  }
+  h+=`<div class="oahead">From the Commander Spellbook combo database (v${bundle.v}, colors ${code}). ${pendingAdds.size?'With those adds you':'You'} complete <b>${already}</b> combo${already===1?'':'s'}. The number on each card = how many <i>more</i> combos it would finish — tick <b>add</b> to drop it into the simulated deck and recalculate, or tap a card to list its combos (cards you'd add show <i>italic</i>).</div>`;
   if(!ranked.length){ h+='<div class="oahead">No one-away combos found — either this list already completes everything it can in your colors, or paste more of the deck.</div>'; }
   else {
     // cards finishing 2+ combos stay up top; the long tail that finishes exactly one combo collapses behind a toggle
@@ -741,6 +759,11 @@ async function findOneAway(){
   oneAwayHTML=h; box.innerHTML=h; annotatePrices(box);
 }
 function toggleOA(idx){ const el=document.getElementById('oac'+idx); if(!el) return; const open=el.style.display==='none'; el.style.display=open?'block':'none'; const car=document.getElementById('oacar'+idx); if(car) car.textContent=open?'▾':'▸'; }
+// "what if I add this card" — tick a one-away card into a simulated deck and recompute
+function toggleAdd(idx){ if(!oneAwayBundle) return; const nm=oneAwayBundle.cards[idx]; if(nm==null) return; const k=normName(nm);
+  if(pendingAdds.has(k)) pendingAdds.delete(k); else pendingAdds.set(k, nm); findOneAway(); }
+function removeAdd(k){ pendingAdds.delete(k); findOneAway(); }
+function clearAdds(){ pendingAdds.clear(); findOneAway(); }
 function toggleOneSingles(){ const el=document.getElementById('oneSingles'); if(!el) return; const open=el.style.display==='none'; el.style.display=open?'block':'none';
   const btn=document.getElementById('oneSinglesBtn'); if(btn){ const n=btn.dataset.n; btn.textContent=(open?'▾ Hide':'▸ Show')+' '+n+' card'+(n==1?'':'s')+' that complete just 1 combo'; }
   if(open) annotatePrices(el); }
