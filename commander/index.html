@@ -512,6 +512,11 @@ function priceTag(name){ return `<span class="rprice" data-price="${String(name)
 // Scryfall's collection `name` identifier matches the FRONT face, not the full "A // B" name that
 // Commander Spellbook uses — so DFC / split / adventure cards must be queried by their front face.
 function frontFace(nm){ return String(nm).split('//')[0].trim(); }
+// match keys for a card: full name + each face, so a deck's "Road" (cleanCardLine strips the back) still
+// matches a combo bundle's "Road // Ruin" and vice-versa
+function nameKeys(nm){ const s=String(nm||''); const keys=[normName(s)]; if(s.includes('//')) for(const p of s.split('//')){ const k=normName(p); if(k&&!keys.includes(k)) keys.push(k); } return keys.filter(Boolean); }
+function indexByName(cards){ const m=new Map(); cards.forEach((nm,i)=>{ for(const k of nameKeys(nm)) if(!m.has(k)) m.set(k,i); }); return m; }
+function lookupIdx(idxByName, nm){ for(const k of nameKeys(nm)) if(idxByName.has(k)) return idxByName.get(k); return undefined; }
 async function fetchPrices(names){
   const want=[], seen=new Set();
   for(const nm of names){ const k=normName(nm); if(!k||seen.has(k)||priceCache.has(k)) continue; seen.add(k); want.push(nm); }
@@ -584,9 +589,9 @@ async function deckComboCounts(allNames){
     const bundle=await fetch('data/'+code+'.json').then(r=>r.ok?r.json():null);
     const ban=await loadBanlist();
     if(bundle){
-      const idxByName=new Map(); bundle.cards.forEach((nm,i)=>idxByName.set(normName(nm),i));
+      const idxByName=indexByName(bundle.cards);
       const bannedIdx=new Set(); bundle.cards.forEach((nm,i)=>{ if(ban.has(normName(nm))) bannedIdx.add(i); });
-      const deckIdx=new Set(); for(const nm of allNames){ const k=normName(nm); if(idxByName.has(k)) deckIdx.add(idxByName.get(k)); }
+      const deckIdx=new Set(); for(const nm of allNames){ const ix=lookupIdx(idxByName,nm); if(ix!=null) deckIdx.add(ix); }
       for(const combo of bundle.combos){
         if(combo.some(i=>bannedIdx.has(i))) continue;
         if(combo.every(i=>deckIdx.has(i))){ live++; for(const i of combo){ const k=normName(bundle.cards[i]); comboCount.set(k,(comboCount.get(k)||0)+1); } }
@@ -690,12 +695,12 @@ async function findOneAway(){
   const cu=unionCI(); const code=(WUBRG.filter(x=>cu.has(x)).join('')||'c').toUpperCase();
   try{ const r=await fetch('data/'+code+'.json'); if(!r.ok) throw 0; bundle=await r.json(); }
   catch(e){ oneAwayHTML='<div class="oahead">Couldn\'t load combo data for '+code+'. (Works on the live site; opening the file locally blocks the fetch.)</div>'; box.innerHTML=oneAwayHTML; return; }
-  const idxByName=new Map(); bundle.cards.forEach((nm,i)=>idxByName.set(normName(nm),i));
+  const idxByName=indexByName(bundle.cards);
   const ban=await loadBanlist();
   const bannedIdx=new Set(); bundle.cards.forEach((nm,i)=>{ if(ban.has(normName(nm))) bannedIdx.add(i); });
   const deck=new Set();
-  for(let nm of names){ const k=normName(nm); if(idxByName.has(k)) deck.add(idxByName.get(k)); }
-  for(const cn of [state.cmd, state.cmd2]){ const ck=normName(cn||''); if(ck && idxByName.has(ck)) deck.add(idxByName.get(ck)); }
+  for(let nm of names){ const ix=lookupIdx(idxByName,nm); if(ix!=null) deck.add(ix); }
+  for(const cn of [state.cmd, state.cmd2]){ const ix=lookupIdx(idxByName,cn||''); if(ix!=null) deck.add(ix); }
   const tally=new Map(); let already=0;
   for(const combo of bundle.combos){
     if(combo.some(i=>bannedIdx.has(i))) continue;   // skip combos that need a banned card — can't legally play them
@@ -798,11 +803,11 @@ async function findRecs(){
     const cu=unionCI(), code=(WUBRG.filter(x=>cu.has(x)).join('')||'c').toUpperCase();
     const b=await fetch('data/'+code+'.json').then(r=>r.ok?r.json():null);
     if(b){
-      const idx=new Map(); b.cards.forEach((nm,i)=>idx.set(normName(nm),i));
+      const idx=indexByName(b.cards);
       const bIdx=new Set(); b.cards.forEach((nm,i)=>{ if(ban.has(normName(nm))) bIdx.add(i); });
-      const dset=new Set(); names.forEach(nm=>{const k=normName(nm); if(idx.has(k))dset.add(idx.get(k));});
+      const dset=new Set(); names.forEach(nm=>{const ix=lookupIdx(idx,nm); if(ix!=null)dset.add(ix);});
       const cmdIdx=new Set();
-      for(const cn of [state.cmd,state.cmd2]){const k=normName(cn||''); if(idx.has(k)){dset.add(idx.get(k)); cmdIdx.add(idx.get(k));}}
+      for(const cn of [state.cmd,state.cmd2]){const ix=lookupIdx(idx,cn||''); if(ix!=null){dset.add(ix); cmdIdx.add(ix);}}
       const tally=new Map(), tallyW=new Map();   // tally = true count (for display); tallyW = score weight, commander combos count extra (you always have the commander)
       for(const combo of b.combos){ if(combo.some(i=>bIdx.has(i))) continue; let miss=-1,c=0; for(const i of combo){ if(!dset.has(i)){c++;miss=i;if(c>1)break;} } if(c===1){ tally.set(miss,(tally.get(miss)||0)+1); const w=combo.some(i=>cmdIdx.has(i))?2.5:1; tallyW.set(miss,(tallyW.get(miss)||0)+w); } }
       for(const [i,cnt] of tally){ add(b.cards[i],'combos',cnt); const r=rec.get(normName(b.cards[i])); if(r) r.comboW=tallyW.get(i)||cnt; }
