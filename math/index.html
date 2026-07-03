@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Mental Math</title>
+<title>Become a Human Calculator</title>
 <link rel="stylesheet" href="/style.css">
 <style>
   :root{ --panel:var(--bg-card); --ink:var(--fg); --muted:var(--fg-dim); --line:var(--rule); --good:#7ee0a3; }
@@ -93,7 +93,7 @@
 
   <!-- HOME -->
   <section id="home">
-    <h1>Mental Math</h1>
+    <h1>Become a Human Calculator</h1>
     <p class="sub">Learn the “Human Calculator” tricks — then drill them. Each trick has a quick lesson and a
     practice mode that shows you the steps on every problem.</p>
     <div id="trickList"></div>
@@ -818,37 +818,6 @@ const TRICKS = [
       return { q:`0x${HD[hi]}${HD[lo]} = ?`, a:val, steps:[
         `${HD[hi]} = ${hi},  ${HD[lo]} = ${lo}`,
         `${hi} × 16 + ${lo} = ${hi*16} + ${lo} = <b>${val}</b>` ]}; } },
-
-  { id:"pi", cat:"Pi", name:"Pi to the Feynman point", tag:"Recite π 5 digits at a time — reach the six 9s at digit 762", answerType:"digits", seq:true,
-    lesson:(function(){
-      const chunks=[]; for(let i=0;i<PI_FRAC.length;i+=5) chunks.push(PI_FRAC.slice(i,i+5));
-      let rows="";
-      for(let r=0;r<chunks.length;r+=4){
-        let cells="";
-        for(let c=r;c<r+4 && c<chunks.length;c++){
-          const base=c*5; let h="";
-          for(let k=0;k<chunks[c].length;k++){
-            const pos=base+k;                                   // 0-based decimal index
-            const feyn = pos>=FEYN_START-1 && pos<=FEYN_START+4; // the six 9s
-            h += feyn ? `<span class="feyn">${chunks[c][k]}</span>` : chunks[c][k];
-          }
-          cells+=`<span class="pchunk">${h}</span>`;
-        }
-        rows+=`<div class="prow"><span class="pidx">${r*5+1}</span>${cells}</div>`;
-      }
-      return `<h3>Chunk it, don’t cram it</h3>
-        <p>Nobody memorizes π as one 700-digit blur. The standard method is <b>chunking</b>: break it into groups of five and learn a few groups at a time. Short-term memory holds only a handful of “items,” but a 5-digit group counts as <b>one</b> item.</p>
-        <ul><li><b>5 digits per group</b>, and only <b>5–10 new digits per session</b> — that’s a sustainable pace.</li>
-        <li><b>Always recite from the very start</b> (3.14159…). Each session, get to where you were, then push one new group further.</li>
-        <li><b>Review yesterday’s</b> before adding new ones — spacing is what makes it stick.</li>
-        <li>Past ~50 digits, hang each group on a spot along a familiar walk (a <b>memory palace</b>) — that’s how record-holders reach thousands.</li></ul>
-        <h3>Your target: the Feynman point</h3>
-        <p>At decimal position <b>${FEYN_START}</b> there’s a run of <b>six 9s</b> (…<span class="feyn">999999</span>…). Physicist Richard Feynman quipped he’d memorize π to there so he could recite “…nine nine nine nine nine nine <i>and so on</i>,” joking that it sounds like π is rational. It’s a natural, satisfying finish line — 762 digits.</p>
-        <h3>The digits (through the Feynman point)</h3>
-        <p class="why">Each row is 20 digits; the leftmost number is the position of the row’s first digit. The six 9s are highlighted.</p>
-        <div class="piref mono">3.&nbsp;${rows}</div>`;
-    })(),
-    gen(){ return app.piProblem(); } },
 
   { id:"piwords", cat:"Pi", name:"Pi as a story (the Major System)", tag:"61 vivid scenes whose words’ consonants spell π", refonly:true,
     lesson:(function(){
