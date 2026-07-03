@@ -15,6 +15,7 @@ Small browser games, each a self-contained static page served via GitHub Pages.
 | **Qubic** — 3-D tic-tac-toe on a 4×4×4 cube; four in a row across a layer, up the stack, or any diagonal. One page that flips between a flat 3/4 view and a [rotatable WebGL cube](https://ngeorgescu.github.io/games/qubic/?view=3d). vs-computer or 2-player | [play →](https://ngeorgescu.github.io/games/qubic/) | [`qubic/`](qubic/) |
 | **Mastermind** — crack the hidden 4-peg, 6-color code from black/white feedback, or watch a built-in Knuth minimax solver crack any code in ≤5 guesses (opening 1122); includes a hint button | [play →](https://ngeorgescu.github.io/games/mastermind/) | [`mastermind/`](mastermind/) |
 | **Chess repertoire explorer** | [play →](https://ngeorgescu.github.io/games/chess/repertoire.html) | [`chess/`](chess/) |
+| **Blunder?** — a move played in a real Lichess game: trap or tactic? Decide if it loses to a tactic or is a strong-looking-risky move. Puzzles pulled live from the Lichess API (`/api/puzzle/next`, CC0), five relative difficulty levels, with an offline fallback set | [play →](https://ngeorgescu.github.io/games/blunders/) | [`blunders/`](blunders/) |
 
 ## Adding a game
 
