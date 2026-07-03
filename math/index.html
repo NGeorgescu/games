@@ -74,6 +74,17 @@
   .pidx{color:var(--muted);display:inline-block;width:2.6em;text-align:right;margin-right:10px;user-select:none}
   .pchunk{margin-right:9px;letter-spacing:.6px}
   .feyn{color:#06243a;background:var(--good);border-radius:3px;padding:0 2px;font-weight:800}
+  .majtable td{font-family:ui-monospace,monospace}
+  .pw{display:flex;flex-wrap:wrap;gap:9px 11px;margin-top:10px}
+  .pw .u{display:flex;flex-direction:column;align-items:center;line-height:1.25}
+  .pw .u .c{color:var(--muted);font-family:ui-monospace,Menlo,monospace;font-size:10.5px}
+  .pw .u .w{font-size:14px}
+  .pw .u.f .w{font-weight:700}
+  .scene{margin:11px 0;padding-top:9px;border-top:1px solid var(--line)}
+  .scap{font-size:13.5px;line-height:1.45;margin-bottom:5px}
+  .scap .snum{color:var(--muted);font-family:ui-monospace,monospace;margin-right:3px}
+  .wrongdig{color:#ff6b6b;text-decoration:line-through;text-decoration-thickness:2px;font-weight:800}
+  .caret{opacity:.45;font-weight:400}
   .hidden{display:none}
 </style>
 </head>
@@ -168,6 +179,75 @@ const PI_FRAC =
   "22495343014654958537105079227968925892354201995611212902196086403441815981362977477130996051870721134999999837";
 const FEYN_START = 762;   // 1-based decimal position where the six 9s begin
 const HEXVAL = {A:10,B:11,C:12,D:13,E:14,F:15};
+
+/* ---- pi encoded in the Major System: 285 words = 767 digits (each word's consonants spell its digit-group;
+        generated + verified by CMU-phoneme encoder — concatenation reconstructs pi exactly) ---- */
+const PI_SCENES=[
+  ["My turtle bench-presses a lamb, then loads a leaf into his pickup",[["1415","turtle"],["926","bench"],["53","lamb"],["58","leaf"],["979","pickup"]]],
+  ["Under the moon, a movie about the origin of a charm that can move",[["32","moon"],["38","movie"],["462","origin"],["643","charm"],["38","move"]]],
+  ["A man and couples wield a knife at the fort, then pocket it",[["32","man"],["7950","couples"],["28","knife"],["841","fort"],["971","pocket"]]],
+  ["On the ship, a map marks a bomb hidden in the clouds at eleven",[["69","ship"],["39","map"],["93","bomb"],["7510","clouds"],["582","eleven"]]],
+  ["A speaker on the alpine prairie dons a mask and shoots footage",[["0974","speaker"],["944","prairie"],["592","alpine"],["307","mask"],["816","footage"]]],
+  ["A horse from China, for efficiency, views a pipe",[["40","horse"],["62","china"],["8620","efficiency"],["8","view"],["99","pipe"]]],
+  ["A vision with a voice of humor floats over the vanilla marina",[["862","vision"],["80","voice"],["34","humor"],["825","vanilla"],["342","marina"]]],
+  ["Data at the gas station: a shock — rotten beef on the interface",[["11","data"],["70","gas"],["67","shock"],["98","beef"],["21480","interface"]]],
+  ["A visual domain inside a van messages a shark",[["865","visual"],["132","domain"],["82","van"],["306","message"],["647","shark"]]],
+  ["Spam ad: a Ferrari, shoes, a pool — all wholesale",[["093","spam"],["844","ferrari"],["60","shoes"],["95","pool"],["505","wholesale"]]],
+  ["On the phone, a named canal by the mall is finally perceived",[["82","phone"],["231","named"],["725","canal"],["35","mall"],["94081","perceived"]]],
+  ["Never voted: a tiger teaches a lesson about fruits",[["284","never"],["811","voted"],["174","tiger"],["502","lesson"],["8410","fruits"]]],
+  ["Next to a palm, flint sparks a diesel well",[["2701","next"],["93","palm"],["8521","flint"],["105","diesel"],["5","well"]]],
+  ["In a loop, a juror — genuine and brave — recites polar poems",[["59","loop"],["644","juror"],["622","genuine"],["948","brave"],["954","polar"],["930","poems"]]],
+  ["Moved to the beach: horror lurks in the navy's photos",[["381","moved"],["96","beach"],["44","horror"],["28","navy"],["810","photos"]]],
+  ["Book a lodge; a shell hides a poem behind the mirror",[["97","book"],["56","lodge"],["65","shell"],["93","poem"],["344","mirror"]]],
+  ["A jet — whenever culture fans out — reveals a mime",[["61","jet"],["284","whenever"],["7564","culture"],["82","fan"],["33","mime"]]],
+  ["In a cave, a joke; foam on a dish out in the lane",[["78","cave"],["67","joke"],["83","foam"],["16","dish"],["52","lane"]]],
+  ["Kittens spin tops; a patrol spots a giraffe by the lodge",[["7120","kittens"],["190","tops"],["9145","patrol"],["648","giraffe"],["56","lodge"]]],
+  ["Shop anymore? Jazz with the mayor over fish",[["69","shop"],["234","anymore"],["60","jazz"],["34","mayor"],["86","fish"]]],
+  ["Desire, then alarm: inch by inch the sheriff studies anatomy",[["104","desire"],["543","alarm"],["26","inch"],["648","sheriff"],["213","anatomy"]]],
+  ["An amp matches a conscious hum; unwrap it",[["39","amp"],["360","matches"],["7260","conscious"],["249","unwrap"]]],
+  ["Thirteen comic neural fixes handed to the judges",[["1412","thirteen"],["737","comic"],["245","neural"],["8700","fixes"],["660","judges"]]],
+  ["A gem at the hotel of love; a photograph turns fatal",[["63","gem"],["15","hotel"],["58","love"],["81748","photograph"],["815","fatal"]]],
+  ["Noise of bones and passion; a van's panel",[["20","noise"],["920","bones"],["962","passion"],["82","van"],["925","panel"]]],
+  ["A recipe, a ticket, a lime in the showroom; jack it up",[["409","recipe"],["171","ticket"],["53","lime"],["643","showroom"],["67","jack"]]],
+  ["View a panel: a piece of images at the stadium",[["8","view"],["925","panel"],["90","piece"],["360","images"],["0113","stadium"]]],
+  ["Muscle vs missile on the roof, over the fence and arch",[["305","muscle"],["305","missile"],["48","roof"],["820","fence"],["46","arch"]]],
+  ["Gel anytime; a fritter at the chapel",[["65","gel"],["213","anytime"],["8414","fritter"],["695","chapel"]]],
+  ["Deeper still: tilted shoes",[["194","deeper"],["1511","tilted"],["60","shoes"]]],
+  ["A premium silicon gizmo, chile-hot and global",[["9433","premium"],["0572","silicon"],["703","gizmo"],["65","chile"],["7595","global"]]],
+  ["A body in bloom; the husband — a fish — is pure data",[["91","body"],["953","bloom"],["0921","husband"],["86","fish"],["11","data"]]],
+  ["A game, food under the beam",[["73","game"],["81","food"],["93","beam"]]],
+  ["Initiated: a cup on the mats, loaded with a flower",[["2611","initiated"],["79","cup"],["310","mats"],["511","loaded"],["854","flower"]]],
+  ["The face of a courier carrying a genome",[["80","face"],["744","courier"],["623","genome"]]],
+  ["Cap the option; grab logic and mold it",[["79","cap"],["962","option"],["749","grab"],["567","logic"],["351","mold"]]],
+  ["Five local necks, one raw nerve",[["88","five"],["575","local"],["27","neck"],["248","nerve"]]],
+  ["A python nicks the palm; feet in the fumes",[["912","python"],["27","nick"],["93","palm"],["81","feet"],["830","fumes"]]],
+  ["A prepaid date; a newbie does foam magic",[["11","date"],["9491","prepaid"],["29","newbie"],["83","foam"],["367","magic"]]],
+  ["Mom and junior with a rose",[["33","mom"],["624","junior"],["40","rose"]]],
+  ["Geology charms; a fish, a sound, amber",[["656","geology"],["6430","charms"],["86","fish"],["021","sound"],["394","amber"]]],
+  ["A bridge, a maple, nine rocks, a mike",[["946","bridge"],["395","maple"],["22","nine"],["47","rock"],["37","mike"]]],
+  ["Tubes, a croissant, a copy of the fish — supreme",[["190","tubes"],["7021","croissant"],["79","copy"],["86","fish"],["0943","supreme"]]],
+  ["Casino cookies under a lamp",[["702","casino"],["770","cookies"],["539","lamp"]]],
+  ["Indicate the kitchen; a poem, a dog in the jungle",[["2171","indicate"],["762","kitchen"],["93","poem"],["17","dog"],["675","jungle"]]],
+  ["A gnome, a fridge, a craft forge, a cage of choppers",[["23","gnome"],["846","fridge"],["7481","craft"],["846","forge"],["76","cage"],["6940","choppers"]]],
+  ["Light on the mines; a sociology photo, naked",[["51","light"],["320","mines"],["0056","sociology"],["81","photo"],["271","naked"]]],
+  ["Airline jam at the lodge: seven cakes, a flag",[["452","airline"],["63","jam"],["56","lodge"],["082","seven"],["77","cake"],["857","flag"]]],
+  ["The kingdom's rain; a clock, coffee, beaches",[["713","kingdom"],["42","rain"],["757","clock"],["78","coffee"],["960","beaches"]]],
+  ["A boutique match; a mac takes the fog",[["917","boutique"],["36","match"],["37","mac"],["17","take"],["87","fog"]]],
+  ["A winter chef; warriors post at noon",[["214","winter"],["68","chef"],["440","warriors"],["901","post"],["22","noon"]]],
+  ["A rebel with humor, the master jeweler — believe",[["495","rebel"],["34","humor"],["3014","master"],["654","jeweler"],["958","believe"]]],
+  ["A lamb, the kids, a loss at the cabin",[["53","lamb"],["710","kids"],["50","loss"],["792","cabin"]]],
+  ["Nuke the patch off the panel; take a view",[["27","nuke"],["96","patch"],["8","off"],["925","panel"],["8","view"]]],
+  ["A pin, the mail, and it runs",[["92","pin"],["35","mail"],["420","runs"]]],
+  ["Tape, polished downtown; a peasant pages through",[["19","tape"],["9561","polished"],["1212","downtown"],["9021","peasant"],["960","pages"]]],
+  ["The features in the mirror — theft!",[["8640","features"],["344","mirror"],["181","theft"]]],
+  ["A lab video: a machine robs the bank by the creek",[["59","lab"],["81","video"],["362","machine"],["97","bank"],["747","creek"]]],
+  ["An academy spy patches a lot; a fox",[["713","academy"],["09","spy"],["960","patches"],["51","lot"],["870","fox"]]],
+  ["counted more",[["7211","counted"],["34","more"]]],
+  ["THE FEYNMAN FINALE: a baby, a puppy, a poppy",[["99","baby"],["99","puppy"],["99","poppy"]]]
+];
+const PI_WORDS = PI_SCENES.flatMap(s=>s[1]);
+const PI_WORDS_FEYN = 282;   // index in PI_WORDS where the six-9s (baby puppy poppy) begin
+const MAJ_SOUNDS = {"0":"s/z","1":"t/d/th","2":"n","3":"m","4":"r","5":"l","6":"ch/j/sh","7":"k/g","8":"f/v","9":"p/b"};
 
 /* ---- the tricks ---- */
 const TRICKS = [
@@ -769,6 +849,48 @@ const TRICKS = [
         <div class="piref mono">3.&nbsp;${rows}</div>`;
     })(),
     gen(){ return app.piProblem(); } },
+
+  { id:"piwords", cat:"Pi", name:"Pi as a story (the Major System)", tag:"61 vivid scenes whose words’ consonants spell π", refonly:true,
+    lesson:(function(){
+      const MAP=[["0","s z"],["1","t d th"],["2","n"],["3","m"],["4","r"],["5","l"],["6","ch j sh"],["7","k g"],["8","f v"],["9","p b"]];
+      const tbl='<table class="map majtable"><tr>'+MAP.map(m=>`<td>${m[0]}</td>`).join("")+
+        '</tr><tr>'+MAP.map(m=>`<td>${m[1]}</td>`).join("")+'</tr></table>';
+      let scenes="";
+      PI_SCENES.forEach((s,si)=>{ const f = si===PI_SCENES.length-1;
+        let units="";
+        s[1].forEach(p=>{ units+=`<span class="u${f?" f":""}"><span class="c">${p[0]}</span>`+
+          `<span class="w">${f?`<span class="feyn">${p[1]}</span>`:p[1]}</span></span>`; });
+        scenes+=`<div class="scene"><div class="scap"><span class="snum">${si+1}.</span>${s[0]}</div><div class="pw">${units}</div></div>`;
+      });
+      const N=PI_WORDS.length;
+      return `<h3>Digits are hard; stories stick</h3>
+        <p>The <b>Major System</b> turns each digit into a <b>consonant sound</b>; vowels (and w, h, y) are free filler you add to make words. Read a word back by sounding out its consonants:</p>
+        ${tbl}
+        <p>By <b>sound, not spelling</b>: <span class="mono">turtle</span>=1415, <span class="mono">mother</span>=314, <span class="mono">fax</span>=870; silent &amp; doubled letters follow the sound (<span class="mono">lamb</span>=53).</p>
+        <p class="why">So π’s digits become ${N} picturable words, bundled into <b>${PI_SCENES.length} little scenes</b>. Memorize the <i>images</i> in order and you’ve got the digits — each word’s digit-group is shown beneath it. The six 9s of the Feynman point are the closing <span class="feyn">baby&nbsp;puppy&nbsp;poppy</span>.</p>
+        <p class="why">The words are <b>swappable</b>: any word with the same consonants works — <span class="mono">bench</span> (926) could be <span class="mono">bunch</span> or <span class="mono">punch</span>. Make the pictures <i>yours</i>.</p>
+        <h3>π in ${PI_SCENES.length} scenes</h3>
+        ${scenes}
+        <p class="why" style="margin-top:12px">Every word was checked by a program: its consonants encode exactly its digit-group, and all ${N} concatenated reproduce π’s first 767 decimals.</p>`;
+    })() },
+
+  { id:"piw2n", cat:"Pi", name:"Word → number drill", tag:"See a word, type the digits its consonants spell", answerType:"digits",
+    lesson:`<h3>Decode the words</h3>
+      <p>The reverse move: see a Major-System word, sound out its <b>consonants</b>, and type the digits. Vowels and w/h/y are silent.</p>
+      <table class="map majtable"><tr><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td></tr>
+        <tr><td>s z</td><td>t d th</td><td>n</td><td>m</td><td>r</td><td>l</td><td>ch j sh</td><td>k g</td><td>f v</td><td>p b</td></tr></table>
+      <div class="ex mono">turtle → t·r·t·l → <b>1415</b><br>lamb → l·m (b is silent) → <b>53</b><br>fax → f·k·s → <b>870</b></div>
+      <p class="why">These are the exact words from π’s word-list, so drilling word→digits here trains the digits you’ll recite.</p>`,
+    gen(){ return app.wordProblem(); } },
+
+  { id:"pirecite", cat:"Pi", name:"Recite π — type the digits", tag:"Type π from the start; a wrong digit is struck out and you fix it", answerType:"recite",
+    lesson:`<h3>Type π, digit by digit</h3>
+      <p>Recite π from the very start by typing it. Each digit is checked as you go:</p>
+      <ul><li>A <b>correct</b> digit is accepted and the cursor moves on.</li>
+      <li>A <b>wrong</b> digit shows up <span class="wrongdig">red and struck out</span> — you don’t advance until you type the right one.</li></ul>
+      <p><b>best</b> tracks the furthest you’ve ever reached. The finish line is the six 9s of the Feynman point at digit 762.</p>
+      <p class="why">No multiple choice, no hints — just you and the digits. Use the word-story to jog your memory when you stall.</p>`,
+    gen(){ return { q:"Type π — start after 3.", a:"", steps:[] }; } },
 ];
 
 /* ---- app ---- */
@@ -776,6 +898,7 @@ const app = {
   cur:null, prob:null, input:"", answered:false, factor:11,
   total:0, correct:0, streak:0, best:0,
   piPos:0, piAdvance:false, piEnded:false,
+  recitePos:0, reciteErr:null, reciteErrs:0,
 
   init(){
     const list=$("trickList"); let lastCat="", idx=0;
@@ -809,10 +932,11 @@ const app = {
   lesson(id){ this.cur=TRICKS.find(t=>t.id===id);
     $("lessonTitle").textContent=this.cur.name;
     if(this.cur.picker){ $("lessonBody").innerHTML=this.pickerHTML(); $("lessonGo").classList.add("hidden"); }
-    else { $("lessonBody").innerHTML=this.cur.lesson; $("lessonGo").classList.remove("hidden"); }
+    else { $("lessonBody").innerHTML=this.cur.lesson; $("lessonGo").classList.toggle("hidden", !!this.cur.refonly); }
     show("lesson"); },
   practice(){ this.total=0; this.correct=0; this.streak=0; this.best=0;
     this.piPos=0; this.piAdvance=false; this.piEnded=false;
+    this.recitePos=0; this.reciteErr=null; this.reciteErrs=0;
     $("practiceTitle").textContent=this.cur.name; show("practice"); this.next(); },
 
   pickerHTML(){
@@ -844,6 +968,39 @@ const app = {
       `so far: <span class="mono">${soFarTail}</span>` ] };
   },
 
+  wordProblem(){                                        // word → number drill: show a Major word, type its digits
+    const p = PI_WORDS[rnd(0,PI_WORDS.length-1)], chunk=p[0], word=p[1];
+    const sounds = chunk.split("").map(d=>`${d} = ${MAJ_SOUNDS[d]}`).join("  ·  ");
+    return { q:word, a:chunk, steps:[
+      `Sound out the consonants of <b>${word}</b> — vowels and w/h/y are silent`,
+      `${sounds}  →  <b>${chunk}</b>` ] };
+  },
+
+  // --- recite drill: type pi digit by digit; a wrong digit is struck through in red and you must fix it ---
+  recitePress(d){
+    if(this.recitePos>=PI_FRAC.length) return;
+    if(d===PI_FRAC[this.recitePos]){ this.recitePos++; this.reciteErr=null;
+      if(this.recitePos>this.best) this.best=this.recitePos; }
+    else { this.reciteErr=d; this.reciteErrs++; }
+    this.renderRecite();
+  },
+  reciteDel(){ if(this.reciteErr!=null) this.reciteErr=null; else if(this.recitePos>0) this.recitePos--; this.renderRecite(); },
+  renderRecite(){
+    const pos=this.recitePos, full="3."+PI_FRAC.slice(0,pos);
+    const tail = full.length>40 ? "…"+full.slice(-38) : full;
+    let html = tail;
+    if(this.reciteErr!=null) html += `<span class="wrongdig">${this.reciteErr}</span>`;
+    html += `<span class="caret">▏</span>`;
+    const a=$("ans"); a.classList.remove("empty"); a.innerHTML=html;
+    const fb=$("fb");
+    if(this.reciteErr!=null){ fb.textContent="✗ wrong digit (crossed out) — type the correct one to continue"; fb.className="fb bad"; }
+    else if(pos>=PI_FRAC.length){ fb.textContent="🎉 you typed every digit!"; fb.className="fb ok"; }
+    else if(pos>=FEYN_START-1 && pos<FEYN_START+5){ fb.textContent="the Feynman point — six 9s!"; fb.className="fb ok"; }
+    else { fb.textContent=""; fb.className="fb"; }
+    $("scCorrect").textContent=pos; $("scTotal").textContent=pos+this.reciteErrs;
+    $("scStreak").textContent=pos; $("scBest").textContent=this.best;
+  },
+
   next(){
     if(this.cur && this.cur.seq){
       if(this.piEnded){ this.piPos=0; this.piEnded=false; }
@@ -860,6 +1017,7 @@ const app = {
     this.renderAns();
   },
   renderAns(){ const a=$("ans");
+    if(this.cur && this.cur.answerType==="recite"){ this.renderRecite(); return; }
     if(this.cur && this.cur.answerType==="quotrem"){          // quotient R remainder, ATM-style (last digit = remainder)
       a.textContent = (this.input.slice(0,-1)||"_")+" R "+(this.input.slice(-1)||"_");
       a.classList.toggle("empty", this.input===""); return; }
@@ -869,9 +1027,11 @@ const app = {
     if(this.input===""){ a.textContent="—"; a.classList.add("empty"); }
     else { a.textContent=this.input; a.classList.remove("empty"); } },
 
-  press(d){ if(this.answered) return; if(this.input.length<12) this.input+=d; this.renderAns(); },
+  press(d){ if(this.cur && this.cur.answerType==="recite") return this.recitePress(d);
+    if(this.answered) return; if(this.input.length<12) this.input+=d; this.renderAns(); },
   pressDot(){ if(this.answered) return; if(this.input.length>0 && !this.input.includes(".") && this.input.length<12) this.input+="."; this.renderAns(); },
-  del(){ if(this.answered) return; this.input=this.input.slice(0,-1); this.renderAns(); },
+  del(){ if(this.cur && this.cur.answerType==="recite") return this.reciteDel();
+    if(this.answered) return; this.input=this.input.slice(0,-1); this.renderAns(); },
   check(){
     if(this.answered) return;
     if(this.cur.answerType==="quotrem"){ if(this.input.length<2) return; this.grade(this.input); }   // compare string "Qr"
@@ -920,6 +1080,14 @@ const app = {
     const pad=$("keypad"); pad.innerHTML=""; this.chkKey=null;
     const at = this.cur && this.cur.answerType, isPad = at==="weekday"||at==="mod7"||at==="method";
     $("ans").style.display = isPad ? "none" : "";
+    if(at==="recite"){                                   // 0–9 + ⌫, no Check — continuous digit entry
+      const grid=document.createElement("div"); grid.className="pad";
+      for(let n=1;n<=9;n++){ const k=document.createElement("div"); k.className="key"; k.textContent=n; k.onclick=()=>this.press(""+n); grid.appendChild(k); }
+      const del=document.createElement("div"); del.className="key wide"; del.textContent="⌫"; del.onclick=()=>this.del();
+      const zero=document.createElement("div"); zero.className="key"; zero.textContent="0"; zero.onclick=()=>this.press("0");
+      del.style.gridColumn="1"; grid.appendChild(del); grid.appendChild(zero);
+      pad.appendChild(grid); return;
+    }
     if(isPad){
       const labels = at==="weekday" ? WD : at==="method" ? METHODS : MOD7;
       const grid=document.createElement("div"); grid.className = at==="method" ? "daypad methods" : "daypad";
