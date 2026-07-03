@@ -59,7 +59,18 @@ body { font-family: var(--sans, system-ui, -apple-system, "Segoe UI", Roboto, sa
 .verdict.right .head { color: #6ab26a; }
 .verdict.wrong .head { color: #d46a6a; }
 .verdict .line { font-family: "SF Mono", Menlo, monospace; color: #c8c8c8; font-size: 13px;
-                 word-break: break-word; margin: 6px 0; }
+                 word-break: break-word; margin: 6px 0; line-height: 1.9; }
+#line-moves .mvnum { color: #777; margin-right: 1px; }
+#line-moves .mvtok { cursor: pointer; padding: 1px 5px; border-radius: 3px; color: #dcdcdc; }
+#line-moves .mvtok:hover { background: #33363b; }
+#line-moves .mvtok.cur { background: #4f86d4; color: #fff; }
+.linebar { display: flex; gap: 6px; align-items: center; margin: 4px 0 2px; flex-wrap: wrap; }
+.linebar button { background: #2b2d31; color: #ccc; border: 1px solid #3a3c41; border-radius: 4px;
+                  padding: 4px 11px; font-size: 14px; line-height: 1; cursor: pointer; }
+.linebar button:hover:not(:disabled) { background: #33363b; }
+.linebar button:disabled { opacity: .35; cursor: default; }
+.linebar .navhint { color: #666; font-size: 11px; margin-left: 4px; }
+#board .square-55d63.hl-move { box-shadow: inset 0 0 0 4px rgba(255,213,79,0.5); }
 .verdict .meta { color: #888; font-size: 12px; margin-top: 6px; }
 .verdict a { color: var(--accent, #6ab2d4); text-decoration: underline; }
 .next-row { margin-top: 4px; }
@@ -168,6 +179,34 @@ function lineSan(fen, uciArr) {
 function turnOf(fen) { return new Chess(fen).turn(); }
 function sideName(t) { return t === 'w' ? 'White' : 'Black'; }
 
+// Replay a UCI line from a FEN -> the position after each move, the SAN of each
+// move, and the UCIs actually applied (stops at the first illegal move).
+function buildLine(startFen, uciMoves) {
+  const g = new Chess(startFen);
+  const fens = [startFen], sans = [], ucis = [];
+  for (const u of uciMoves) {
+    const m = uciApply(g, u);
+    if (!m) break;
+    sans.push(m.san); ucis.push(u); fens.push(g.fen());
+  }
+  return { fens, sans, ucis };
+}
+// Numbered, clickable SAN list starting from an arbitrary position.
+function renderMoveListHtml(startFen, sans) {
+  const parts = startFen.split(' ');
+  let n = parseInt(parts[5], 10) || 1;
+  let white = parts[1] === 'w';
+  let html = '';
+  sans.forEach((san, i) => {
+    if (white) html += `<span class="mvnum">${n}.</span>`;
+    else if (i === 0) html += `<span class="mvnum">${n}…</span>`;
+    html += `<span class="mvtok" data-i="${i + 1}">${san}</span> `;
+    if (!white) n++;
+    white = !white;
+  });
+  return html;
+}
+
 /* ---------- turn a live /api/puzzle/next response into two labelled cards ----------
    Verified mapping (see build notes): the PGN contains every move up to and including
    the setup move; puzzle.initialPly (0-based) indexes that last setup move.
@@ -225,6 +264,7 @@ function randomFallback() { return FALLBACK[Math.floor(Math.random() * FALLBACK.
 let level = 'normal';
 let queue = [];          // cards waiting to be shown
 let card = null, answered = false, busy = false;
+let stepFens = [], stepSans = [], stepUcis = [], stepIdx = 0;
 const score = { correct: 0, total: 0, streak: 0,
                 best: +(localStorage.getItem('blunder_best') || 0) };
 
@@ -322,9 +362,11 @@ async function nextCard() {
 
 function renderCard(isFallback) {
   answered = false;
+  stepSans = [];                         // stepper inert until answered
   const t = turnOf(card.fen);
   board.orientation(t === 'w' ? 'white' : 'black');
   board.position(card.fen, false);
+  $('#board .square-55d63').removeClass('hl-move');
   const san = sanOf(card.fen, card.uci);
   setPrompt(`<span class="side">${sideName(t)}</span> is considering ` +
             `<span class="mv">${san}</span>. Is it a blunder?` +
@@ -348,12 +390,11 @@ function answer(saidBlunder) {
   } else { score.streak = 0; }
   updateScore();
 
-  const after = fenAfter(card.fen, card.uci);
-  if (after) board.position(after, true);
+  // build the full line (candidate move + continuation) as steppable positions
+  const line = buildLine(card.fen, [card.uci, ...card.cont]);
+  stepFens = line.fens; stepSans = line.sans; stepUcis = line.ucis;
 
-  const san = sanOf(card.fen, card.uci);
-  const contSan = after ? lineSan(after, card.cont) : [];
-  const fullLine = [san, ...contSan].join('  ');
+  const san = stepSans[0] || sanOf(card.fen, card.uci);
   const body = card.isBlunder
     ? `<b>${san}</b> is a <b>blunder</b> — it walks into a decisive tactic that was punished in the real game.`
     : `<b>${san}</b> is <b>fine</b> — it looks risky but it is the engine-best move, winning by force.`;
@@ -364,13 +405,51 @@ function answer(saidBlunder) {
   v.innerHTML =
     `<div class="head">${correct ? '✓ Correct' : '✗ Not quite'}</div>` +
     `<div>${body}</div>` +
-    `<div class="line">${fullLine}</div>` +
+    `<div class="line" id="line-moves">${renderMoveListHtml(card.fen, stepSans)}</div>` +
+    `<div class="linebar">` +
+      `<button id="nav-start" onclick="stepStart()" title="Start">⏮</button>` +
+      `<button id="nav-back" onclick="stepBack()" title="Back (←)">◀</button>` +
+      `<button id="nav-fwd" onclick="stepFwd()" title="Forward (→)">▶</button>` +
+      `<button id="nav-end" onclick="stepEnd()" title="End">⏭</button>` +
+      `<span class="navhint">step with ← → &nbsp;·&nbsp; click a move</span>` +
+    `</div>` +
     `<div class="meta">Puzzle rating ${card.rating}` +
     (themes ? ` · ${themes}` : '') +
     ` · <a href="https://lichess.org/analysis/standard/${encodeURIComponent(card.fen)}" target="_blank" rel="noopener">Analyze position →</a>` +
     ` · <a href="${card.gameUrl}" target="_blank" rel="noopener">See it on Lichess →</a></div>`;
   document.getElementById('next-row').style.display = 'block';
+
+  // reveal shows the candidate move already played; forward walks the rest
+  stepTo(stepSans.length ? 1 : 0);
 }
+
+/* ---------- line stepper (replay the line on the board) ---------- */
+function highlightStepMove() {
+  $('#board .square-55d63').removeClass('hl-move');
+  if (stepIdx <= 0 || !stepUcis[stepIdx - 1]) return;
+  const u = stepUcis[stepIdx - 1];
+  $('#board .square-' + u.slice(0, 2)).addClass('hl-move');
+  $('#board .square-' + u.slice(2, 4)).addClass('hl-move');
+}
+function renderStep() {
+  board.position(stepFens[stepIdx], true);
+  highlightStepMove();
+  document.querySelectorAll('#line-moves .mvtok').forEach(el => {
+    el.classList.toggle('cur', +el.dataset.i === stepIdx);
+  });
+  const atStart = stepIdx <= 0, atEnd = stepIdx >= stepSans.length;
+  const nb = document.getElementById('nav-back'), ns = document.getElementById('nav-start');
+  const nf = document.getElementById('nav-fwd'), ne = document.getElementById('nav-end');
+  if (ns) ns.disabled = atStart;
+  if (nb) nb.disabled = atStart;
+  if (nf) nf.disabled = atEnd;
+  if (ne) ne.disabled = atEnd;
+}
+function stepTo(i) { stepIdx = Math.max(0, Math.min(stepSans.length, i)); renderStep(); }
+function stepStart() { stepTo(0); }
+function stepBack() { stepTo(stepIdx - 1); }
+function stepFwd() { stepTo(stepIdx + 1); }
+function stepEnd() { stepTo(stepSans.length); }
 
 /* ---------- difficulty selector ---------- */
 document.getElementById('tiers').addEventListener('click', (e) => {
@@ -381,6 +460,17 @@ document.getElementById('tiers').addEventListener('click', (e) => {
   b.classList.add('active');
   queue = [];              // drop buffered puzzles from the old difficulty
   nextCard();
+});
+
+/* ---------- stepper input: click a move, or arrow keys ---------- */
+document.getElementById('verdict').addEventListener('click', (e) => {
+  const t = e.target.closest('.mvtok');
+  if (t) stepTo(+t.dataset.i);
+});
+document.addEventListener('keydown', (e) => {
+  if (!answered || !stepSans.length) return;
+  if (e.key === 'ArrowRight') { e.preventDefault(); stepFwd(); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); stepBack(); }
 });
 
 /* ---------- go ---------- */
