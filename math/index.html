@@ -248,6 +248,8 @@ const PI_SCENES=[
 const PI_WORDS = PI_SCENES.flatMap(s=>s[1]);
 const PI_WORDS_FEYN = 282;   // index in PI_WORDS where the six-9s (baby puppy poppy) begin
 const MAJ_SOUNDS = {"0":"s/z","1":"t/d/th","2":"n","3":"m","4":"r","5":"l","6":"ch/j/sh","7":"k/g","8":"f/v","9":"p/b"};
+const MAJ_LETTERS = [["S",0],["Z",0],["T",1],["D",1],["TH",1],["N",2],["M",3],["R",4],["L",5],["CH",6],["J",6],["SH",6],["K",7],["G",7],["F",8],["V",8],["P",9],["B",9]];
+const MAJ_MNEMONIC = {0:"“Zero” starts with z (s, z sounds)",1:"one downstroke — t, d",2:"N has two downstrokes",3:"M has three downstrokes",4:"“fouR” ends in r",5:"L is the Roman numeral for 50",6:"a script j, or a flipped 6 (ch, j, sh)",7:"a capital K holds two 7s (k, hard g)",8:"script f is a figure-8 (f, v)",9:"p is a mirror-image 9 (p, b)"};
 
 /* ---- the tricks ---- */
 const TRICKS = [
@@ -819,7 +821,27 @@ const TRICKS = [
         `${HD[hi]} = ${hi},  ${HD[lo]} = ${lo}`,
         `${hi} × 16 + ${lo} = ${hi*16} + ${lo} = <b>${val}</b>` ]}; } },
 
-  { id:"piwords", cat:"Pi", name:"Pi as a story (the Major System)", tag:"61 vivid scenes whose words’ consonants spell π", refonly:true,
+  { id:"pimap", cat:"Pi", name:"The letters (Major System)", tag:"Learn which consonant sound is which digit", answerType:"num", ord:1,
+    lesson:`<h3>Ten sounds — and why</h3>
+      <p>Everything starts here: each digit owns a <b>consonant sound</b>. Vowels and w, h, y carry no number — they’re just glue. Learn these ten, with the little reasons that lock them in:</p>
+      <table class="map majtable"><tr><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td></tr>
+        <tr><td>s z</td><td>t d th</td><td>n</td><td>m</td><td>r</td><td>l</td><td>ch j sh</td><td>k g</td><td>f v</td><td>p b</td></tr></table>
+      <ul>
+        <li><b>0 — s, z:</b> “<b>z</b>ero” starts with z.</li>
+        <li><b>1 — t, d:</b> one downstroke.</li>
+        <li><b>2 — n:</b> two downstrokes.</li>
+        <li><b>3 — m:</b> three downstrokes.</li>
+        <li><b>4 — r:</b> “fou<b>r</b>” ends in r.</li>
+        <li><b>5 — l:</b> L is the Roman numeral for 50.</li>
+        <li><b>6 — ch, j, sh:</b> a script j, or a flipped 6.</li>
+        <li><b>7 — k, g:</b> a capital K holds two 7s.</li>
+        <li><b>8 — f, v:</b> a script f is a figure-8.</li>
+        <li><b>9 — p, b:</b> p is a mirror-image 9.</li>
+      </ul>
+      <p class="why">Drill: you’ll see a letter, type its digit. Once these are reflex, words decode themselves.</p>`,
+    gen(){ return app.letterProblem(); } },
+
+  { id:"piwords", cat:"Pi", name:"Pi as a story (the Major System)", tag:"61 vivid scenes whose words’ consonants spell π", refonly:true, ord:3,
     lesson:(function(){
       const MAP=[["0","s z"],["1","t d th"],["2","n"],["3","m"],["4","r"],["5","l"],["6","ch j sh"],["7","k g"],["8","f v"],["9","p b"]];
       const tbl='<table class="map majtable"><tr>'+MAP.map(m=>`<td>${m[0]}</td>`).join("")+
@@ -843,7 +865,7 @@ const TRICKS = [
         <p class="why" style="margin-top:12px">Every word was checked by a program: its consonants encode exactly its digit-group, and all ${N} concatenated reproduce π’s first 767 decimals.</p>`;
     })() },
 
-  { id:"piw2n", cat:"Pi", name:"Word → number drill", tag:"See a word, type the digits its consonants spell", answerType:"digits",
+  { id:"piw2n", cat:"Pi", name:"Word → number drill", tag:"See a word, type the digits its consonants spell", answerType:"digits", ord:2,
     lesson:`<h3>Decode the words</h3>
       <p>The reverse move: see a Major-System word, sound out its <b>consonants</b>, and type the digits. Vowels and w/h/y are silent.</p>
       <table class="map majtable"><tr><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td></tr>
@@ -852,7 +874,7 @@ const TRICKS = [
       <p class="why">These are the exact words from π’s word-list, so drilling word→digits here trains the digits you’ll recite.</p>`,
     gen(){ return app.wordProblem(); } },
 
-  { id:"pirecite", cat:"Pi", name:"Recite π — type the digits", tag:"Type π from the start; a wrong digit is struck out and you fix it", answerType:"recite",
+  { id:"pirecite", cat:"Pi", name:"Recite π — type the digits", tag:"Type π from the start; a wrong digit is struck out and you fix it", answerType:"recite", ord:4,
     lesson:`<h3>Type π, digit by digit</h3>
       <p>Recite π from the very start by typing it. Each digit is checked as you go:</p>
       <ul><li>A <b>correct</b> digit is accepted and the cursor moves on.</li>
@@ -882,7 +904,7 @@ const app = {
       "Number bases":"e.g.  0x B7  =  183",
       "Pi":"e.g.  3.14159 26535 …  →  the six 9s at digit 762"
     };
-    const ordered=[...TRICKS].sort((a,b)=>catOrder.indexOf(a.cat)-catOrder.indexOf(b.cat));
+    const ordered=[...TRICKS].sort((a,b)=>{ const c=catOrder.indexOf(a.cat)-catOrder.indexOf(b.cat); return c!==0?c:((a.ord||0)-(b.ord||0)); });
     ordered.forEach(t=>{
       if(t.cat!==lastCat){
         const h=document.createElement("div"); h.className="cat"; h.textContent=t.cat; list.appendChild(h);
@@ -935,6 +957,11 @@ const app = {
     return { q, a:chunk, digitPos:pos, steps:[
       `digits ${pos+1}–${pos+chunk.length}: <b>${chunk}</b>`,
       `so far: <span class="mono">${soFarTail}</span>` ] };
+  },
+
+  letterProblem(){                                      // letters drill: show a consonant, type its digit
+    const p = MAJ_LETTERS[rnd(0,MAJ_LETTERS.length-1)], L=p[0], d=p[1];
+    return { q:L, a:d, steps:[ `<b>${L}</b> is the sound for <b>${d}</b>`, MAJ_MNEMONIC[d] ] };
   },
 
   wordProblem(){                                        // word → number drill: show a Major word, type its digits
