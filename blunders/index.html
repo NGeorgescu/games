@@ -209,11 +209,12 @@ function buildFallback(puzzles) {
   const cards = [];
   for (const p of puzzles) {
     if (!p.moves || p.moves.length < 2) continue;
-    cards.push({ tier: p.tier, rating: p.rating, themes: p.themes, gameUrl: p.gameUrl,
-                 fen: p.fen, uci: p.moves[0], isBlunder: true, cont: p.moves.slice(1) });
+    const meta = { tier: p.tier, rating: p.rating, themes: p.themes, gameUrl: p.gameUrl };
+    const options = [{ ...meta, fen: p.fen, uci: p.moves[0], isBlunder: true, cont: p.moves.slice(1) }];
     const fen1 = fenAfter(p.fen, p.moves[0]);
-    if (fen1) cards.push({ tier: p.tier, rating: p.rating, themes: p.themes, gameUrl: p.gameUrl,
-                           fen: fen1, uci: p.moves[1], isBlunder: false, cont: p.moves.slice(2) });
+    if (fen1) options.push({ ...meta, fen: fen1, uci: p.moves[1], isBlunder: false, cont: p.moves.slice(2) });
+    // one side per puzzle, matching the live path -> no mirror-pair repeats offline
+    cards.push(options[Math.floor(Math.random() * options.length)]);
   }
   return cards;
 }
@@ -237,27 +238,41 @@ function shuffle(a) {
 
 /* ---------- live fetch (one puzzle -> two cards) ---------- */
 let fetching = false;
+const seen = new Set();               // puzzle ids already shown this session
 async function fetchOnePuzzle() {
-  if (fetching) return false;
+  if (fetching) return 'fail';
   fetching = true;
   try {
     const res = await fetch('https://lichess.org/api/puzzle/next?difficulty=' +
                             encodeURIComponent(level), { headers: { Accept: 'application/json' } });
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    const cards = puzzleToCards(await res.json(), level);
-    if (!cards) throw new Error('unparseable puzzle');
-    // interleave the two cards into the queue so a game's blunder/fine
-    // items don't always land back-to-back
-    for (const c of shuffle(cards)) queue.push(c);
-    return true;
+    const d = await res.json();
+    if (seen.has(d.puzzle.id)) return 'dup';    // anonymous /next can repeat — skip
+    const cards = puzzleToCards(d, level);
+    if (!cards) return 'dup';                    // unparseable — try another
+    seen.add(d.puzzle.id);
+    // Use only ONE side of each puzzle. Its two cards are the same position one
+    // ply apart (before vs. after the move), so showing both reads as "the same
+    // position from the other side". Random pick keeps the mix ~50/50 blunder/fine.
+    queue.push(cards[Math.floor(Math.random() * cards.length)]);
+    return 'added';
   } catch (e) {
-    return false;
+    return 'fail';
   } finally {
     fetching = false;
   }
 }
-// keep a small buffer, paced by play (never a mass prefetch)
-function topUp() { if (queue.length < 2 && !fetching) fetchOnePuzzle().then(() => {}); }
+// keep a small buffer, paced by play (never a mass prefetch); bounded retries so a
+// run of duplicate/unparseable puzzles can't spin forever.
+let topUpTries = 0;
+function topUp() {
+  if (queue.length >= 2 || fetching) return;
+  fetchOnePuzzle().then(r => {
+    if (r === 'added') { topUpTries = 0; topUp(); }
+    else if (r === 'dup' && ++topUpTries < 8) { topUp(); }
+    else { topUpTries = 0; }                      // 'fail' -> stop; nextCard covers empties
+  });
+}
 
 /* ---------- board ---------- */
 const board = Chessboard('board', {
@@ -289,10 +304,11 @@ async function nextCard() {
   // get a card: prefer the live queue, fetch if empty, fall back offline
   if (!queue.length) {
     setPrompt('Fetching a fresh puzzle from Lichess…');
-    let ok = await fetchOnePuzzle();
-    if (!ok) ok = await fetchOnePuzzle();       // one retry
+    for (let i = 0; i < 8 && !queue.length; i++) {
+      if (await fetchOnePuzzle() === 'fail') break;   // network error -> go offline
+    }
     if (!queue.length) {
-      card = randomFallback();                  // network down -> offline set
+      card = randomFallback();                  // network down / all dups -> offline set
       renderCard(true);
       busy = false;
       return;
