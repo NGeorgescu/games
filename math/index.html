@@ -68,6 +68,11 @@
   .key.wide{font-size:17px}
   .key.check{background:var(--good);color:#063a1f;border-color:var(--good)}
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:9px}
+  .piref{font-size:13px;line-height:1.6;margin-top:10px;overflow-x:auto;padding-bottom:4px}
+  .prow{white-space:nowrap}
+  .pidx{color:var(--muted);display:inline-block;width:2.6em;text-align:right;margin-right:10px;user-select:none}
+  .pchunk{margin-right:9px;letter-spacing:.6px}
+  .feyn{color:#06243a;background:var(--good);border-radius:3px;padding:0 2px;font-weight:800}
   .hidden{display:none}
 </style>
 </head>
@@ -150,6 +155,18 @@ function timesSteps(a,b){
   else if(has(6)) s.push(`×6 tip: ×3 then double → ${other(6)*3} → ${other(6)*6}`);
   return s;
 }
+
+/* ---- pi: 770 verified decimals (computed by integer spigot; Feynman point = six 9s at positions 762–767) ---- */
+const PI_FRAC =
+  "14159265358979323846264338327950288419716939937510582097494459230781640628620899862803482534211706798214808651"+
+  "32823066470938446095505822317253594081284811174502841027019385211055596446229489549303819644288109756659334461"+
+  "28475648233786783165271201909145648566923460348610454326648213393607260249141273724587006606315588174881520920"+
+  "96282925409171536436789259036001133053054882046652138414695194151160943305727036575959195309218611738193261179"+
+  "31051185480744623799627495673518857527248912279381830119491298336733624406566430860213949463952247371907021798"+
+  "60943702770539217176293176752384674818467669405132000568127145263560827785771342757789609173637178721468440901"+
+  "22495343014654958537105079227968925892354201995611212902196086403441815981362977477130996051870721134999999837";
+const FEYN_START = 762;   // 1-based decimal position where the six 9s begin
+const HEXVAL = {A:10,B:11,C:12,D:13,E:14,F:15};
 
 /* ---- the tricks ---- */
 const TRICKS = [
@@ -698,23 +715,79 @@ const TRICKS = [
         `${MON[m]} anchor is the ${DD[m]}${m<=2?" (leap-adjusted)":""}; ${d} − ${DD[m]} = ${d-DD[m]} (mod 7)`,
         `Answer: <b>${WD[a]}</b>` ]};
     } },
+
+  { id:"hexdigits", cat:"Number bases", name:"Hex digit values", tag:"A–F → 10–15, the toolkit", answerType:"num",
+    lesson:`<h3>Six new “digits”</h3>
+      <p>Hexadecimal counts in <b>sixteens</b>. It uses the usual 0–9, then keeps going with six letters:</p>
+      <table class="map"><tr><td>A</td><td>B</td><td>C</td><td>D</td><td>E</td><td>F</td></tr>
+        <tr><td>10</td><td>11</td><td>12</td><td>13</td><td>14</td><td>15</td></tr></table>
+      <p>Learn these six by heart — every conversion after this is just <b>×16 and add</b>.</p>
+      <p class="why">Mnemonic: A is the 10th letter you hit after 9, and they run in order — A B C D E F = 10 11 12 13 14 15.</p>`,
+    gen(){ const L="ABCDEF"[rnd(0,5)]; return { q:`Hex ${L} = ?`, a:HEXVAL[L], steps:[
+      `A=10, B=11, C=12, D=13, E=14, F=15 → ${L} = <b>${HEXVAL[L]}</b>` ]}; } },
+
+  { id:"hex2dec", cat:"Number bases", name:"Hex → decimal (2 digits)", tag:"16 × first + second", answerType:"num",
+    lesson:`<h3>Read a byte in your head</h3>
+      <p>A two-digit hex number is worth <b>16 × (first digit) + (second digit)</b>. Convert each hex digit to its value (A–F = 10–15), then combine.</p>
+      <p><b>Multiplying by 16:</b> the easy way is <b>×10 + ×6</b> — e.g. 11×16 = 110 + 66 = 176. (Or double three times then double again: ×16 = ×2×2×2×2.)</p>
+      <div class="ex mono">B7 → B=11, 7=7<br>11 × 16 + 7 = 176 + 7 = <b>183</b></div>
+      <div class="ex mono">2A → 2, A=10<br>2 × 16 + 10 = 32 + 10 = <b>42</b></div>
+      <p class="why">Range: a 2-digit hex value runs 0x00–0xFF, i.e. 0–255 — exactly one byte.</p>`,
+    gen(){ const HD="0123456789ABCDEF", hi=rnd(1,15), lo=rnd(0,15), val=hi*16+lo;
+      return { q:`0x${HD[hi]}${HD[lo]} = ?`, a:val, steps:[
+        `${HD[hi]} = ${hi},  ${HD[lo]} = ${lo}`,
+        `${hi} × 16 + ${lo} = ${hi*16} + ${lo} = <b>${val}</b>` ]}; } },
+
+  { id:"pi", cat:"Pi", name:"Pi to the Feynman point", tag:"Recite π 5 digits at a time — reach the six 9s at digit 762", answerType:"digits", seq:true,
+    lesson:(function(){
+      const chunks=[]; for(let i=0;i<PI_FRAC.length;i+=5) chunks.push(PI_FRAC.slice(i,i+5));
+      let rows="";
+      for(let r=0;r<chunks.length;r+=4){
+        let cells="";
+        for(let c=r;c<r+4 && c<chunks.length;c++){
+          const base=c*5; let h="";
+          for(let k=0;k<chunks[c].length;k++){
+            const pos=base+k;                                   // 0-based decimal index
+            const feyn = pos>=FEYN_START-1 && pos<=FEYN_START+4; // the six 9s
+            h += feyn ? `<span class="feyn">${chunks[c][k]}</span>` : chunks[c][k];
+          }
+          cells+=`<span class="pchunk">${h}</span>`;
+        }
+        rows+=`<div class="prow"><span class="pidx">${r*5+1}</span>${cells}</div>`;
+      }
+      return `<h3>Chunk it, don’t cram it</h3>
+        <p>Nobody memorizes π as one 700-digit blur. The standard method is <b>chunking</b>: break it into groups of five and learn a few groups at a time. Short-term memory holds only a handful of “items,” but a 5-digit group counts as <b>one</b> item.</p>
+        <ul><li><b>5 digits per group</b>, and only <b>5–10 new digits per session</b> — that’s a sustainable pace.</li>
+        <li><b>Always recite from the very start</b> (3.14159…). Each session, get to where you were, then push one new group further.</li>
+        <li><b>Review yesterday’s</b> before adding new ones — spacing is what makes it stick.</li>
+        <li>Past ~50 digits, hang each group on a spot along a familiar walk (a <b>memory palace</b>) — that’s how record-holders reach thousands.</li></ul>
+        <h3>Your target: the Feynman point</h3>
+        <p>At decimal position <b>${FEYN_START}</b> there’s a run of <b>six 9s</b> (…<span class="feyn">999999</span>…). Physicist Richard Feynman quipped he’d memorize π to there so he could recite “…nine nine nine nine nine nine <i>and so on</i>,” joking that it sounds like π is rational. It’s a natural, satisfying finish line — 762 digits.</p>
+        <h3>The digits (through the Feynman point)</h3>
+        <p class="why">Each row is 20 digits; the leftmost number is the position of the row’s first digit. The six 9s are highlighted.</p>
+        <div class="piref mono">3.&nbsp;${rows}</div>`;
+    })(),
+    gen(){ return app.piProblem(); } },
 ];
 
 /* ---- app ---- */
 const app = {
   cur:null, prob:null, input:"", answered:false, factor:11,
   total:0, correct:0, streak:0, best:0,
+  piPos:0, piAdvance:false, piEnded:false,
 
   init(){
     const list=$("trickList"); let lastCat="", idx=0;
-    const catOrder=["Square roots","Cube roots","Fifth roots","Division","Calendar","2-digit multiplication"];
+    const catOrder=["Square roots","Cube roots","Fifth roots","Division","Calendar","2-digit multiplication","Number bases","Pi"];
     const CAT_DESC={
       "Square roots":"e.g.  √ 2,916  =  54",
       "Cube roots":"e.g.  ∛ 250,047  =  63",
       "Fifth roots":"e.g.  ⁵√ 371,293  =  13",
       "Division":"e.g.  3852 ÷ 7  =  550.285714…",
       "Calendar":"e.g.  4 Jul 1776  →  Thursday",
-      "2-digit multiplication":"e.g.  23 × 47  =  1081"
+      "2-digit multiplication":"e.g.  23 × 47  =  1081",
+      "Number bases":"e.g.  0x B7  =  183",
+      "Pi":"e.g.  3.14159 26535 …  →  the six 9s at digit 762"
     };
     const ordered=[...TRICKS].sort((a,b)=>catOrder.indexOf(a.cat)-catOrder.indexOf(b.cat));
     ordered.forEach(t=>{
@@ -738,6 +811,7 @@ const app = {
     else { $("lessonBody").innerHTML=this.cur.lesson; $("lessonGo").classList.remove("hidden"); }
     show("lesson"); },
   practice(){ this.total=0; this.correct=0; this.streak=0; this.best=0;
+    this.piPos=0; this.piAdvance=false; this.piEnded=false;
     $("practiceTitle").textContent=this.cur.name; show("practice"); this.next(); },
 
   pickerHTML(){
@@ -758,7 +832,23 @@ const app = {
     return { q:`${N} × ${k}`, a:N*k, steps };
   },
 
+  piProblem(){
+    const pos=this.piPos, chunk=PI_FRAC.slice(pos,pos+5);
+    const tail = pos===0 ? "3." : "…"+PI_FRAC.slice(Math.max(0,pos-12),pos);
+    const q = pos===0 ? "3. → first 5 digits?" : `${tail} → next 5?`;
+    const soFar = "3."+PI_FRAC.slice(0,pos+chunk.length);
+    const soFarTail = soFar.length>44 ? "…"+soFar.slice(-40) : soFar;
+    return { q, a:chunk, digitPos:pos, steps:[
+      `digits ${pos+1}–${pos+chunk.length}: <b>${chunk}</b>`,
+      `so far: <span class="mono">${soFarTail}</span>` ] };
+  },
+
   next(){
+    if(this.cur && this.cur.seq){
+      if(this.piEnded){ this.piPos=0; this.piEnded=false; }
+      else if(this.piAdvance){ this.piPos+=5; this.piAdvance=false;
+        if(this.piPos>=PI_FRAC.length) this.piPos=0; }   // recited to the end → loop back to the start
+    }
     this.prob = this.cur.picker ? this.tableProblem(this.factor) : this.cur.gen();
     this.input=""; this.answered=false;
     $("qtext").textContent=this.prob.q;
@@ -785,6 +875,7 @@ const app = {
     if(this.answered) return;
     if(this.cur.answerType==="quotrem"){ if(this.input.length<2) return; this.grade(this.input); }   // compare string "Qr"
     else if(this.cur.answerType==="decimal"){ if(!this.input.includes(".")) return; this.grade(this.input); }   // compare "q.dddddd"
+    else if(this.cur.answerType==="digits"){ if(this.input==="") return; this.grade(this.input); }   // compare raw digit string (leading zeros matter)
     else { if(this.input==="") return; this.grade(Number(this.input)); }
   },
   submitWeekday(i){ this.grade(i); },
@@ -803,9 +894,16 @@ const app = {
                  : pad ? padLabel(this.prob.a)
                  : qr ? (this.prob.a.slice(0,-1)+" R "+this.prob.a.slice(-1))
                  : at==="decimal" ? this.prob.a
+                 : at==="digits" ? this.prob.a
                  : commas(this.prob.a);
       fb.textContent = "✗ "+(method?"try ":"it's ")+want+(pad ? " — you tapped "+padLabel(value) : "");
       fb.className="fb bad"; }
+    if(this.cur.seq){                                  // in-order recitation (π): correct advances, a miss ends the run
+      if(ok){ this.piAdvance=true;
+        if(this.prob.digitPos + this.prob.a.length >= FEYN_START+5){   // recited through the six 9s
+          fb.textContent = "✓ the Feynman point — six 9s at digit "+FEYN_START+"! 🎉"; } }
+      else { this.piEnded=true;
+        fb.textContent = "✗ it's "+this.prob.a+" — run over, back to the start"; } }
     if(pad){ const keys=$("keypad").querySelectorAll(".day");
       if(keys[this.prob.a]) keys[this.prob.a].classList.add("right");
       if(!ok && keys[value]) keys[value].classList.add("wrongkey"); }

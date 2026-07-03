@@ -1,42 +1,52 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Games</title>
-<style>
-  html,body{margin:0;background:#0e1014;color:#eef1f6;
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
-  .wrap{max-width:460px;margin:0 auto;padding:32px 18px 48px}
-  h1{font-size:26px;margin:0 0 4px}
-  .sub{color:#9aa3b2;font-size:13px;margin:0 0 22px}
-  a.tile{display:block;background:#171a21;border:1px solid #262b35;border-radius:14px;
-    padding:20px 18px;margin-bottom:14px;text-decoration:none;color:#eef1f6;transition:border-color .12s}
-  a.tile:hover{border-color:#7cc6ff}
-  a.tile b{font-size:20px}
-  a.tile span{display:block;color:#9aa3b2;font-size:13px;margin-top:6px;line-height:1.5}
-  .home{display:inline-block;color:#7cc6ff;font-size:12px;margin-bottom:14px;text-decoration:none}
-  .home:hover{color:#eef1f6}
-  .foot{color:#5a6473;font-size:12px;margin-top:24px;text-align:center}
-</style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Games &mdash; Nicholas Stefan Georgescu</title>
+<link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<div class="wrap">
-  <a class="home" href="https://ngeorgescu.github.io/">↩ nsg</a>
+
+<nav class="top">
+  <a href="/" class="logo">NSG</a>
+  <ul>
+    <li><a href="/">Home</a></li>
+    <li><a href="/math.html">Math</a></li>
+    <li><a href="/computer.html">Computer</a></li>
+    <li><a href="/games/" class="active">Games</a></li>
+    <li><a href="/#contact">Contact</a></li>
+  </ul>
+</nav>
+
+<header class="page-header">
   <h1>Games</h1>
-  <p class="sub">Two shelves. Pick a mode.</p>
+  <p class="lede">Two shelves. Pick a mode.</p>
+</header>
 
-  <a class="tile" href="play.html">
-    <b>▶ Play</b>
-    <span>Active drills — perception, memory, arithmetic, and a few classics to face down a computer opponent. Hue Sense, Grid Memory, Mental Math, Qubic, Mastermind, Connect 4.</span>
-  </a>
+<section class="content">
+  <div class="cards">
+    <div class="card">
+      <h4><a href="play.html">Play</a></h4>
+      <p>Active drills. Perception, memory, arithmetic, and a few classics to face down a computer opponent.</p>
+      <span class="tag">Hue Sense · Grid Memory · Mental Math · Qubic · Mastermind · Connect 4</span>
+    </div>
+    <div class="card">
+      <h4><a href="strategy.html">Strategize</a></h4>
+      <p>Decision-support and study tools. Not games you play but games you prepare for.</p>
+      <span class="tag">COMBO · Chess Repertoire</span>
+    </div>
+  </div>
+</section>
 
-  <a class="tile" href="strategy.html">
-    <b>♟ Strategize</b>
-    <span>Decision-support and study tools — not games you play but games you prepare for. COMBO (MTG brewing optimizer) and the chess repertoire explorer.</span>
-  </a>
+<footer>
+  <div class="socials">
+    <a href="/">Home</a>
+    <a href="https://github.com/NGeorgescu/games">Source</a>
+    <a href="mailto:nsgeorgescu@gmail.com">Email</a>
+  </div>
+  <div>&copy; 2026 Nicholas Stefan Georgescu</div>
+</footer>
 
-  <div class="foot">more to come</div>
-</div>
 </body>
 </html>
