@@ -4,12 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>COMBO — Commander Off-Meta Brewing Optimizer</title>
+<link rel="stylesheet" href="/style.css">
 <style>
-  :root{ --bg:#0e1014; --panel:#171a21; --ink:#eef1f6; --muted:#9aa3b2; --line:#262b35; --accent:#7cc6ff;
+  :root{ --panel:var(--bg-card); --ink:var(--fg); --muted:var(--fg-dim); --line:var(--rule);
     --w:#f7f3d6; --u:#9bd0ff; --b:#b9a7c9; --r:#ff9a86; --g:#9fe0a8; }
   *{box-sizing:border-box}
   html,body{margin:0;background:var(--bg);color:var(--ink);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-family:var(--sans);
     -webkit-text-size-adjust:100%}
   .wrap{max-width:520px;margin:0 auto;padding:20px 16px 56px}
   h1{font-size:30px;margin:0 0 1px;letter-spacing:.04em}
@@ -1160,5 +1161,8 @@ document.querySelectorAll('.pip').forEach(p=>p.addEventListener('click',()=>{
 
 load(); render(); refreshBg2();
 </script>
+<footer style="text-align:center;padding:1.5rem 1rem 2rem;font-size:0.8rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--fg-dim);border-top:1px solid var(--rule);margin-top:2rem;font-family:var(--sans)">
+  <a href="/games/" style="color:var(--accent);text-decoration:none">↩ back to games</a>
+</footer>
 </body>
 </html>

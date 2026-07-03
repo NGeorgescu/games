@@ -4,14 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Hue Sense — the named-color quiz</title>
+<link rel="stylesheet" href="/style.css">
 <style>
   :root{
-    --bg:#0e1014; --panel:#171a21; --ink:#eef1f6; --muted:#9aa3b2;
-    --line:#262b35; --accent:#7cc6ff;
+    --panel:var(--bg-card); --ink:var(--fg); --muted:var(--fg-dim);
+    --line:var(--rule);
   }
   *{box-sizing:border-box}
   html,body{margin:0;background:var(--bg);color:var(--ink);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-family:var(--sans);
     -webkit-text-size-adjust:100%}
   .wrap{max-width:440px;margin:0 auto;padding:18px 16px 40px;position:relative}
   .xclose{position:absolute;top:8px;right:10px;width:32px;height:32px;border-radius:50%;
@@ -1039,5 +1040,8 @@ function handle(ev){
 sq.addEventListener("pointerdown", e=>{e.preventDefault();handle(e);});
 sq.addEventListener("pointermove", e=>{ if(e.buttons){e.preventDefault();handle(e);} });
 </script>
+<footer style="text-align:center;padding:1.5rem 1rem 2rem;font-size:0.8rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--fg-dim);border-top:1px solid var(--rule);margin-top:2rem;font-family:var(--sans)">
+  <a href="/games/" style="color:var(--accent);text-decoration:none">↩ back to games</a>
+</footer>
 </body>
 </html>
