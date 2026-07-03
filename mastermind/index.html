@@ -66,7 +66,13 @@
   .reveal .peg{width:34px;height:34px;font-size:16px}
   footer{color:#5a6473;font-size:12px;text-align:center;margin-top:10px}
   a{color:var(--accent)}
-  .hintbox{margin-top:8px;color:var(--accent);font-size:13px;text-align:center;min-height:18px}
+  .hintbox{margin-top:10px;color:var(--muted);font-size:13px;line-height:1.6;text-align:left}
+  .hintbox:empty{margin-top:0}
+  .hintbox .pegline{text-align:center;color:var(--accent);font-weight:600;margin:2px 0 8px}
+  .hintbox b{color:var(--ink)}
+  .hintbox ul{margin:6px 0 8px;padding-left:18px}
+  .hintbox li{margin-bottom:5px}
+  .hintbox .peg{vertical-align:-4px;margin:0 1px}
   #howto summary{cursor:pointer;font-weight:700;font-size:15px;color:var(--ink);list-style:none}
   #howto summary::-webkit-details-marker{display:none}
   #howto summary::before{content:"▸ ";color:var(--accent)}
@@ -362,12 +368,90 @@ function hEnd(won){
   $('hStatus').textContent = won ? 'Solved!' : 'Game over';
   $('guessBtn').disabled = true; $('hintBtn').disabled = true;
 }
+// small inline peg for use inside explanatory sentences
+const pegTxt = c => pegHTML(c,18);
+
+// For a candidate guess against the still-possible set S, how big is the
+// worst-case surviving group? (Same grouping bestGuess uses to pick.)
+function worstCaseSplit(guess, S){
+  const parts = new Map(); let mx = 0;
+  for(const s of S){
+    const k = fbKey(score(s, guess));
+    const v = (parts.get(k)||0)+1; parts.set(k, v);
+    if(v>mx) mx = v;
+  }
+  return mx;
+}
+// Plain-language facts each past clue *proves* on its own — things the
+// player can verify by hand. Returns HTML fragments.
+function hintDeductions(history){
+  const out = [];
+  history.forEach((h,i)=>{
+    if(h.fb.black===LEN) return;            // that row was the winning guess
+    const g = h.guess, tot = h.fb.black + h.fb.white;
+    if(g.every(x=>x===g[0])){               // monochromatic probe → exact count
+      out.push(`Row ${i+1} played ${pegTxt(g[0])}×4 and scored ${h.fb.black} black — so the code has exactly <b>${h.fb.black}</b> ${pegTxt(g[0])}.`);
+    } else if(tot===0){                      // no pegs at all → colors absent
+      const cols = [...new Set(g)].map(pegTxt).join(' ');
+      out.push(`Row ${i+1} (${cols}) scored nothing — <b>none</b> of those colors are in the code.`);
+    } else if(tot===LEN){                    // full multiset match → just reorder
+      out.push(`Row ${i+1} had all four right colors (only ${h.fb.black} in place) — the answer is a <b>rearrangement</b> of it.`);
+    }
+  });
+  return out;
+}
 function hHint(){
   if(H.over) return;
+  const box = $('hintBox');
   const history = H.guesses.map(g=>({guess:g.code, fb:g.fb}));
-  const g = solverNext(history);
-  if(!g){ $('hintBox').textContent = 'Feedback so far is contradictory — no code fits.'; return; }
-  $('hintBox').innerHTML = 'Knuth suggests: ' + g.map(c=>pegHTML(c,24)).join(' ');
+
+  // Opening move: no clues yet.
+  if(history.length===0){
+    box.innerHTML =
+      `<div class="pegline">Knuth opens with ${FIRST_GUESS.map(pegTxt).join(' ')}</div>`
+    + `<div>No clues yet, so all <b>1296</b> codes are still possible. Knuth always opens with a`
+    + ` two-color guess like this — it's mathematically proven to give the best worst case.`
+    + ` Play it and watch the black/white pegs start ruling codes out.</div>`;
+    return;
+  }
+
+  // Rebuild the set S of codes still consistent with every clue so far.
+  let S = ALL;
+  for(const h of history) S = filterConsistent(S, h.guess, h.fb);
+
+  if(S.length===0){
+    box.innerHTML = `A clue somewhere is contradictory — <b>no</b> code fits all the pegs shown.`
+      + ` Double-check the feedback on an earlier row.`;
+    return;
+  }
+
+  const g = bestGuess(S);
+  const deds = hintDeductions(history);
+
+  if(S.length===1){
+    box.innerHTML =
+      `<div class="pegline">It must be ${g.map(pegTxt).join(' ')}</div>`
+    + (deds.length ? `<div>Putting your clues together:</div><ul>${deds.slice(-3).map(d=>`<li>${d}</li>`).join('')}</ul>` : '')
+    + `<div>Only <b>one</b> code still fits every clue — so that's the secret. Enter it to win.</div>`;
+    return;
+  }
+
+  const worst = worstCaseSplit(g, S);
+  const inS = S.some(c=>eqCode(c, g));
+  let html = `<div class="pegline">Knuth suggests ${g.map(pegTxt).join(' ')}</div>`;
+  html += `<div><b>${S.length}</b> codes still fit all your clues.</div>`;
+  if(deds.length){
+    html += `<div>What the clues already prove:</div><ul>${deds.slice(-3).map(d=>`<li>${d}</li>`).join('')}</ul>`;
+  }
+  if(inS){
+    html += `<div>This guess is one of those ${S.length}, so it might be the answer outright — and`
+          + ` if it isn't, its pegs still cut the field to at most <b>${worst}</b>.</div>`;
+  } else {
+    html += `<div>This guess can't be the answer itself, but it's the sharpest probe: whatever pegs`
+          + ` come back, at most <b>${worst}</b> of the ${S.length} codes can survive. That's the`
+          + ` "minimax" — Knuth picks the guess whose worst case is the smallest.</div>`;
+  }
+  box.innerHTML = html;
 }
 function hNew(){
   H.secret = randomCode(); H.guesses = []; H.cur = empty4(); H.over = false;
