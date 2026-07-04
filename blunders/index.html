@@ -447,13 +447,17 @@ function answer(saidBlunder) {
 
   const san = stepSans[0] || sanOf(card.fen, card.uci);
   const label = card.isBlunder ? 'a blunder' : 'a good move';
+  // For a blunder, the puzzle's tactic is the refutation: name the punishing
+  // move (the best move in the resulting position). stepSans[1] is that move.
+  const refute = (card.isBlunder && stepSans.length > 1)
+    ? ` &mdash; punished by <b>${stepSans[1]}</b>` : '';
   const themes = (card.themes || '').split(' ').filter(Boolean).slice(0, 3).join(', ');
 
   const v = document.getElementById('verdict');
   v.className = 'verdict show ' + (correct ? 'right' : 'wrong');
   v.innerHTML =
     `<div class="head">${correct ? '✓ Correct' : '✗ Incorrect'}</div>` +
-    `<div class="ruling"><b>${san}</b> was ${label}.</div>` +
+    `<div class="ruling"><b>${san}</b> was ${label}${refute}.</div>` +
     `<div class="line" id="line-moves">${renderMoveListHtml(card.fen, stepSans)}</div>` +
     `<div class="linebar">` +
       `<button id="nav-start" onclick="stepStart()" title="Start">⏮</button>` +
