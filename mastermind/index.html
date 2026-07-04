@@ -506,9 +506,9 @@ function hHint(){
   html += `<div>This code is still one of those ${S.length}, so it's never a wasted turn.`;
   if(changed.length===1){
     const i = changed[0];
-    html += ` It changes only position ${i+1} from your last guess (${pegTxt(last[i])}→${pegTxt(g[i])}):`
-          + ` if <b>black</b> rises, position ${i+1} is ${pegTxt(g[i])}; if it falls, that spot was`
-          + ` ${pegTxt(last[i])}; if it holds, it's neither.</div>`;
+    html += ` It changes only position ${i+1} from your last guess (${pegTxt(last[i])}→${pegTxt(g[i])}),`
+          + ` <b>so it tests position ${i+1} on its own</b>: if <b>black</b> rises, position ${i+1} is`
+          + ` ${pegTxt(g[i])}; if it falls, that spot was ${pegTxt(last[i])}; if it holds, it's neither.</div>`;
   } else {
     // No single-peg still-possible probe exists, so the black delta of `g`
     // can't point at one spot. Offer a clean isolation experiment instead:
@@ -532,12 +532,13 @@ function hHint(){
       let y=null, fy=-1;
       for(const c in freq){ if(+c!==last[bi] && freq[c]>fy){ fy=freq[c]; y=+c; } }
       const probe = last.slice(); probe[bi]=y;
-      html += `<div style="margin-top:6px"><b>Or isolate one spot.</b> Replay your last guess changing`
-            + ` only position ${bi+1}: ${probe.map(pegTxt).join(' ')} (${pegTxt(last[bi])}→${pegTxt(y)}).`
-            + ` Now the black count moves for that peg alone — <b>rises</b> ⇒ position ${bi+1} is`
-            + ` ${pegTxt(y)}; <b>falls</b> ⇒ it's ${pegTxt(last[bi])}; <b>unchanged</b> ⇒ it's neither.`
-            + ` That turns one unknown into a fact (it may cost a turn, since this probe might not be`
-            + ` the answer itself).</div>`;
+      html += `<div style="margin-top:6px"><b>Or run a test to pin down position ${bi+1}.</b>`
+            + ` Replay your last guess changing only that one peg: ${probe.map(pegTxt).join(' ')}`
+            + ` (${pegTxt(last[bi])}→${pegTxt(y)}). Because a single peg moved, the change in black`
+            + ` <b>answers position ${bi+1} by itself</b>: <b>rises</b> ⇒ it's ${pegTxt(y)};`
+            + ` <b>falls</b> ⇒ it's ${pegTxt(last[bi])}; <b>unchanged</b> ⇒ it's neither ${pegTxt(last[bi])}`
+            + ` nor ${pegTxt(y)}. One unknown becomes a fact (this probe may cost a turn, since it might`
+            + ` not be the answer itself).</div>`;
     }
   }
   box.innerHTML = html;
