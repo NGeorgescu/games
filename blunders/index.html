@@ -204,6 +204,8 @@ function lineSan(fen, uciArr) {
 }
 function turnOf(fen) { return new Chess(fen).turn(); }
 function sideName(t) { return t === 'w' ? 'White' : 'Black'; }
+// number of legal moves for the side to move — used to drop forced positions
+function legalCount(fen) { return new Chess(fen).moves().length; }
 // SAN without the check/checkmate suffix — the move being *considered* must not
 // reveal that it gives check or mate (you wouldn't know that over the board).
 function plainSan(fen, uci) { return sanOf(fen, uci).replace(/[+#]+$/, ''); }
@@ -266,10 +268,13 @@ function puzzleToCards(d, levelLabel) {
     gameUrl: 'https://lichess.org/training/' + d.puzzle.id,
     tier: levelLabel,
   };
-  return [
+  const cards = [
     { ...meta, fen: fensBefore[ip], uci: movesUci[ip], isBlunder: true,  cont: sol.slice() },
     { ...meta, fen: solverFen,      uci: sol[0],       isBlunder: false, cont: sol.slice(1) },
   ];
+  // Drop any card whose decision position has only one legal move — a forced
+  // move can't fairly be judged a blunder (the player had no choice).
+  return cards.filter(c => legalCount(c.fen) >= 2);
 }
 
 /* ---------- offline fallback pool (built from the embedded seed) ---------- */
@@ -281,8 +286,9 @@ function buildFallback(puzzles) {
     const options = [{ ...meta, fen: p.fen, uci: p.moves[0], isBlunder: true, cont: p.moves.slice(1) }];
     const fen1 = fenAfter(p.fen, p.moves[0]);
     if (fen1) options.push({ ...meta, fen: fen1, uci: p.moves[1], isBlunder: false, cont: p.moves.slice(2) });
-    // one side per puzzle, matching the live path -> no mirror-pair repeats offline
-    cards.push(options[Math.floor(Math.random() * options.length)]);
+    // one side per puzzle (no mirror-pair repeats), and never a forced position
+    const valid = options.filter(c => legalCount(c.fen) >= 2);
+    if (valid.length) cards.push(valid[Math.floor(Math.random() * valid.length)]);
   }
   return cards;
 }
@@ -318,7 +324,7 @@ async function fetchOnePuzzle() {
     const d = await res.json();
     if (seen.has(d.puzzle.id)) return 'dup';    // anonymous /next can repeat — skip
     const cards = puzzleToCards(d, level);
-    if (!cards) return 'dup';                    // unparseable — try another
+    if (!cards || !cards.length) return 'dup';   // unparseable / all forced — try another
     seen.add(d.puzzle.id);
     // Use only ONE side of each puzzle. Its two cards are the same position one
     // ply apart (before vs. after the move), so showing both reads as "the same
