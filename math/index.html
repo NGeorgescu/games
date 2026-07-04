@@ -777,7 +777,7 @@ const TRICKS = [
         `Answer: <b>${WD[a]}</b>` ]};
     } },
 
-  { id:"hexdigits", cat:"Number bases", name:"Hex digit values", tag:"A–F → 10–15, the toolkit", answerType:"num",
+  { id:"hexdigits", cat:"Number bases", name:"Hex digit values", tag:"A–F → 10–15, the toolkit", answerType:"num", ord:1,
     lesson:`<h3>Six new “digits”</h3>
       <p>Hexadecimal counts in <b>sixteens</b>. It uses the usual 0–9, then keeps going with six letters:</p>
       <table class="map"><tr><td>A</td><td>B</td><td>C</td><td>D</td><td>E</td><td>F</td></tr>
@@ -787,7 +787,20 @@ const TRICKS = [
     gen(){ const L="ABCDEF"[rnd(0,5)]; return { q:`Hex ${L} = ?`, a:HEXVAL[L], steps:[
       `A=10, B=11, C=12, D=13, E=14, F=15 → ${L} = <b>${HEXVAL[L]}</b>` ]}; } },
 
-  { id:"hex2dec", cat:"Number bases", name:"Hex → decimal (2 digits)", tag:"16 × first + second", answerType:"num",
+  { id:"hex16", cat:"Number bases", name:"The 16s place", tag:"The first hex digit counts sixteens", answerType:"num", ord:2,
+    lesson:`<h3>The left digit is worth sixteen each</h3>
+      <p>In a two-digit hex number, the <b>first</b> digit isn't ones — it's <b>sixteens</b>. So its value is <b>16 × (its digit value)</b>, just like the tens place in decimal is ×10.</p>
+      <table class="map"><tr><td>10</td><td>20</td><td>A0</td><td>F0</td></tr>
+        <tr><td>16</td><td>32</td><td>160</td><td>240</td></tr></table>
+      <div class="ex mono">0x30 → 3 sixteens → 3 × 16 = <b>48</b></div>
+      <div class="ex mono">0xC0 → C=12 → 12 × 16 = <b>192</b></div>
+      <p class="why">Quick ×16: ×10 then add ×6 — e.g. 12×16 = 120 + 72 = 192.</p>`,
+    gen(){ const HD="0123456789ABCDEF", d=rnd(1,15);
+      return { q:`0x${HD[d]}0 = ?`, a:16*d, steps:[
+        `${HD[d]} = ${d}`,
+        `${d} × 16 = <b>${16*d}</b>` ]}; } },
+
+  { id:"hex2dec", cat:"Number bases", name:"Hex → decimal (2 digits)", tag:"16 × first + second", answerType:"num", ord:3,
     lesson:`<h3>Read a byte in your head</h3>
       <p>A two-digit hex number is worth <b>16 × (first digit) + (second digit)</b>. Convert each hex digit to its value (A–F = 10–15), then combine.</p>
       <p><b>Multiplying by 16:</b> the easy way is <b>×10 + ×6</b> — e.g. 11×16 = 110 + 66 = 176. (Or double three times then double again: ×16 = ×2×2×2×2.)</p>
@@ -798,6 +811,43 @@ const TRICKS = [
       return { q:`0x${HD[hi]}${HD[lo]} = ?`, a:val, steps:[
         `${HD[hi]} = ${hi},  ${HD[lo]} = ${lo}`,
         `${hi} × 16 + ${lo} = ${hi*16} + ${lo} = <b>${val}</b>` ]}; } },
+
+  { id:"dec16", cat:"Number bases", name:"How many 16s?", tag:"Decimal → hex: the first digit", answerType:"num", ord:4,
+    lesson:`<h3>The return trip: decimal → hex</h3>
+      <p>Going back the other way, you undo the two steps. First: how many whole <b>sixteens</b> fit inside the number? That count is the <b>first hex digit</b>.</p>
+      <p>Divide by 16 and keep the whole part (ignore the remainder for now).</p>
+      <div class="ex mono">183 ÷ 16 = 11 remainder 7 → first digit 11 = <b>B</b></div>
+      <div class="ex mono">42 ÷ 16 = 2 remainder 10 → first digit <b>2</b></div>
+      <p class="why">If the count lands in 10–15, remember it becomes a letter A–F when you write the hex.</p>`,
+    gen(){ const HD="0123456789ABCDEF", n=rnd(16,255), hi=Math.floor(n/16), lo=n%16;
+      return { q:`How many whole 16s fit in ${n}?`, a:hi, steps:[
+        `${n} ÷ 16 = ${hi} remainder ${lo}`,
+        `so the first hex digit is ${hi} (= <b>${HD[hi]}</b>)` ]}; } },
+
+  { id:"decrem", cat:"Number bases", name:"The leftover", tag:"Decimal → hex: the second digit", answerType:"num", ord:5,
+    lesson:`<h3>What's left after the sixteens</h3>
+      <p>Once you've taken out the whole sixteens, the <b>remainder</b> is the <b>second hex digit</b>. That's just <b>n mod 16</b> — the amount left over.</p>
+      <div class="ex mono">183: 11×16 = 176, leftover 183 − 176 = 7 → second digit <b>7</b></div>
+      <div class="ex mono">42: 2×16 = 32, leftover 42 − 32 = 10 → second digit <b>A</b></div>
+      <p class="why">The leftover is always 0–15, so it's exactly one hex digit (10–15 → A–F).</p>`,
+    gen(){ const HD="0123456789ABCDEF", n=rnd(16,255), hi=Math.floor(n/16), lo=n%16;
+      return { q:`After the 16s, what’s left over in ${n}?`, a:lo, steps:[
+        `${n} − ${hi}×16 = ${n} − ${hi*16} = ${lo} (= <b>${HD[lo]}</b>)` ]}; } },
+
+  { id:"dec2hex", cat:"Number bases", name:"Decimal → hex", tag:"Whole trip: divide by 16, then the leftover", answerType:"hex", ord:6,
+    lesson:`<h3>Put it together</h3>
+      <p>To turn a decimal number (0–255) into two hex digits, do both steps in order:</p>
+      <ul><li><b>First digit:</b> n ÷ 16, keep the whole part.</li>
+      <li><b>Second digit:</b> the remainder, n mod 16.</li></ul>
+      <p>Then write each as a hex digit (10–15 → A–F).</p>
+      <div class="ex mono">47 ÷ 16 = 2 remainder 15<br>2 → 2,  15 → F<br>47 = 0x<b>2F</b></div>
+      <div class="ex mono">183 ÷ 16 = 11 remainder 7<br>11 → B,  7 → 7<br>183 = 0x<b>B7</b></div>
+      <p class="why">Tap the hex digits 0–9 and A–F. This is the exact reverse of “Hex → decimal”.</p>`,
+    gen(){ const HD="0123456789ABCDEF", n=rnd(16,255), hi=Math.floor(n/16), lo=n%16, hex=HD[hi]+HD[lo];
+      return { q:`${n} in hex = ?`, a:hex, steps:[
+        `${n} ÷ 16 = ${hi} → ${HD[hi]}`,
+        `remainder ${lo} → ${HD[lo]}`,
+        `= 0x<b>${hex}</b>` ]}; } },
 
   { id:"pimap", cat:"Pi", name:"The letters (Major System)", tag:"Learn which consonant sound is which digit", answerType:"digitpad", ord:1, autoOk:true,
     lesson:`<h3>Ten sounds — and why</h3>
@@ -1018,6 +1068,7 @@ const app = {
     if(this.cur.answerType==="quotrem"){ if(this.input.length<2) return; this.grade(this.input); }   // compare string "Qr"
     else if(this.cur.answerType==="decimal"){ if(!this.input.includes(".")) return; this.grade(this.input); }   // compare "q.dddddd"
     else if(this.cur.answerType==="digits"){ if(this.input==="") return; this.grade(this.input); }   // compare raw digit string (leading zeros matter)
+    else if(this.cur.answerType==="hex"){ if(this.input==="") return; this.grade(this.input.toUpperCase()); }   // compare uppercase hex string
     else { if(this.input==="") return; this.grade(Number(this.input)); }
   },
   submitWeekday(i){ this.grade(i); },
@@ -1037,6 +1088,7 @@ const app = {
                  : qr ? (this.prob.a.slice(0,-1)+" R "+this.prob.a.slice(-1))
                  : at==="decimal" ? this.prob.a
                  : at==="digits" ? this.prob.a
+                 : at==="hex" ? this.prob.a
                  : commas(this.prob.a);
       fb.textContent = "✗ "+(method?"try ":"it's ")+want+(pad ? " — you tapped "+padLabel(value) : "");
       fb.className="fb bad"; }
@@ -1070,6 +1122,14 @@ const app = {
       del.style.gridColumn="1"; grid.appendChild(del); grid.appendChild(zero);
       pad.appendChild(grid); return;
     }
+    if(at==="hex"){                                      // 16 hex keys (0–9 A–F) + ⌫ + Check, 4-column grid
+      const grid=document.createElement("div"); grid.className="pad"; grid.style.gridTemplateColumns="repeat(4,1fr)";
+      "0123456789ABCDEF".split("").forEach(ch=>{ const k=document.createElement("div"); k.className="key"; k.textContent=ch; k.onclick=()=>this.press(ch); grid.appendChild(k); });
+      const del=document.createElement("div"); del.className="key wide"; del.textContent="⌫"; del.onclick=()=>this.del();
+      const chk=document.createElement("div"); chk.className="key check"; chk.textContent="Check"; chk.onclick=()=>this.check();
+      del.style.gridColumn="1 / 3"; chk.style.gridColumn="3 / -1"; grid.appendChild(del); grid.appendChild(chk);
+      pad.appendChild(grid); this.chkKey=chk; return;
+    }
     if(isPad){
       const labels = at==="weekday" ? WD : at==="method" ? METHODS : at==="digitpad" ? DIGITS : MOD7;
       const grid=document.createElement("div"); grid.className = at==="method" ? "daypad methods" : "daypad";
@@ -1101,6 +1161,14 @@ document.addEventListener("keydown", e=>{
     const max = app.cur.answerType==="method" ? "5" : app.cur.answerType==="digitpad" ? "9" : "6";
     if(!app.answered && e.key>="0" && e.key<=max) app.submitWeekday(Number(e.key));
     else if(e.key==="Enter" && app.answered) app.next();
+    return;
+  }
+  if(app.cur && app.cur.answerType==="hex"){           // hex keypad: 0-9 and A-F append, ⌫ delete, Enter check
+    if(app.answered){ if(e.key==="Enter") app.next(); return; }
+    if(e.key>="0"&&e.key<="9") app.press(e.key);
+    else if(/^[a-fA-F]$/.test(e.key)) app.press(e.key.toUpperCase());
+    else if(e.key==="Backspace"){ e.preventDefault(); app.del(); }
+    else if(e.key==="Enter") app.check();
     return;
   }
   if(app.answered){ if(e.key==="Enter") app.next(); return; }
