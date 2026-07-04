@@ -184,72 +184,112 @@ const HEXVAL = {A:10,B:11,C:12,D:13,E:14,F:15};
 /* ---- pi encoded in the Major System: 285 words = 767 digits (each word's consonants spell its digit-group;
         generated + verified by CMU-phoneme encoder — concatenation reconstructs pi exactly) ---- */
 const PI_SCENES=[
-  ["My turtle bench-presses a lamb, then loads a leaf into his pickup",[["1415","turtle"],["926","bench"],["53","lamb"],["58","leaf"],["979","pickup"]]],
-  ["Under the moon, a movie about the origin of a charm that can move",[["32","moon"],["38","movie"],["462","origin"],["643","charm"],["38","move"]]],
-  ["A man and couples wield a knife at the fort, then pocket it",[["32","man"],["7950","couples"],["28","knife"],["841","fort"],["971","pocket"]]],
-  ["On the ship, a map marks a bomb hidden in the clouds at eleven",[["69","ship"],["39","map"],["93","bomb"],["7510","clouds"],["582","eleven"]]],
-  ["A speaker on the alpine prairie dons a mask and shoots footage",[["0974","speaker"],["944","prairie"],["592","alpine"],["307","mask"],["816","footage"]]],
-  ["A horse from China, for efficiency, views a pipe",[["40","horse"],["62","china"],["8620","efficiency"],["8","view"],["99","pipe"]]],
-  ["A vision with a voice of humor floats over the vanilla marina",[["862","vision"],["80","voice"],["34","humor"],["825","vanilla"],["342","marina"]]],
-  ["Data at the gas station: a shock — rotten beef on the interface",[["11","data"],["70","gas"],["67","shock"],["98","beef"],["21480","interface"]]],
-  ["A visual domain inside a van messages a shark",[["865","visual"],["132","domain"],["82","van"],["306","message"],["647","shark"]]],
-  ["Spam ad: a Ferrari, shoes, a pool — all wholesale",[["093","spam"],["844","ferrari"],["60","shoes"],["95","pool"],["505","wholesale"]]],
-  ["On the phone, a named canal by the mall is finally perceived",[["82","phone"],["231","named"],["725","canal"],["35","mall"],["94081","perceived"]]],
-  ["Never voted: a tiger teaches a lesson about fruits",[["284","never"],["811","voted"],["174","tiger"],["502","lesson"],["8410","fruits"]]],
-  ["Next to a palm, flint sparks a diesel well",[["2701","next"],["93","palm"],["8521","flint"],["105","diesel"],["5","well"]]],
-  ["In a loop, a juror — genuine and brave — recites polar poems",[["59","loop"],["644","juror"],["622","genuine"],["948","brave"],["954","polar"],["930","poems"]]],
-  ["Moved to the beach: horror lurks in the navy's photos",[["381","moved"],["96","beach"],["44","horror"],["28","navy"],["810","photos"]]],
-  ["Book a lodge; a shell hides a poem behind the mirror",[["97","book"],["56","lodge"],["65","shell"],["93","poem"],["344","mirror"]]],
-  ["A jet — whenever culture fans out — reveals a mime",[["61","jet"],["284","whenever"],["7564","culture"],["82","fan"],["33","mime"]]],
-  ["In a cave, a joke; foam on a dish out in the lane",[["78","cave"],["67","joke"],["83","foam"],["16","dish"],["52","lane"]]],
-  ["Kittens spin tops; a patrol spots a giraffe by the lodge",[["7120","kittens"],["190","tops"],["9145","patrol"],["648","giraffe"],["56","lodge"]]],
-  ["Shop anymore? Jazz with the mayor over fish",[["69","shop"],["234","anymore"],["60","jazz"],["34","mayor"],["86","fish"]]],
-  ["Desire, then alarm: inch by inch the sheriff studies anatomy",[["104","desire"],["543","alarm"],["26","inch"],["648","sheriff"],["213","anatomy"]]],
-  ["An amp matches a conscious hum; unwrap it",[["39","amp"],["360","matches"],["7260","conscious"],["249","unwrap"]]],
-  ["Thirteen comic neural fixes handed to the judges",[["1412","thirteen"],["737","comic"],["245","neural"],["8700","fixes"],["660","judges"]]],
-  ["A gem at the hotel of love; a photograph turns fatal",[["63","gem"],["15","hotel"],["58","love"],["81748","photograph"],["815","fatal"]]],
-  ["Noise of bones and passion; a van's panel",[["20","noise"],["920","bones"],["962","passion"],["82","van"],["925","panel"]]],
-  ["A recipe, a ticket, a lime in the showroom; jack it up",[["409","recipe"],["171","ticket"],["53","lime"],["643","showroom"],["67","jack"]]],
-  ["View a panel: a piece of images at the stadium",[["8","view"],["925","panel"],["90","piece"],["360","images"],["0113","stadium"]]],
-  ["Muscle vs missile on the roof, over the fence and arch",[["305","muscle"],["305","missile"],["48","roof"],["820","fence"],["46","arch"]]],
-  ["Gel anytime; a fritter at the chapel",[["65","gel"],["213","anytime"],["8414","fritter"],["695","chapel"]]],
-  ["Deeper still: tilted shoes",[["194","deeper"],["1511","tilted"],["60","shoes"]]],
-  ["A premium silicon gizmo, chile-hot and global",[["9433","premium"],["0572","silicon"],["703","gizmo"],["65","chile"],["7595","global"]]],
-  ["A body in bloom; the husband — a fish — is pure data",[["91","body"],["953","bloom"],["0921","husband"],["86","fish"],["11","data"]]],
-  ["A game, food under the beam",[["73","game"],["81","food"],["93","beam"]]],
-  ["Initiated: a cup on the mats, loaded with a flower",[["2611","initiated"],["79","cup"],["310","mats"],["511","loaded"],["854","flower"]]],
-  ["The face of a courier carrying a genome",[["80","face"],["744","courier"],["623","genome"]]],
-  ["Cap the option; grab logic and mold it",[["79","cap"],["962","option"],["749","grab"],["567","logic"],["351","mold"]]],
-  ["Five local necks, one raw nerve",[["88","five"],["575","local"],["27","neck"],["248","nerve"]]],
-  ["A python nicks the palm; feet in the fumes",[["912","python"],["27","nick"],["93","palm"],["81","feet"],["830","fumes"]]],
-  ["A prepaid date; a newbie does foam magic",[["11","date"],["9491","prepaid"],["29","newbie"],["83","foam"],["367","magic"]]],
-  ["Mom and junior with a rose",[["33","mom"],["624","junior"],["40","rose"]]],
-  ["Geology charms; a fish, a sound, amber",[["656","geology"],["6430","charms"],["86","fish"],["021","sound"],["394","amber"]]],
-  ["A bridge, a maple, nine rocks, a mike",[["946","bridge"],["395","maple"],["22","nine"],["47","rock"],["37","mike"]]],
-  ["Tubes, a croissant, a copy of the fish — supreme",[["190","tubes"],["7021","croissant"],["79","copy"],["86","fish"],["0943","supreme"]]],
-  ["Casino cookies under a lamp",[["702","casino"],["770","cookies"],["539","lamp"]]],
-  ["Indicate the kitchen; a poem, a dog in the jungle",[["2171","indicate"],["762","kitchen"],["93","poem"],["17","dog"],["675","jungle"]]],
-  ["A gnome, a fridge, a craft forge, a cage of choppers",[["23","gnome"],["846","fridge"],["7481","craft"],["846","forge"],["76","cage"],["6940","choppers"]]],
-  ["Light on the mines; a sociology photo, naked",[["51","light"],["320","mines"],["0056","sociology"],["81","photo"],["271","naked"]]],
-  ["Airline jam at the lodge: seven cakes, a flag",[["452","airline"],["63","jam"],["56","lodge"],["082","seven"],["77","cake"],["857","flag"]]],
-  ["The kingdom's rain; a clock, coffee, beaches",[["713","kingdom"],["42","rain"],["757","clock"],["78","coffee"],["960","beaches"]]],
-  ["A boutique match; a mac takes the fog",[["917","boutique"],["36","match"],["37","mac"],["17","take"],["87","fog"]]],
-  ["A winter chef; warriors post at noon",[["214","winter"],["68","chef"],["440","warriors"],["901","post"],["22","noon"]]],
-  ["A rebel with humor, the master jeweler — believe",[["495","rebel"],["34","humor"],["3014","master"],["654","jeweler"],["958","believe"]]],
-  ["A lamb, the kids, a loss at the cabin",[["53","lamb"],["710","kids"],["50","loss"],["792","cabin"]]],
-  ["Nuke the patch off the panel; take a view",[["27","nuke"],["96","patch"],["8","off"],["925","panel"],["8","view"]]],
-  ["A pin, the mail, and it runs",[["92","pin"],["35","mail"],["420","runs"]]],
-  ["Tape, polished downtown; a peasant pages through",[["19","tape"],["9561","polished"],["1212","downtown"],["9021","peasant"],["960","pages"]]],
-  ["The features in the mirror — theft!",[["8640","features"],["344","mirror"],["181","theft"]]],
-  ["A lab video: a machine robs the bank by the creek",[["59","lab"],["81","video"],["362","machine"],["97","bank"],["747","creek"]]],
-  ["An academy spy patches a lot; a fox",[["713","academy"],["09","spy"],["960","patches"],["51","lot"],["870","fox"]]],
-  ["counted more",[["7211","counted"],["34","more"]]],
-  ["THE FEYNMAN FINALE: a baby, a puppy, a poppy",[["99","baby"],["99","puppy"],["99","poppy"]]]
+  ["My turtle balances a lime on a bench.",[["3","my"],["1415","turtle"],["926","bench"],["53","lime"]]],
+  ["A leaf bookmarks the palm-tree page.",[["58","leaf"],["97","book"],["93","palm"]]],
+  ["I name the fire that melts a chain.",[["23","name"],["84","fire"],["62","chain"]]],
+  ["A lucky charm plays a movie on the moon.",[["643","charm"],["38","movie"],["32","moon"]]],
+  ["A cable drags the sun to its favourite spot.",[["795","cable"],["02","sun"],["8841","favourite"]]],
+  ["In my pocket, a ship folds into a map.",[["971","pocket"],["69","ship"],["39","map"]]],
+  ["A gold beam roars out of Sullivan's speaker.",[["93","beam"],["751","gold"],["0582","sullivan"],["0974","speaker"]]],
+  ["A bear does a barrel-roll over a giant pen.",[["94","bear"],["45","roll"],["92","pen"]]],
+  ["A mouse gift-wraps a cherry.",[["30","mouse"],["781","gift"],["64","cherry"]]],
+  ["Flip the switch: navy jeans light up.",[["06","switch"],["28","navy"],["620","jeans"]]],
+  ["The FBI grills beef for Jane.",[["89","fbi"],["98","beef"],["62","jane"]]],
+  ["Ocean waves hammer my phone.",[["80","waves"],["34","hammer"],["82","phone"]]],
+  ["A lime is oriented inside Jacob's case.",[["53","lime"],["4211","oriented"],["70","case"],["679","jacob"]]],
+  ["A finder helps the wives net a fish.",[["8214","finder"],["80","wives"],["86","fish"]]],
+  ["Light reveals a woman in a van.",[["51","light"],["32","woman"],["82","van"]]],
+  ["A mossy judge sits on a rock.",[["30","moss"],["66","judge"],["47","rock"]]],
+  ["A Ferrari built of spam and cheese.",[["093","spam"],["844","ferrari"],["60","cheese"]]],
+  ["An apple, bought wholesale, jams a fan.",[["95","apple"],["505","wholesale"],["82","fan"]]],
+  ["An enemy dog steps on a nail.",[["23","enemy"],["17","dog"],["25","nail"]]],
+  ["Mail-order bears pose for a photo.",[["35","mail"],["940","bears"],["81","photo"]]],
+  ["Never has a voted-in tiger looked prouder.",[["284","never"],["811","voted"],["174","tiger"]]],
+  ["Listen: fruits hang round my neck.",[["502","listen"],["8410","fruits"],["27","neck"]]],
+  ["One step, one move, onto the island.",[["019","step"],["38","move"],["521","island"]]],
+  ["Diesel spills, lol, all over the beach.",[["105","diesel"],["55","lol"],["96","beach"]]],
+  ["The warrior Shannon demands proof.",[["44","warrior"],["622","shannon"],["948","proof"]]],
+  ["A bell on a rope hangs in the museum.",[["95","bell"],["49","rope"],["303","museum"]]],
+  ["An FTP file becomes a chair beside an iron.",[["819","ftp"],["64","chair"],["42","iron"]]],
+  ["On the fifth try, soap sculpts an eagle.",[["881","fifth"],["09","soap"],["75","eagle"]]],
+  ["Josh spins an album in the mirror.",[["66","josh"],["593","album"],["344","mirror"]]],
+  ["A jet, whenever it lands, dumps coal.",[["61","jet"],["284","whenever"],["75","coal"]]],
+  ["The sheriff watches anime with a mug.",[["648","sheriff"],["23","anime"],["37","mug"]]],
+  ["On Fuji, a cave hides a mat.",[["86","fuji"],["78","cave"],["31","mat"]]],
+  ["A shell, naked, balances on a nose.",[["65","shell"],["271","naked"],["20","nose"]]],
+  ["Tubes of butter fill the lodge.",[["190","tubes"],["914","butter"],["56","lodge"]]],
+  ["On arrival, Joshua grabs a pan.",[["485","arrival"],["66","joshua"],["92","pan"]]],
+  ["In the marsh, one summer, a Fujitsu sinks.",[["346","marsh"],["034","summer"],["8610","fujitsu"]]],
+  ["A roller carries a man to the Jewish quarter.",[["454","roller"],["32","man"],["66","jewish"]]],
+  ["Refund in hand, they mambo to a match.",[["4821","refund"],["339","mambo"],["36","match"]]],
+  ["Skin peels off Jason the robot.",[["072","skin"],["602","jason"],["491","robot"]]],
+  ["The written game crowns a queen.",[["412","written"],["73","game"],["72","queen"]]],
+  ["Relief: the cases fit in one shoe.",[["458","relief"],["700","cases"],["6","shoe"]]],
+  ["Sticky watches and jam coat a tail.",[["60","watches"],["63","jam"],["15","tail"]]],
+  ["A wolf hides food in the grove.",[["58","wolf"],["81","food"],["748","grove"]]],
+  ["Vital wines soak the beans.",[["815","vital"],["20","wines"],["920","beans"]]],
+  ["Behind a bush, a Nova car parks at the NBA.",[["96","bush"],["28","nova"],["29","nba"]]],
+  ["Neil rides a horse onto a boat.",[["25","neil"],["40","horse"],["91","boat"]]],
+  ["A cat climbs the hill to the major.",[["71","cat"],["5","hill"],["364","major"]]],
+  ["Mesh strains coffee onto a panel.",[["36","mesh"],["78","coffee"],["925","panel"]]],
+  ["A bus of matches parks at the stadium.",[["90","bus"],["360","matches"],["0113","stadium"]]],
+  ["Muslims and a lawyer give five answers.",[["30530","muslims"],["54","lawyer"],["88","five"],["204","answer"]]],
+  ["Watch Julian split an atom.",[["6","watch"],["652","julian"],["13","atom"]]],
+  ["Further past the chapel, deeper down.",[["8414","further"],["695","chapel"],["194","deeper"]]],
+  ["Deleted: a chess game on premium silicon.",[["1511","deleted"],["60","chess"],["9433","premium"],["0572","silicon"]]],
+  ["Eggs roll to Michelle's globe.",[["70","eggs"],["365","michelle"],["759","globe"]]],
+  ["A laptop drops from Williams into the pond.",[["5919","laptop"],["530","williams"],["921","pond"]]],
+  ["In Fiji, a date is filmed on cam.",[["86","fiji"],["11","date"],["73","cam"]]],
+  ["Stomping feet go boom, and everyone enjoyed it.",[["81","feet"],["93","boom"],["261","enjoyed"]]],
+  ["A duck reads a poem soaked in diesel.",[["17","duck"],["93","poem"],["105","diesel"]]],
+  ["Data blooms a flower on a visa.",[["11","data"],["854","flower"],["80","visa"]]],
+  ["A car drives through an arch in Anaheim.",[["74","car"],["46","arch"],["23","anaheim"]]],
+  ["One cup patches the leak at Niagara.",[["79","cup"],["96","patch"],["274","niagara"]]],
+  ["A bowl holds a chick from Moldova.",[["95","bowl"],["67","chick"],["3518","moldova"]]],
+  ["A flag makes the lion ignore us.",[["857","flag"],["52","lion"],["724","ignore"]]],
+  ["The FBI storms town, saving my neck.",[["89","fbi"],["12","town"],["27","neck"]]],
+  ["A palm and a foot make him famous.",[["93","palm"],["81","foot"],["830","famous"]]],
+  ["A diet, prepaid, for a newbie.",[["11","diet"],["9491","prepaid"],["29","newbie"]]],
+  ["Foam and mesh wash up on Guam.",[["83","foam"],["36","mesh"],["73","guam"]]],
+  ["A machine arms warriors with a jewel.",[["362","machine"],["440","warriors"],["65","jewel"]]],
+  ["At the edge, charms bob on a wave.",[["6","edge"],["6430","charms"],["8","wave"]]],
+  ["Chosen timber builds a bridge.",[["602","chosen"],["1394","timber"],["946","bridge"]]],
+  ["A maple leaf and onion roll in a rug.",[["395","maple"],["22","onion"],["47","rug"]]],
+  ["A mic and tapes light up the casino.",[["37","mic"],["190","tapes"],["702","casino"]]],
+  ["On deck, beef sizzles to jazz.",[["17","deck"],["98","beef"],["60","jazz"]]],
+  ["Prime cuisine tops the cake.",[["943","prime"],["702","cuisine"],["77","cake"]]],
+  ["A seal in ambient glow nuzzles a goat.",[["05","seal"],["3921","ambient"],["71","goat"]]],
+  ["A kitchen beam holds a tag.",[["762","kitchen"],["93","beam"],["17","tag"]]],
+  ["A jack lifts the lawn at home.",[["67","jack"],["52","lawn"],["3","home"]]],
+  ["A fresh craft wins the fair.",[["846","fresh"],["7481","craft"],["84","fair"]]],
+  ["A milkshake spills on a jay and the shoppers.",[["67","shake"],["6","jay"],["6940","shoppers"]]],
+  ["A lot of mines lie under the houses.",[["51","lot"],["320","mines"],["00","houses"]]],
+  ["A Welsh video zooms on a nick.",[["56","welsh"],["81","video"],["27","nick"]]],
+  ["A tree eats lunch at the mall.",[["14","tree"],["526","lunch"],["35","mall"]]],
+  ["Joseph laces his Nike at the cafe.",[["608","joseph"],["27","nike"],["78","cafe"]]],
+  ["A lake and academy fill with rain.",[["57","lake"],["713","academy"],["42","rain"]]],
+  ["A clock ticks over the cove and beaches.",[["757","clock"],["78","cove"],["960","beaches"]]],
+  ["A boot kicks Kim to Jamaica.",[["91","boot"],["73","kim"],["637","jamaica"]]],
+  ["A duke drops a fig on an ant.",[["17","duke"],["87","fig"],["21","ant"]]],
+  ["On the ridge, a Ferrari goes where it's supposed.",[["46","ridge"],["844","ferrari"],["0901","supposed"]]],
+  ["Neon lights the rebel mayor.",[["22","neon"],["495","rebel"],["34","mayor"]]],
+  ["The master's jewelry, believe it.",[["3014","master"],["654","jewelry"],["958","believe"]]],
+  ["A wheel drags a mac full of toys.",[["5","wheel"],["37","mac"],["10","toys"]]],
+  ["In Alaska, a banana wears a cap.",[["507","alaska"],["922","banana"],["79","cap"]]],
+  ["A chef plays piano on an olive.",[["68","chef"],["92","piano"],["58","olive"]]],
+  ["In Panama, learn, then stop.",[["923","panama"],["542","learn"],["019","stop"]]],
+  ["A polished tent drips honey.",[["9561","polished"],["121","tent"],["2","honey"]]],
+  ["Absent, the Apache naps on a sofa.",[["9021","absent"],["96","apache"],["08","sofa"]]],
+  ["A jersey-clad hammer bonks a rat.",[["640","jersey"],["34","hammer"],["41","rat"]]],
+  ["A fatal pie ends the fight.",[["815","fatal"],["9","pie"],["81","fight"]]],
+  ["A ham slaps the jean-wearing pig.",[["3","ham"],["62","jean"],["97","pig"]]],
+  ["A creek soaks the coat near the homes.",[["747","creek"],["71","coat"],["30","homes"]]],
+  ["A baby's shoes leave lead prints in the fog.",[["99","baby"],["60","shoes"],["51","lead"],["87","fog"]]],
+  ["Scanned by a timer, the puppy goes pop at the pub!",[["0721","scanned"],["134","timer"],["99","puppy"],["99","pop"],["99","pub"]]]
 ];
 const PI_WORDS = PI_SCENES.flatMap(s=>s[1]);
-const PI_WORDS_FEYN = 282;   // index in PI_WORDS where the six-9s (baby puppy poppy) begin
-const MAJ_SOUNDS = {"0":"s/z","1":"t/d/th","2":"n","3":"m","4":"r","5":"l","6":"ch/j/sh","7":"k/g","8":"f/v","9":"p/b"};
-const MAJ_LETTERS = [["S",0],["Z",0],["T",1],["D",1],["TH",1],["N",2],["M",3],["R",4],["L",5],["CH",6],["J",6],["SH",6],["K",7],["G",7],["CK",7],["F",8],["V",8],["P",9],["B",9]];
+const MAJ_SOUNDS = {"0":"s/z","1":"t/d/th","2":"n","3":"m","4":"r","5":"l","6":"ch/j/sh","7":"k/g","8":"f/v/ph","9":"p/b"};
+const MAJ_LETTERS = [["S",0],["Z",0],["T",1],["D",1],["TH",1],["N",2],["M",3],["R",4],["L",5],["CH",6],["J",6],["SH",6],["K",7],["G",7],["CK",7],["F",8],["V",8],["PH",8],["P",9],["B",9]];
 const MAJ_MNEMONIC = {0:"“Zero” starts with z (s, z sounds)",1:"one downstroke — t, d",2:"N has two downstrokes",3:"M has three downstrokes",4:"“fouR” ends in r",5:"L is the Roman numeral for 50",6:"a script j, or a flipped 6 (ch, j, sh)",7:"a capital K holds two 7s (k, hard g)",8:"script f is a figure-8 (f, v)",9:"p is a mirror-image 9 (p, b)"};
 
 /* ---- the tricks ---- */
@@ -826,7 +866,7 @@ const TRICKS = [
     lesson:`<h3>Ten sounds — and why</h3>
       <p>Everything starts here: each digit owns a <b>consonant sound</b>. Vowels and w, h, y carry no number — they’re just glue. Learn these ten, with the little reasons that lock them in:</p>
       <table class="map majtable"><tr><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td></tr>
-        <tr><td>s z</td><td>t d th</td><td>n</td><td>m</td><td>r</td><td>l</td><td>ch j sh</td><td>k g ck</td><td>f v</td><td>p b</td></tr></table>
+        <tr><td>s z</td><td>t d th</td><td>n</td><td>m</td><td>r</td><td>l</td><td>ch j sh</td><td>k g ck</td><td>f v ph</td><td>p b</td></tr></table>
       <ul>
         <li><b>0 — s, z:</b> “<b>z</b>ero” starts with z.</li>
         <li><b>1 — t, d:</b> one downstroke.</li>
@@ -836,22 +876,28 @@ const TRICKS = [
         <li><b>5 — l:</b> L is the Roman numeral for 50.</li>
         <li><b>6 — ch, j, sh:</b> a script j, or a flipped 6.</li>
         <li><b>7 — k, g, ck:</b> a capital K holds two 7s.</li>
-        <li><b>8 — f, v:</b> a script f is a figure-8.</li>
+        <li><b>8 — f, v, ph:</b> a script f is a figure-8.</li>
         <li><b>9 — p, b:</b> p is a mirror-image 9.</li>
       </ul>
-      <p class="why">It’s the <b>sound</b> that counts, so doubled letters making <i>one</i> sound count once: <span class="mono">ck</span> = <b>7</b> (one /k/), not 77 — <span class="mono">Nick</span> = 27, <span class="mono">back</span> = 97. (Two k-sounds around a vowel <i>are</i> 77: <span class="mono">cake</span> = 77.)</p>
+      <p class="why">It’s always the <b>sound</b>, not the spelling:</p>
+      <ul>
+        <li><b>Two letters, one sound</b> (digraphs): <span class="mono">ck</span>=7, <span class="mono">th</span>=1, <span class="mono">sh</span>/<span class="mono">ch</span>=6, <span class="mono">ph</span>=8. So <span class="mono">phone</span>=82, <span class="mono">back</span>=97.</li>
+        <li><b>Doubled letters count once:</b> <span class="mono">little</span>=515 (not 5115), <span class="mono">apple</span>=95, <span class="mono">butter</span>=914.</li>
+        <li><b>Silent letters vanish</b> — just say the word: <span class="mono">know</span>=2, <span class="mono">night</span>=21, <span class="mono">palm</span>=93.</li>
+      </ul>
       <p class="why">Drill: you’ll see a letter, type its digit. Once these are reflex, words decode themselves.</p>`,
     gen(){ return app.letterProblem(); } },
 
   { id:"piwords", cat:"Pi", name:"Pi as a story (the Major System)", tag:"61 vivid scenes whose words’ consonants spell π", refonly:true, ord:3,
     lesson:(function(){
-      const MAP=[["0","s z"],["1","t d th"],["2","n"],["3","m"],["4","r"],["5","l"],["6","ch j sh"],["7","k g ck"],["8","f v"],["9","p b"]];
+      const MAP=[["0","s z"],["1","t d th"],["2","n"],["3","m"],["4","r"],["5","l"],["6","ch j sh"],["7","k g ck"],["8","f v ph"],["9","p b"]];
       const tbl='<table class="map majtable"><tr>'+MAP.map(m=>`<td>${m[0]}</td>`).join("")+
         '</tr><tr>'+MAP.map(m=>`<td>${m[1]}</td>`).join("")+'</tr></table>';
       let scenes="";
-      PI_SCENES.forEach((s,si)=>{ const f = si===PI_SCENES.length-1;
+      PI_SCENES.forEach((s,si)=>{ const last = si===PI_SCENES.length-1;
         let units="";
-        s[1].forEach(p=>{ units+=`<span class="u${f?" f":""}"><span class="c">${p[0]}</span>`+
+        s[1].forEach(p=>{ const f = last && p[0]==="99";   // highlight the six-9s Feynman finale (puppy·pop·pub)
+          units+=`<span class="u${f?" f":""}"><span class="c">${p[0]}</span>`+
           `<span class="w">${f?`<span class="feyn">${p[1]}</span>`:p[1]}</span></span>`; });
         scenes+=`<div class="scene"><div class="scap"><span class="snum">${si+1}.</span>${s[0]}</div><div class="pw">${units}</div></div>`;
       });
@@ -859,8 +905,8 @@ const TRICKS = [
       return `<h3>Digits are hard; stories stick</h3>
         <p>The <b>Major System</b> turns each digit into a <b>consonant sound</b>; vowels (and w, h, y) are free filler you add to make words. Read a word back by sounding out its consonants:</p>
         ${tbl}
-        <p>By <b>sound, not spelling</b>: <span class="mono">turtle</span>=1415, <span class="mono">mother</span>=314, <span class="mono">fax</span>=870; silent &amp; doubled letters follow the sound (<span class="mono">lamb</span>=53).</p>
-        <p class="why">So π’s digits become ${N} picturable words, bundled into <b>${PI_SCENES.length} little scenes</b>. Memorize the <i>images</i> in order and you’ve got the digits — each word’s digit-group is shown beneath it. The six 9s of the Feynman point are the closing <span class="feyn">baby&nbsp;puppy&nbsp;poppy</span>.</p>
+        <p>By <b>sound, not spelling</b>: <span class="mono">turtle</span>=1415, <span class="mono">phone</span>=82 (ph=8); doubled letters count once (<span class="mono">little</span>=515) and silent letters just vanish (<span class="mono">night</span>=21).</p>
+        <p class="why">So π’s digits become ${N} picturable words, bundled into <b>${PI_SCENES.length} little scenes</b>. Memorize the <i>images</i> in order and you’ve got the digits — each word’s digit-group is shown beneath it. The six 9s of the Feynman point are the closing <span class="feyn">puppy&nbsp;pop&nbsp;pub</span>.</p>
         <p class="why">The words are <b>swappable</b>: any word with the same consonants works — <span class="mono">bench</span> (926) could be <span class="mono">bunch</span> or <span class="mono">punch</span>. Make the pictures <i>yours</i>.</p>
         <h3>π in ${PI_SCENES.length} scenes</h3>
         ${scenes}
@@ -871,8 +917,8 @@ const TRICKS = [
     lesson:`<h3>Decode the words</h3>
       <p>The reverse move: see a Major-System word, sound out its <b>consonants</b>, and type the digits. Vowels and w/h/y are silent.</p>
       <table class="map majtable"><tr><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td></tr>
-        <tr><td>s z</td><td>t d th</td><td>n</td><td>m</td><td>r</td><td>l</td><td>ch j sh</td><td>k g ck</td><td>f v</td><td>p b</td></tr></table>
-      <div class="ex mono">turtle → t·r·t·l → <b>1415</b><br>lamb → l·m (b is silent) → <b>53</b><br>fax → f·k·s → <b>870</b></div>
+        <tr><td>s z</td><td>t d th</td><td>n</td><td>m</td><td>r</td><td>l</td><td>ch j sh</td><td>k g ck</td><td>f v ph</td><td>p b</td></tr></table>
+      <div class="ex mono">turtle → t·r·t·l → <b>1415</b><br>little → l·t·l (double t = one) → <b>515</b><br>phone → f·n (ph = f) → <b>82</b></div>
       <p class="why">These are the exact words from π’s word-list, so drilling word→digits here trains the digits you’ll recite.</p>`,
     gen(){ return app.wordProblem(); } },
 
