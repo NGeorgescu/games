@@ -167,8 +167,8 @@
       <div class="pip" data-c="w">W</div><div class="pip" data-c="u">U</div><div class="pip" data-c="b">B</div>
       <div class="pip" data-c="r">R</div><div class="pip" data-c="g">G</div>
     </div>
-    <label class="fld" style="margin-top:12px" for="topdeck">Decklist <span style="text-transform:none;letter-spacing:0">(optional — paste a Moxfield link or list; fills every deck step below, and sets the commander from a Moxfield link)</span></label>
-    <textarea id="topdeck" class="deckbox" oninput="onDeck(this.value)" placeholder="Paste a Moxfield deck link, or your decklist (one card per line)…" style="min-height:64px"></textarea>
+    <label class="fld" style="margin-top:12px" for="topdeck">Decklist <span style="text-transform:none;letter-spacing:0">(optional — paste a Moxfield or Archidekt link or list; fills every deck step below, and sets the commander from a deck link)</span></label>
+    <textarea id="topdeck" class="deckbox" oninput="onDeck(this.value)" placeholder="Paste a Moxfield or Archidekt deck link, or your decklist (one card per line)…" style="min-height:64px"></textarea>
     <button class="btn" id="topsubmit" style="width:100%;margin-top:6px" onclick="submitTopDeck()">Load deck</button>
     <div class="deckwarn" style="display:none"></div>
   </div>
@@ -206,7 +206,7 @@ let pendingAdds = new Map();   // one-away "what if I add this" simulation: norm
 let oneAwayBundle = null;      // current combo bundle, so the add checkboxes can resolve idx -> card name
 let deckCache = {key:null, names:null, commanders:null, deckCI:null};
 function deckBoxHTML(){
-  return `<textarea class="deckbox" oninput="onDeck(this.value)" placeholder="Paste a Moxfield deck link, or your decklist (one card per line)…">${(state.deck||'').replace(/</g,'&lt;')}</textarea>
+  return `<textarea class="deckbox" oninput="onDeck(this.value)" placeholder="Paste a Moxfield or Archidekt deck link, or your decklist (one card per line)…">${(state.deck||'').replace(/</g,'&lt;')}</textarea>
     <div class="deckwarn" style="display:${deckWarning?'block':'none'}">${deckWarning}</div>
     <div class="note" style="margin-top:4px">Shared across the deck-analysis steps — paste once, they all use it.</div>`;
 }
@@ -217,7 +217,7 @@ function computeDeckWarning(){
   if(!sel.length){ deckWarning=''; return; }
   const a=dc.map(normName).sort(), b=sel.map(normName).sort();
   const match = a.length===b.length && a.every((x,i)=>x===b[i]);
-  deckWarning = match ? '' : `⚠ This Moxfield deck's commander${dc.length>1?'s':''} — ${dc.join(' + ')} — ${dc.length>1?"don't":"doesn't"} match the commander selected above (${sel.join(' + ')}). The results below still use the commander up top.`;
+  deckWarning = match ? '' : `⚠ This deck's commander${dc.length>1?'s':''} — ${dc.join(' + ')} — ${dc.length>1?"don't":"doesn't"} match the commander selected above (${sel.join(' + ')}). The results below still use the commander up top.`;
 }
 function refreshDeckWarning(){ computeDeckWarning(); document.querySelectorAll('.deckwarn').forEach(el=>{ el.innerHTML=deckWarning; el.style.display=deckWarning?'block':'none'; }); }
 
@@ -281,7 +281,7 @@ function steps(){ return [
           ['Full cEDH staples list', ()=>MOX_STAPLES]] } ] },
 
   { t:"Analyze the deck you have",
-    body:`<p>Paste a <b>Moxfield deck link</b> (it'll fetch the list) or your decklist text, one card per line —
+    body:`<p>Paste a <b>Moxfield or Archidekt deck link</b> (it'll fetch the list) or your decklist text, one card per line —
       <b>one box, shared across every check below</b>. Work top to bottom:</p>
       <ul class="note" style="margin:.3em 0 .6em 1.1em;padding:0">
         <li><b>Winningest cards</b> — cards that over-perform in EDHTop16 results for your commander, weighted by
@@ -478,7 +478,8 @@ function cleanCardLine(line){ return String(line).replace(/^\s*\d+\s*x?\s+/i,'')
 async function resolveDeckNames(){
   const raw=(state.deck||'').trim(); if(!raw){ deckCache={key:null,names:null,commanders:null,deckCI:null}; return []; }
   const mox=raw.match(/moxfield\.com\/decks\/([A-Za-z0-9_-]+)/i);
-  const cacheKey = mox ? 'mox:'+mox[1] : 'txt:'+raw;
+  const arch=!mox && raw.match(/archidekt\.com\/(?:api\/)?decks\/(\d+)/i);
+  const cacheKey = mox ? 'mox:'+mox[1] : arch ? 'arch:'+arch[1] : 'txt:'+raw;
   if(deckCache.key===cacheKey) return deckCache.names;
   let names, commanders=null, deckCI=null;
   if(mox){
@@ -491,6 +492,24 @@ async function resolveDeckNames(){
     ['commanders','mainboard','companions','signatureSpells'].forEach(kk=>{ const b=js[kk]||{}; for(const nm in b){ const c=b[nm].card; if(c&&c.color_identity) c.color_identity.forEach(x=>ciSet.add(x)); } });
     deckCI=[...ciSet];
     names=[].concat(...['commanders','mainboard','companions','signatureSpells'].map(k=>Object.keys(js[k]||{})));
+    if(!names.length) throw new Error('empty');
+  } else if(arch){
+    const r=await fetch('https://r.jina.ai/https://archidekt.com/api/decks/'+arch[1]+'/');
+    if(!r.ok) throw new Error('archfetch');
+    const t=await r.text();
+    const js=JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}')+1));
+    const CMAP={White:'W',Blue:'U',Black:'B',Red:'R',Green:'G'};
+    const excl=new Set((js.categories||[]).filter(c=>c.includedInDeck===false).map(c=>c.name));
+    commanders=[]; const ciSet=new Set(); names=[];
+    for(const e of (js.cards||[])){
+      const oc=(e.card||{}).oracleCard; if(!oc) continue;
+      const cats=e.categories||[];
+      if(cats.some(c=>excl.has(c))) continue;
+      (oc.colorIdentity||[]).forEach(x=>{ const L=CMAP[x]; if(L) ciSet.add(L); });
+      if(cats.includes('Commander')) commanders.push(oc.name);
+      names.push(oc.name);
+    }
+    deckCI=[...ciSet];
     if(!names.length) throw new Error('empty');
   } else { names=raw.split('\n'); }
   names=names.map(cleanCardLine).filter(Boolean);
@@ -627,10 +646,10 @@ async function winLiftMap(){
 /* ---------- most questionable includes: your cards with no combo role, no mana, poor/no EDHTop16 signal ---------- */
 async function findQuestionable(){
   const box=$('#questout'); if(!box) return;
-  if(!state.deck.trim()){ questHTML='<div class="oahead">Paste a decklist or Moxfield link above first.</div>'; box.innerHTML=questHTML; return; }
+  if(!state.deck.trim()){ questHTML='<div class="oahead">Paste a decklist or Moxfield/Archidekt link above first.</div>'; box.innerHTML=questHTML; return; }
   questHTML='<div class="oahead">Loading…</div>'; box.innerHTML=questHTML;
   let names; try{ names=await resolveDeckNames(); }
-  catch(e){ questHTML='<div class="oahead">Couldn’t read that deck — make sure the Moxfield link is public, or paste the list as text.</div>'; box.innerHTML=questHTML; return; }
+  catch(e){ questHTML='<div class="oahead">Couldn’t read that deck — make sure the Moxfield/Archidekt link is public, or paste the list as text.</div>'; box.innerHTML=questHTML; return; }
   refreshDeckWarning();
   const cmdrs=new Set([state.cmd,state.cmd2].filter(Boolean).map(normName));
   const allNames=[...new Set(names.concat([state.cmd,state.cmd2].filter(Boolean)).map(n=>cleanCardLine(n)).filter(Boolean))];
@@ -665,10 +684,10 @@ function auditPrimaryType(tl){ for(const [n,re] of AUDIT_TYPES) if(re.test(tl||'
 function toggleAuditMana(){ auditHideMana=!auditHideMana; findDeckAudit(); }
 async function findDeckAudit(){
   const box=$('#auditout'); if(!box) return;
-  if(!state.deck.trim()){ auditHTML='<div class="oahead">Paste a decklist or Moxfield link above first.</div>'; box.innerHTML=auditHTML; return; }
+  if(!state.deck.trim()){ auditHTML='<div class="oahead">Paste a decklist or Moxfield/Archidekt link above first.</div>'; box.innerHTML=auditHTML; return; }
   auditHTML='<div class="oahead">Loading…</div>'; box.innerHTML=auditHTML;
   let names; try{ names=await resolveDeckNames(); }
-  catch(e){ auditHTML='<div class="oahead">Couldn’t read that deck — make sure the Moxfield link is public, or paste the list as text.</div>'; box.innerHTML=auditHTML; return; }
+  catch(e){ auditHTML='<div class="oahead">Couldn’t read that deck — make sure the Moxfield/Archidekt link is public, or paste the list as text.</div>'; box.innerHTML=auditHTML; return; }
   refreshDeckWarning();
   const allNames=[...new Set(names.concat([state.cmd,state.cmd2].filter(Boolean)).map(n=>cleanCardLine(n)).filter(Boolean))];
   const {comboCount, live:liveCombos, code}=await deckComboCounts(allNames);
@@ -701,11 +720,11 @@ async function findDeckAudit(){
 /* ---------- step 7: one-away finder (local, from CSB combo bundles) ---------- */
 async function findOneAway(){
   const box=$('#oneaway');
-  if(!state.deck.trim()){ oneAwayHTML='<div class="oahead">Paste a decklist or Moxfield link above first.</div>'; box.innerHTML=oneAwayHTML; return; }
+  if(!state.deck.trim()){ oneAwayHTML='<div class="oahead">Paste a decklist or Moxfield/Archidekt link above first.</div>'; box.innerHTML=oneAwayHTML; return; }
   oneAwayHTML='<div class="oahead">Loading…</div>'; box.innerHTML=oneAwayHTML;
   let bundle, names;
   try{ names=await resolveDeckNames(); }
-  catch(e){ oneAwayHTML='<div class="oahead">Couldn’t fetch that Moxfield deck — make sure it’s public, or paste the decklist text instead (Moxfield: ⋯ → Export).</div>'; box.innerHTML=oneAwayHTML; return; }
+  catch(e){ oneAwayHTML='<div class="oahead">Couldn’t fetch that deck — make sure the Moxfield/Archidekt link is public, or paste the decklist text instead.</div>'; box.innerHTML=oneAwayHTML; return; }
   refreshDeckWarning();
   const cu=unionCI(); const code=(WUBRG.filter(x=>cu.has(x)).join('')||'c').toUpperCase();
   try{ const r=await fetch('data/'+code+'.json'); if(!r.ok) throw 0; bundle=await r.json(); }
@@ -820,11 +839,11 @@ async function winList(cut){
 async function findRecs(){
   const box=$('#recout'); if(!box) return;
   if(!state.cmd){ recHTML='<div class="oahead">Pick a commander first.</div>'; box.innerHTML=recHTML; return; }
-  if(!state.deck.trim()){ recHTML='<div class="oahead">Paste your decklist or Moxfield link above first.</div>'; box.innerHTML=recHTML; return; }
+  if(!state.deck.trim()){ recHTML='<div class="oahead">Paste your decklist or Moxfield/Archidekt link above first.</div>'; box.innerHTML=recHTML; return; }
   recHTML='<div class="oahead">Gathering recommendations from every signal…</div>'; box.innerHTML=recHTML;
   let names;
   try{ names=await resolveDeckNames(); }
-  catch(e){ recHTML='<div class="oahead">Couldn’t read that deck — make sure the Moxfield link is public, or paste the list as text.</div>'; box.innerHTML=recHTML; return; }
+  catch(e){ recHTML='<div class="oahead">Couldn’t read that deck — make sure the Moxfield/Archidekt link is public, or paste the list as text.</div>'; box.innerHTML=recHTML; return; }
   refreshDeckWarning();
   const deckSet=new Set(names.map(normName));
   for(const cn of [state.cmd,state.cmd2]) if(cn) deckSet.add(normName(cn));

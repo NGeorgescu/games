@@ -510,8 +510,35 @@ function hHint(){
           + ` if <b>black</b> rises, position ${i+1} is ${pegTxt(g[i])}; if it falls, that spot was`
           + ` ${pegTxt(last[i])}; if it holds, it's neither.</div>`;
   } else {
-    html += ` It's the most similar still-possible code to your last guess (${changed.length} pegs`
-          + ` differ), keeping the change in black pegs as easy to read as it can be here.</div>`;
+    // No single-peg still-possible probe exists, so the black delta of `g`
+    // can't point at one spot. Offer a clean isolation experiment instead:
+    // change exactly ONE unpinned position of the last guess. Its black delta
+    // then reads that spot alone. Pick the position S disagrees on the most,
+    // and a test color that actually occurs there (so the probe can confirm,
+    // not just eliminate).
+    html += ` It fits every clue, so it could be the answer — but it changes ${changed.length}`
+          + ` pegs at once, so its black count won't single out any one spot.</div>`;
+    const known = [];
+    for(let i=0;i<LEN;i++){ const c=S[0][i]; known[i] = S.every(s=>s[i]===c)?c:null; }
+    let bi=-1, bv=-1;
+    for(let i=0;i<LEN;i++){
+      if(known[i]!=null) continue;
+      const set = new Set(S.map(s=>s[i]));
+      if(set.size>bv){ bv=set.size; bi=i; }
+    }
+    if(bi>=0){
+      const freq = {};
+      for(const s of S) freq[s[bi]] = (freq[s[bi]]||0)+1;
+      let y=null, fy=-1;
+      for(const c in freq){ if(+c!==last[bi] && freq[c]>fy){ fy=freq[c]; y=+c; } }
+      const probe = last.slice(); probe[bi]=y;
+      html += `<div style="margin-top:6px"><b>Or isolate one spot.</b> Replay your last guess changing`
+            + ` only position ${bi+1}: ${probe.map(pegTxt).join(' ')} (${pegTxt(last[bi])}→${pegTxt(y)}).`
+            + ` Now the black count moves for that peg alone — <b>rises</b> ⇒ position ${bi+1} is`
+            + ` ${pegTxt(y)}; <b>falls</b> ⇒ it's ${pegTxt(last[bi])}; <b>unchanged</b> ⇒ it's neither.`
+            + ` That turns one unknown into a fact (it may cost a turn, since this probe might not be`
+            + ` the answer itself).</div>`;
+    }
   }
   box.innerHTML = html;
 }
