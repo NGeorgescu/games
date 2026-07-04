@@ -153,7 +153,8 @@
       <div class="note">
         <p>The solver follows the strategy Donald Knuth published in 1977. It never needs more
           than <b>5 guesses</b> for any of the 1296 possible codes (here it averages about
-          <b>4.48</b>). The <b>Hint</b> button runs the very same routine on your game.</p>
+          <b>4.48</b>). The <b>Hint</b> button in "You crack it" mode teaches a different, by-hand
+          method — differential probing — rather than this exhaustive search.</p>
         <ol>
           <li><b>Open with 1122.</b> Every game starts with this same two-color guess — Knuth showed
             it leads to the best worst case.</li>
@@ -382,20 +383,71 @@ function worstCaseSplit(guess, S){
   }
   return mx;
 }
-// Plain-language facts each past clue *proves* on its own — things the
-// player can verify by hand. Returns HTML fragments.
+const hamDist = (a,b)=>{ let d=0; for(let i=0;i<LEN;i++) if(a[i]!==b[i]) d++; return d; };
+
+// Suggested next guess under the teachable "consistent minimal-change probe"
+// method: play a code that could still be right (∈ S, so never a wasted turn)
+// and that changes the fewest pegs from your last guess (so its black-peg
+// delta is easy to read); break ties toward the guess that splits S most
+// evenly. Deterministic. Opening move has nothing to compare to → FIRST_GUESS.
+function suggestGuess(S, history){
+  if(S.length===1) return S[0];
+  if(history.length===0) return FIRST_GUESS.slice();
+  const last = history[history.length-1].guess;
+  let minH = Infinity;
+  for(const g of S){ const d = hamDist(g, last); if(d<minH) minH = d; }
+  let best = null, bestMax = Infinity;
+  for(const g of S){
+    if(hamDist(g, last)!==minH) continue;
+    const mx = worstCaseSplit(g, S);
+    if(mx<bestMax || (mx===bestMax && (!best || cmpCode(g,best)<0))){ bestMax = mx; best = g; }
+  }
+  return best;
+}
+
+// Plain-language facts the clues *prove* on their own — each one hand-checkable
+// against the board. Differential (single-peg-change) facts come first: they
+// pin a position outright and are the heart of the method. Returns HTML.
 function hintDeductions(history){
   const out = [];
+  const seenPos = {};
+  // 1) Differential probing: any two rows differing in exactly one position.
+  //    Black is purely positional, so black(b)−black(a) depends ONLY on that
+  //    one spot: +1 ⇒ it's the new color, −1 ⇒ it's the old color, 0 ⇒ neither.
+  for(let a=0;a<history.length;a++){
+    for(let b=a+1;b<history.length;b++){
+      let pos=-1, n=0;
+      for(let i=0;i<LEN;i++) if(history[a].guess[i]!==history[b].guess[i]){ pos=i; n++; }
+      if(n!==1 || seenPos[pos]) continue;    // one clean fact per position is plenty
+      const x = history[a].guess[pos], y = history[b].guess[pos];
+      const ba = history[a].fb.black, bb = history[b].fb.black, dB = bb - ba;
+      seenPos[pos] = 1;
+      if(dB===1)
+        out.push(`Rows ${a+1} and ${b+1} differ only at position ${pos+1} (${pegTxt(x)}→${pegTxt(y)}) and black rose ${ba}→${bb}, so <b>position ${pos+1} is ${pegTxt(y)}</b>.`);
+      else if(dB===-1)
+        out.push(`Rows ${a+1} and ${b+1} differ only at position ${pos+1} (${pegTxt(x)}→${pegTxt(y)}) and black fell ${ba}→${bb}, so <b>position ${pos+1} is ${pegTxt(x)}</b>.`);
+      else
+        out.push(`Rows ${a+1} and ${b+1} differ only at position ${pos+1} (${pegTxt(x)}→${pegTxt(y)}) with black unchanged, so <b>position ${pos+1} is neither ${pegTxt(x)} nor ${pegTxt(y)}</b>.`);
+    }
+  }
+  // 2) Monochromatic probes → an exact color count (black = count, white = 0).
+  history.forEach((h,i)=>{
+    const g = h.guess;
+    if(!g.every(x=>x===g[0])) return;
+    const c = g[0], k = h.fb.black;
+    if(k===0) out.push(`Row ${i+1} played ${pegTxt(c)}×4 for 0 black, so <b>no ${pegTxt(c)}</b> is in the code.`);
+    else out.push(`Row ${i+1} played ${pegTxt(c)}×4 and scored ${k} black, so the code has exactly <b>${k}</b> ${pegTxt(c)}.`);
+  });
+  // 3) Whole-guess facts on mixed guesses: nothing right, or full multiset.
   history.forEach((h,i)=>{
     if(h.fb.black===LEN) return;            // that row was the winning guess
     const g = h.guess, tot = h.fb.black + h.fb.white;
-    if(g.every(x=>x===g[0])){               // monochromatic probe → exact count
-      out.push(`Row ${i+1} played ${pegTxt(g[0])}×4 and scored ${h.fb.black} black — so the code has exactly <b>${h.fb.black}</b> ${pegTxt(g[0])}.`);
-    } else if(tot===0){                      // no pegs at all → colors absent
+    if(g.every(x=>x===g[0])) return;        // covered above
+    if(tot===0){
       const cols = [...new Set(g)].map(pegTxt).join(' ');
-      out.push(`Row ${i+1} (${cols}) scored nothing — <b>none</b> of those colors are in the code.`);
-    } else if(tot===LEN){                    // full multiset match → just reorder
-      out.push(`Row ${i+1} had all four right colors (only ${h.fb.black} in place) — the answer is a <b>rearrangement</b> of it.`);
+      out.push(`Row ${i+1} (${cols}) scored nothing, so <b>none</b> of those colors are in the code.`);
+    } else if(tot===LEN){
+      out.push(`Row ${i+1} had all four right colors (only ${h.fb.black} in place), so the answer is a <b>rearrangement</b> of it.`);
     }
   });
   return out;
@@ -405,13 +457,17 @@ function hHint(){
   const box = $('hintBox');
   const history = H.guesses.map(g=>({guess:g.code, fb:g.fb}));
 
-  // Opening move: no clues yet.
+  // Opening move: nothing to compare against yet.
   if(history.length===0){
     box.innerHTML =
-      `<div class="pegline">Knuth opens with ${FIRST_GUESS.map(pegTxt).join(' ')}</div>`
-    + `<div>No clues yet, so all <b>1296</b> codes are still possible. Knuth always opens with a`
-    + ` two-color guess like this — it's mathematically proven to give the best worst case.`
-    + ` Play it and watch the black/white pegs start ruling codes out.</div>`;
+      `<div class="pegline">Open with ${FIRST_GUESS.map(pegTxt).join(' ')}</div>`
+    + `<div>No clues yet, so all <b>1296</b> codes are still in play and there's nothing to isolate.`
+    + ` Open with a balanced two-color probe like this — it splits the field about as evenly as any`
+    + ` first guess can.</div>`
+    + `<div style="margin-top:6px">From here, treat each guess as an experiment: keep playing codes`
+    + ` that could still be right, and change as few pegs as you can between guesses. Because a`
+    + ` <b>black</b> peg means "right color, right spot", the change in the black count tells you`
+    + ` exactly what your edit did — that's how you pin a position.</div>`;
     return;
   }
 
@@ -421,35 +477,41 @@ function hHint(){
 
   if(S.length===0){
     box.innerHTML = `A clue somewhere is contradictory — <b>no</b> code fits all the pegs shown.`
-      + ` Double-check the feedback on an earlier row.`;
+      + ` Double-check the black/white feedback on an earlier row.`;
     return;
   }
 
-  const g = bestGuess(S);
   const deds = hintDeductions(history);
 
   if(S.length===1){
+    const g = S[0];
     box.innerHTML =
       `<div class="pegline">It must be ${g.map(pegTxt).join(' ')}</div>`
-    + (deds.length ? `<div>Putting your clues together:</div><ul>${deds.slice(-3).map(d=>`<li>${d}</li>`).join('')}</ul>` : '')
-    + `<div>Only <b>one</b> code still fits every clue — so that's the secret. Enter it to win.</div>`;
+    + (deds.length ? `<div>Putting your clues together:</div><ul>${deds.slice(0,4).map(d=>`<li>${d}</li>`).join('')}</ul>` : '')
+    + `<div>Just <b>one</b> code still fits every clue — so that's the secret. Enter it to win.</div>`;
     return;
   }
 
-  const worst = worstCaseSplit(g, S);
-  const inS = S.some(c=>eqCode(c, g));
-  let html = `<div class="pegline">Knuth suggests ${g.map(pegTxt).join(' ')}</div>`;
-  html += `<div><b>${S.length}</b> codes still fit all your clues.</div>`;
+  // Teachable suggestion: a still-possible, minimal-change probe.
+  const g = suggestGuess(S, history);
+  const last = history[history.length-1].guess;
+  const changed = [];
+  for(let i=0;i<LEN;i++) if(g[i]!==last[i]) changed.push(i);
+
+  let html = `<div class="pegline">Try ${g.map(pegTxt).join(' ')}</div>`;
+  html += `<div><b>${S.length}</b> codes still fit every clue.</div>`;
   if(deds.length){
-    html += `<div>What the clues already prove:</div><ul>${deds.slice(-3).map(d=>`<li>${d}</li>`).join('')}</ul>`;
+    html += `<div>What your clues already prove:</div><ul>${deds.slice(0,4).map(d=>`<li>${d}</li>`).join('')}</ul>`;
   }
-  if(inS){
-    html += `<div>This guess is one of those ${S.length}, so it might be the answer outright — and`
-          + ` if it isn't, its pegs still cut the field to at most <b>${worst}</b>.</div>`;
+  html += `<div>This code is still one of those ${S.length}, so it's never a wasted turn.`;
+  if(changed.length===1){
+    const i = changed[0];
+    html += ` It changes only position ${i+1} from your last guess (${pegTxt(last[i])}→${pegTxt(g[i])}):`
+          + ` if <b>black</b> rises, position ${i+1} is ${pegTxt(g[i])}; if it falls, that spot was`
+          + ` ${pegTxt(last[i])}; if it holds, it's neither.</div>`;
   } else {
-    html += `<div>This guess can't be the answer itself, but it's the sharpest probe: whatever pegs`
-          + ` come back, at most <b>${worst}</b> of the ${S.length} codes can survive. That's the`
-          + ` "minimax" — Knuth picks the guess whose worst case is the smallest.</div>`;
+    html += ` It's the most similar still-possible code to your last guess (${changed.length} pegs`
+          + ` differ), keeping the change in black pegs as easy to read as it can be here.</div>`;
   }
   box.innerHTML = html;
 }
