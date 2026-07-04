@@ -131,6 +131,7 @@ const commas = n => n.toLocaleString("en-US");
 const WD = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const MOD7 = ["0","+1/−6","+2/−5","+3/−4","+4/−3","+5/−2","+6/−1"];   // 7-choice pad: value 0–6 with its negative twin
 const METHODS = ["Distribute","Round-up","Close","Diff-sq","Factor","Square"];   // which-method choice pad (indices 0–5)
+const DIGITS = ["0","1","2","3","4","5","6","7","8","9"];   // 10-choice pad: tap a digit, value = that digit
 function facty(n){ for(let p=2;p<=9;p++){ const q=n/p; if(q===Math.floor(q) && q>=2 && q<=9) return true; } return n%11===0; }
 function classifyMul(x,y){   // returns the indices of the reasonable methods for x×y (any is accepted)
   const a=[], ex=x%10, ey=y%10, tx=(x/10|0), ty=(y/10|0);
@@ -821,7 +822,7 @@ const TRICKS = [
         `${HD[hi]} = ${hi},  ${HD[lo]} = ${lo}`,
         `${hi} × 16 + ${lo} = ${hi*16} + ${lo} = <b>${val}</b>` ]}; } },
 
-  { id:"pimap", cat:"Pi", name:"The letters (Major System)", tag:"Learn which consonant sound is which digit", answerType:"num", ord:1,
+  { id:"pimap", cat:"Pi", name:"The letters (Major System)", tag:"Learn which consonant sound is which digit", answerType:"digitpad", ord:1,
     lesson:`<h3>Ten sounds — and why</h3>
       <p>Everything starts here: each digit owns a <b>consonant sound</b>. Vowels and w, h, y carry no number — they’re just glue. Learn these ten, with the little reasons that lock them in:</p>
       <table class="map majtable"><tr><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td></tr>
@@ -1039,8 +1040,8 @@ const app = {
   grade(value){
     if(this.answered) return;
     this.answered=true; this.total++;
-    const at = this.cur.answerType, weekday = at==="weekday", mod7 = at==="mod7", method = at==="method", qr = at==="quotrem", pad = weekday||mod7||method, fb=$("fb");
-    const padLabel = v => weekday ? WD[v] : method ? METHODS[v] : (v===0 ? "0" : "+"+v);
+    const at = this.cur.answerType, weekday = at==="weekday", mod7 = at==="mod7", method = at==="method", digitpad = at==="digitpad", qr = at==="quotrem", pad = weekday||mod7||method||digitpad, fb=$("fb");
+    const padLabel = v => weekday ? WD[v] : method ? METHODS[v] : digitpad ? String(v) : (v===0 ? "0" : "+"+v);
     const ok = method ? (this.prob.accept||[this.prob.a]).includes(value)
              : this.cur.mod ? (value % this.cur.mod === this.prob.a)
              : (value===this.prob.a);
@@ -1074,7 +1075,7 @@ const app = {
   },
   renderPad(){
     const pad=$("keypad"); pad.innerHTML=""; this.chkKey=null;
-    const at = this.cur && this.cur.answerType, isPad = at==="weekday"||at==="mod7"||at==="method";
+    const at = this.cur && this.cur.answerType, isPad = at==="weekday"||at==="mod7"||at==="method"||at==="digitpad";
     $("ans").style.display = isPad ? "none" : "";
     if(at==="recite"){                                   // 0–9 + ⌫, no Check — continuous digit entry
       const grid=document.createElement("div"); grid.className="pad";
@@ -1085,7 +1086,7 @@ const app = {
       pad.appendChild(grid); return;
     }
     if(isPad){
-      const labels = at==="weekday" ? WD : at==="method" ? METHODS : MOD7;
+      const labels = at==="weekday" ? WD : at==="method" ? METHODS : at==="digitpad" ? DIGITS : MOD7;
       const grid=document.createElement("div"); grid.className = at==="method" ? "daypad methods" : "daypad";
       labels.forEach((lbl,i)=>{ const k=document.createElement("div"); k.className="key day"; k.textContent=lbl; k.onclick=()=>this.submitWeekday(i); grid.appendChild(k); });
       pad.appendChild(grid);
@@ -1111,8 +1112,8 @@ app.init();
 // physical keyboard support (desktop)
 document.addEventListener("keydown", e=>{
   if($("practice").classList.contains("hidden")) return;
-  if(app.cur && (app.cur.answerType==="weekday"||app.cur.answerType==="mod7"||app.cur.answerType==="method")){
-    const max = app.cur.answerType==="method" ? "5" : "6";
+  if(app.cur && (app.cur.answerType==="weekday"||app.cur.answerType==="mod7"||app.cur.answerType==="method"||app.cur.answerType==="digitpad")){
+    const max = app.cur.answerType==="method" ? "5" : app.cur.answerType==="digitpad" ? "9" : "6";
     if(!app.answered && e.key>="0" && e.key<=max) app.submitWeekday(Number(e.key));
     else if(e.key==="Enter" && app.answered) app.next();
     return;
