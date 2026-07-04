@@ -357,6 +357,20 @@ const TRICKS = [
         `${M} × ${p} = <span class="mono">${M*p}</span>`,
         `× ${q} = <b>${M*p*q}</b>` ]}; } },
 
+  { id:"nearbase", cat:"2-digit multiplication", name:"Near 100 (base method)", tag:"Both numbers close to 100 — cross & corner", answerType:"num",
+    lesson:`<h3>When both numbers hug 100</h3>
+      <p>If both numbers are close to <b>100</b>, take each one's <b>distance</b> below 100. Then two quick moves:</p>
+      <ul><li><b>Cross:</b> one number minus the <i>other’s</i> distance → the hundreds part.</li>
+      <li><b>Corner:</b> multiply the two distances → the last two digits.</li></ul>
+      <div class="ex mono">97 × 96 → distances 3 and 4<br>cross: 97 − 4 = 93 &nbsp;(same as 96 − 3)<br>corner: 3 × 4 = 12<br>= <b>9312</b></div>
+      <p class="why">If the corner reaches 100+, carry the extra hundred into the cross: 88 × 87 → corner 12×13 = 156 → 75 | 156 → <b>7656</b>.</p>`,
+    gen(){ const a=rnd(86,99), b=rnd(86,99), da=100-a, db=100-b, cross=a-db, corner=da*db;
+      return { q:`${a} × ${b}`, a:a*b, steps:[
+        `distances below 100: ${da} and ${db}`,
+        `cross: ${a} − ${db} = <span class="mono">${cross}</span> &nbsp;(= ${b} − ${da})`,
+        `corner: ${da} × ${db} = <span class="mono">${corner}</span>`,
+        `${cross}·100 + ${corner} = <b>${a*b}</b>` ]}; } },
+
   { id:"whichmethod", cat:"2-digit multiplication", name:"Which method?", tag:"Spot the fastest path — don't solve it", answerType:"method",
     lesson:`<h3>Spot the fastest method</h3>
       <p>The real wizard skill isn't any one trick — it's seeing instantly which one a pair calls for. Here you <b>don't solve it</b>; you just tap the method.</p>
