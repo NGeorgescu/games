@@ -479,7 +479,7 @@ function answer(saidBlunder) {
       `<button id="nav-back" onclick="stepBack()" title="Back (←)">◀</button>` +
       `<button id="nav-fwd" onclick="stepFwd()" title="Forward (→)">▶</button>` +
       `<button id="nav-end" onclick="stepEnd()" title="End">⏭</button>` +
-      `<button id="nav-analyze" onclick="analyzeCurrent()" title="Analyze this position on Lichess">Analyze ↗</button>` +
+      `<button id="nav-analyze" onclick="analyzePosition()" title="Analyze the starting position on Lichess">Analyze ↗</button>` +
     `</div>` +
     `<div class="meta">Puzzle rating ${card.rating}` +
     (themes ? ` · ${themes}` : '') +
@@ -517,8 +517,8 @@ function stepStart() { stepTo(0); }
 function stepBack() { stepTo(stepIdx - 1); }
 function stepFwd() { stepTo(stepIdx + 1); }
 function stepEnd() { stepTo(stepSans.length); }
-function analyzeCurrent() {
-  const fen = stepFens[stepIdx] || (card && card.fen);
+function analyzePosition() {
+  const fen = card && card.fen;                  // always the original decision position
   if (fen) window.open('https://lichess.org/analysis/standard/' + encodeURIComponent(fen),
                        '_blank', 'noopener');
 }
