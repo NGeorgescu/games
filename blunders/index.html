@@ -12,7 +12,25 @@
 body { font-family: var(--sans, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
        background: var(--bg, #1e1f22); color: var(--fg, #ddd); margin: 0; padding: 12px; }
 .page { max-width: 900px; margin: 0 auto; }
-.lede { color: #9aa0a6; font-size: 13px; margin: 2px 0 14px 0; }
+.titlerow { display: flex; align-items: center; gap: 10px; margin: 4px 0 14px; }
+.titlerow h1 { margin: 0; font-size: 20px; }
+.titlerow .sub { color: #888; font-weight: 400; font-size: 14px; }
+.help-btn { margin-left: auto; background: #2a2a2a; color: var(--accent, #6ab2d4);
+            border: 1px solid #444; border-radius: 50%; width: 26px; height: 26px;
+            font-size: 14px; line-height: 1; cursor: pointer; padding: 0; flex-shrink: 0; }
+.help-btn:hover { background: #333; }
+.modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000;
+            align-items: center; justify-content: center; padding: 16px; }
+.modal-box { background: #1d1d1d; border: 1px solid #444; border-radius: 8px; max-width: 480px;
+             padding: 22px 26px; color: #ddd; font-size: 14px; line-height: 1.55; }
+.modal-box h2 { margin: 0 0 12px; color: var(--accent, #6ab2d4); font-size: 18px; }
+.modal-box p { margin: 0 0 10px; }
+.modal-box strong { color: #8fbf6a; }
+.modal-box a { color: var(--accent, #6ab2d4); }
+.modal-box code { font-size: 12px; color: #c8a95c; }
+.modal-box .close { float: right; background: none; border: none; color: #888; font-size: 22px;
+                    cursor: pointer; padding: 0; margin: -6px -6px 0 0; }
+.modal-box .close:hover { color: #fff; }
 .wrap { display: flex; gap: 24px; align-items: flex-start; }
 .board-col { width: 400px; flex-shrink: 0; min-width: 0; }
 #board { width: 400px; max-width: 100%; }
@@ -64,12 +82,11 @@ body { font-family: var(--sans, system-ui, -apple-system, "Segoe UI", Roboto, sa
 #line-moves .mvtok { cursor: pointer; padding: 1px 5px; border-radius: 3px; color: #dcdcdc; }
 #line-moves .mvtok:hover { background: #33363b; }
 #line-moves .mvtok.cur { background: #4f86d4; color: #fff; }
-.linebar { display: flex; gap: 6px; align-items: center; margin: 4px 0 2px; flex-wrap: wrap; }
-.linebar button { background: #2b2d31; color: #ccc; border: 1px solid #3a3c41; border-radius: 4px;
-                  padding: 4px 11px; font-size: 14px; line-height: 1; cursor: pointer; }
+.linebar { display: flex; gap: 8px; align-items: center; margin: 6px 0 2px; flex-wrap: wrap; }
+.linebar button { background: #2b2d31; color: #ccc; border: 1px solid #3a3c41; border-radius: 5px;
+                  padding: 8px 18px; font-size: 18px; line-height: 1; cursor: pointer; }
 .linebar button:hover:not(:disabled) { background: #33363b; }
 .linebar button:disabled { opacity: .35; cursor: default; }
-.linebar .navhint { color: #666; font-size: 11px; margin-left: 4px; }
 #board .square-55d63.hl-move { box-shadow: inset 0 0 0 4px rgba(255,213,79,0.5); }
 .verdict .meta { color: #888; font-size: 12px; margin-top: 6px; }
 .verdict a { color: var(--accent, #6ab2d4); text-decoration: underline; }
@@ -83,9 +100,25 @@ footer a { color: var(--accent, #6ab2d4); }
 </style>
 </head>
 <body>
+<div id="help-modal" class="modal-bg" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal-box">
+    <button class="close" onclick="document.getElementById('help-modal').style.display='none'" aria-label="Close">×</button>
+    <h2>How this works</h2>
+    <p>A move was actually played in a real game on Lichess. Decide whether it was a
+       <strong>blunder</strong> (it loses to a tactic) or a <strong>good move</strong>
+       (strong &mdash; even if it looks risky).</p>
+    <p>Puzzles are pulled live from the <a href="https://lichess.org/api" target="_blank" rel="noopener">Lichess
+       API</a> (<code>/api/puzzle/next</code>, CC0); difficulty is relative to a ~1500 baseline. If the network
+       is unavailable, a small built-in set is used.</p>
+  </div>
+</div>
+
 <div class="page">
-  <h1 style="font-size:20px;margin:4px 0 2px 0;">Blunder? <span style="color:#888;font-weight:400;font-size:14px;">— trap or tactic?</span></h1>
-  <p class="lede">A move was actually played on Lichess. Decide: did it <b>lose the game to a tactic</b> (blunder), or is it a <b>strong move that only looks risky</b> (fine)? Fresh puzzles pulled live from Lichess &mdash; real positions, real games.</p>
+  <div class="titlerow">
+    <h1>Blunder? <span class="sub">— trap or tactic?</span></h1>
+    <button class="help-btn" title="How this works" aria-label="How this works"
+            onclick="document.getElementById('help-modal').style.display='flex'">?</button>
+  </div>
 
   <div class="tiers" id="tiers">
     <span class="lbl">Difficulty</span>
@@ -109,7 +142,7 @@ footer a { color: var(--accent, #6ab2d4); }
       <div class="prompt" id="prompt">Loading…</div>
       <div class="answers">
         <button class="btn-blunder" id="btn-blunder" onclick="answer(true)">Blunder</button>
-        <button class="btn-fine" id="btn-fine" onclick="answer(false)">Fine</button>
+        <button class="btn-fine" id="btn-fine" onclick="answer(false)">Good move</button>
       </div>
       <div class="verdict" id="verdict"></div>
       <div class="next-row" id="next-row" style="display:none;">
@@ -117,13 +150,6 @@ footer a { color: var(--accent, #6ab2d4); }
       </div>
     </div>
   </div>
-
-  <p class="disclaimer">
-    Puzzles fetched live from the <a href="https://lichess.org/api" target="_blank" rel="noopener">Lichess API</a>
-    (<code>/api/puzzle/next</code>, CC0). Difficulty is <em>relative</em> to a ~1500 baseline. &ldquo;Blunder&rdquo; = the move
-    that walked into the tactic punished in the real game; &ldquo;Fine&rdquo; = the engine-best continuation. If the network
-    is unavailable, falls back to a small built-in set.
-  </p>
 
   <footer>
     <a href="/games/">← Back to games</a>
@@ -178,6 +204,9 @@ function lineSan(fen, uciArr) {
 }
 function turnOf(fen) { return new Chess(fen).turn(); }
 function sideName(t) { return t === 'w' ? 'White' : 'Black'; }
+// SAN without the check/checkmate suffix — the move being *considered* must not
+// reveal that it gives check or mate (you wouldn't know that over the board).
+function plainSan(fen, uci) { return sanOf(fen, uci).replace(/[+#]+$/, ''); }
 
 // Replay a UCI line from a FEN -> the position after each move, the SAN of each
 // move, and the UCIs actually applied (stops at the first illegal move).
@@ -317,9 +346,28 @@ function topUp() {
 /* ---------- board ---------- */
 const board = Chessboard('board', {
   draggable: false, position: 'start', showNotation: true,
+  moveSpeed: 320,                        // used by the "considering" preview + line stepper
   pieceTheme: (piece) => PIECES[piece],
 });
 $(window).on('resize', () => board.resize());
+
+/* ---------- "considering" preview: slide the piece to its target and back ----------
+   Shows WHAT move is being judged without committing it, the way a player hovers a
+   move over the board. Cancelled the moment the card is answered or replaced. */
+let previewTimers = [];
+function clearPreview() { previewTimers.forEach(clearTimeout); previewTimers = []; }
+function schedulePreview(fen, uci) {
+  const from = uci.slice(0, 2), to = uci.slice(2, 4);
+  if (from === to) return;
+  previewTimers.push(setTimeout(() => {
+    if (answered) return;
+    board.move(from + '-' + to);                 // slide out to the target square
+    previewTimers.push(setTimeout(() => {
+      if (answered) return;
+      board.position(fen, true);                 // slide back, restoring any capture
+    }, 620));
+  }, 400));
+}
 
 /* ---------- rendering ---------- */
 function updateScore() {
@@ -363,20 +411,23 @@ async function nextCard() {
 function renderCard(isFallback) {
   answered = false;
   stepSans = [];                         // stepper inert until answered
+  clearPreview();
   const t = turnOf(card.fen);
   board.orientation(t === 'w' ? 'white' : 'black');
   board.position(card.fen, false);
   $('#board .square-55d63').removeClass('hl-move');
-  const san = sanOf(card.fen, card.uci);
+  const san = plainSan(card.fen, card.uci);
   setPrompt(`<span class="side">${sideName(t)}</span> is considering ` +
             `<span class="mv">${san}</span>. Is it a blunder?` +
             (isFallback ? ' <span style="color:#c8a95c;font-size:12px;">(offline set)</span>' : ''));
   setAnswersEnabled(true);
+  schedulePreview(card.fen, card.uci);   // show the move being considered
 }
 
 function answer(saidBlunder) {
   if (answered || !card) return;
   answered = true;
+  clearPreview();                        // stop any in-flight "considering" preview
   setAnswersEnabled(false);
 
   const correct = (saidBlunder === card.isBlunder);
@@ -395,23 +446,20 @@ function answer(saidBlunder) {
   stepFens = line.fens; stepSans = line.sans; stepUcis = line.ucis;
 
   const san = stepSans[0] || sanOf(card.fen, card.uci);
-  const body = card.isBlunder
-    ? `<b>${san}</b> is a <b>blunder</b> — it walks into a decisive tactic that was punished in the real game.`
-    : `<b>${san}</b> is <b>fine</b> — it looks risky but it is the engine-best move, winning by force.`;
+  const label = card.isBlunder ? 'a blunder' : 'a good move';
   const themes = (card.themes || '').split(' ').filter(Boolean).slice(0, 3).join(', ');
 
   const v = document.getElementById('verdict');
   v.className = 'verdict show ' + (correct ? 'right' : 'wrong');
   v.innerHTML =
-    `<div class="head">${correct ? '✓ Correct' : '✗ Not quite'}</div>` +
-    `<div>${body}</div>` +
+    `<div class="head">${correct ? '✓ Correct' : '✗ Incorrect'}</div>` +
+    `<div class="ruling"><b>${san}</b> was ${label}.</div>` +
     `<div class="line" id="line-moves">${renderMoveListHtml(card.fen, stepSans)}</div>` +
     `<div class="linebar">` +
       `<button id="nav-start" onclick="stepStart()" title="Start">⏮</button>` +
       `<button id="nav-back" onclick="stepBack()" title="Back (←)">◀</button>` +
       `<button id="nav-fwd" onclick="stepFwd()" title="Forward (→)">▶</button>` +
       `<button id="nav-end" onclick="stepEnd()" title="End">⏭</button>` +
-      `<span class="navhint">step with ← → &nbsp;·&nbsp; click a move</span>` +
     `</div>` +
     `<div class="meta">Puzzle rating ${card.rating}` +
     (themes ? ` · ${themes}` : '') +
