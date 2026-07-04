@@ -919,12 +919,21 @@ const TRICKS = [
     gen(){ return { q:"Type π — start after 3.", a:"", steps:[] }; } },
 ];
 
+/* ---- spaced-repetition layer (modelled on colors' cram deck) ----
+   No soon-repeats: keep a window of recently-served question keys and re-roll gen()
+   until the key is fresh.  Resurface misses (Leitner-style): a wrong problem is stashed
+   and re-served after ~SR_GAP problems, staying in the queue until answered correctly. */
+const SR_WINDOW_BASE = 5;   // recent-window size for a large/parametric deck (auto-shrinks for small decks)
+const SR_RETRY       = 24;  // max gen() re-rolls to dodge the recent window
+const SR_GAP         = 3;   // a missed problem reappears after ~3 further problems
+
 /* ---- app ---- */
 const app = {
   cur:null, prob:null, input:"", answered:false, factor:11,
   total:0, correct:0, streak:0, best:0,
   piPos:0, piAdvance:false, piEnded:false,
   recitePos:0, reciteErr:null, reciteErrs:0,
+  srRecent:[], srWrong:[], srActive:null, srWindow:0,   // spaced-repetition state
 
   init(){
     const list=$("trickList"); let lastCat="", idx=0;
@@ -955,6 +964,40 @@ const app = {
     });
   },
   home(){ show("home"); },
+
+  // --- spaced-repetition helpers ---
+  // Eligible = a real quiz drill.  Sequential (seq / recite) and reference-only lessons opt out.
+  _srEligible(){ return !!this.cur && !this.cur.seq && this.cur.answerType!=="recite" && !this.cur.refonly; },
+  // Fresh problem, exactly as the old next() built it (picker → table, else the trick's gen()).
+  _genProblem(){ return this.cur.picker ? this.tableProblem(this.factor) : this.cur.gen(); },
+  _srRecord(k){ this.srRecent.push(String(k)); if(this.srRecent.length>this.srWindow) this.srRecent.shift(); },
+  _srInit(){                                             // reset queues + size the window to the deck
+    this.srRecent=[]; this.srWrong=[]; this.srActive=null; this.srWindow=0;
+    if(!this._srEligible()) return;
+    const keys=new Set();
+    for(let i=0;i<40;i++){ try{ keys.add(String(this._genProblem().q)); }catch(e){} }
+    const deck=keys.size||1;
+    this.srWindow=Math.max(0, Math.min(SR_WINDOW_BASE, deck-1));   // small decks still cycle
+  },
+  _srNext(){                                             // returns the next problem to serve
+    for(const e of this.srWrong) e.dueIn--;              // age the resurface queue
+    const due=this.srWrong.find(e=>e.dueIn<=0);
+    if(due){ this.srActive=due; this._srRecord(due.prob.q); return due.prob; }  // re-serve the exact miss
+    this.srActive=null;
+    let p=this._genProblem();
+    for(let i=0;i<SR_RETRY && this.srRecent.includes(String(p.q));i++) p=this._genProblem();  // dodge recents
+    this._srRecord(p.q);
+    return p;
+  },
+  _srGrade(ok){                                          // update the resurface queue after a grade
+    if(!this._srEligible()) return;
+    if(this.srActive){                                   // this was a resurfaced miss
+      if(ok){ const i=this.srWrong.indexOf(this.srActive); if(i>=0) this.srWrong.splice(i,1); }  // cleared → drop
+      else { this.srActive.dueIn=this.srActive.interval; }                                       // still wrong → reschedule
+    } else if(!ok){                                      // fresh problem missed → stash it
+      this.srWrong.push({ prob:this.prob, dueIn:SR_GAP, interval:SR_GAP });
+    }
+  },
   lesson(id){ this.cur=TRICKS.find(t=>t.id===id);
     $("lessonTitle").textContent=this.cur.name;
     if(this.cur.picker){ $("lessonBody").innerHTML=this.pickerHTML(); $("lessonGo").classList.add("hidden"); }
@@ -963,6 +1006,7 @@ const app = {
   practice(){ this.total=0; this.correct=0; this.streak=0; this.best=0;
     this.piPos=0; this.piAdvance=false; this.piEnded=false;
     this.recitePos=0; this.reciteErr=null; this.reciteErrs=0;
+    this._srInit();
     $("practiceTitle").textContent=this.cur.name; show("practice"); this.next(); },
 
   pickerHTML(){
@@ -973,6 +1017,7 @@ const app = {
   },
   startTable(factor){
     this.factor=factor; this.total=0; this.correct=0; this.streak=0; this.best=0;
+    this._srInit();
     $("practiceTitle").textContent=this.cur.name+" — "+factor;
     show("practice"); this.next();
   },
@@ -1038,7 +1083,7 @@ const app = {
       else if(this.piAdvance){ this.piPos+=5; this.piAdvance=false;
         if(this.piPos>=PI_FRAC.length) this.piPos=0; }   // recited to the end → loop back to the start
     }
-    this.prob = this.cur.picker ? this.tableProblem(this.factor) : this.cur.gen();
+    this.prob = this._srEligible() ? this._srNext() : this._genProblem();
     this.input=""; this.answered=false;
     $("qtext").textContent=this.prob.q;
     $("fb").textContent=""; $("fb").className="fb";
@@ -1080,6 +1125,7 @@ const app = {
     const ok = method ? (this.prob.accept||[this.prob.a]).includes(value)
              : this.cur.mod ? (value % this.cur.mod === this.prob.a)
              : (value===this.prob.a);
+    this._srGrade(ok);
     if(ok){ this.correct++; this.streak++; this.best=Math.max(this.best,this.streak);
       fb.textContent = pad ? "✓ "+padLabel(value) : "✓ correct"; fb.className="fb ok"; }
     else { this.streak=0;
