@@ -16,7 +16,7 @@ Small browser games, each a self-contained static page served via GitHub Pages.
 | **Mastermind** — crack the hidden 4-peg, 6-color code from black/white feedback, or watch a built-in Knuth minimax solver crack any code in ≤5 guesses (opening 1122); includes a hint button | [play →](https://ngeorgescu.github.io/games/mastermind/) | [`mastermind/`](mastermind/) |
 | **Fifteen** — take turns claiming numbers 1–9; first to hold three that sum to 15 wins. Secretly tic-tac-toe on the Lo Shu magic square (the eight 15-summing triples are its eight lines) — with a reveal toggle that maps your picks onto the 3×3 grid. Perfect-play minimax opponent (never loses) or an easy mode. Aka Number Scrabble / Pick15 | [play →](https://ngeorgescu.github.io/games/fifteen/) | [`fifteen/`](fifteen/) |
 | **Chess repertoire explorer** | [play →](https://ngeorgescu.github.io/games/chess/repertoire.html) | [`chess/`](chess/) |
-| **Blunder?** — a move played in a real Lichess game: trap or tactic? Decide if it loses to a tactic or is a strong-looking-risky move. Puzzles pulled live from the Lichess API (`/api/puzzle/next`, CC0), five relative difficulty levels, with an offline fallback set | [play →](https://ngeorgescu.github.io/games/blunders/) | [`blunders/`](blunders/) |
+| **Blunder?** — a move played in a real Lichess game: trap or tactic? Decide if it loses to a tactic or is a strong-looking-risky move. Puzzles pulled live from the Lichess API (`/api/puzzle/next`, CC0), three difficulty levels, with an offline fallback set | [play →](https://ngeorgescu.github.io/games/blunders/) | [`blunders/`](blunders/) |
 
 ## Adding a game
 
