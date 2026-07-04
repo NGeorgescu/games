@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Fifteen — the number game that is secretly tic-tac-toe</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  :root{ --panel:var(--bg-card); --ink:var(--fg); --muted:var(--fg-dim); --line:var(--rule);
+    --you:#56b4e9; --cpu:#ff5d6c; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:var(--sans);
+    -webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+  .wrap{max-width:520px;margin:0 auto;padding:16px 14px 32px}
+  h1{font-size:23px;margin:.1em 0 .1em}
+  .sub{color:var(--muted);font-size:13px;line-height:1.5;margin:0 0 12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:12px}
+  button{appearance:none;border:0;border-radius:12px;padding:11px 14px;font-size:15px;font-weight:600;
+    background:var(--accent);color:#06243a;cursor:pointer}
+  button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+  button:disabled{cursor:default}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:11px;overflow:hidden;background:#12151b}
+  .seg button{background:transparent;color:var(--muted);border-radius:0;font-weight:600;padding:9px 12px;font-size:14px}
+  .seg button.on{background:#223047;color:#dbe8ff}
+  .lbl{color:var(--muted);font-size:13px;display:flex;align-items:center;gap:8px}
+  .hud{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;min-height:30px}
+  .turn{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:600}
+  .dot{width:16px;height:16px;border-radius:50%;flex:0 0 auto}
+  .dot.you{background:radial-gradient(circle at 35% 30%,#d4ecff,var(--you) 60%,#1f6fb8)}
+  .dot.cpu{background:radial-gradient(circle at 35% 30%,#ffd0d4,var(--cpu) 60%,#b81f2e)}
+  .muted{color:var(--muted);font-size:13px}
+  .hidden{display:none!important}
+
+  /* the number pad — 1..9 in reading order (no grid clue) */
+  .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:2px 0 4px}
+  .num{position:relative;aspect-ratio:1/1;border-radius:14px;border:1px solid var(--line);
+    background:#12151b;color:var(--ink);font-size:28px;font-weight:800;font-variant-numeric:tabular-nums;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .07s,background .15s}
+  .num:active{transform:scale(.94)}
+  .num.you{background:linear-gradient(180deg,#173247,#102534);border-color:var(--you);color:#cdeaff}
+  .num.cpu{background:linear-gradient(180deg,#3a1620,#2a1017);border-color:var(--cpu);color:#ffd6da}
+  .num.taken{cursor:default}
+  .num.win{box-shadow:0 0 0 3px #ffe27a inset, 0 0 14px #ffe27a55}
+  .num:disabled{cursor:default}
+
+  /* claimed lists */
+  .claims{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+  .claim{display:flex;align-items:center;gap:9px}
+  .claim .who{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;min-width:104px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;min-height:28px}
+  .chip{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:15px;font-variant-numeric:tabular-nums}
+  .chip.you{background:#173247;color:#cdeaff;border:1px solid var(--you)}
+  .chip.cpu{background:#3a1620;color:#ffd6da;border:1px solid var(--cpu)}
+  .chip.win{box-shadow:0 0 0 2px #ffe27a}
+
+  .banner{text-align:center;font-weight:700;font-size:16px;padding:8px 2px 2px}
+  .banner.you{color:#7ee0a3} .banner.cpu{color:#ff8088} .banner.draw{color:var(--muted)}
+  .banner small{display:block;font-weight:500;font-size:13px;color:var(--muted);margin-top:3px}
+
+  /* the reveal: Lo Shu magic square */
+  .squarewrap{margin-top:10px}
+  .square{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:280px;margin:8px auto 4px;position:relative}
+  .cell{position:relative;aspect-ratio:1/1;border-radius:12px;border:1px solid var(--line);background:#12151b;
+    display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800;
+    font-variant-numeric:tabular-nums;color:var(--muted);transition:background .2s,color .2s}
+  .cell.you{background:linear-gradient(180deg,#173247,#102534);border-color:var(--you);color:#cdeaff}
+  .cell.cpu{background:linear-gradient(180deg,#3a1620,#2a1017);border-color:var(--cpu);color:#ffd6da}
+  .cell.win{box-shadow:0 0 0 3px #ffe27a inset, 0 0 16px #ffe27a55}
+  .sqline{stroke:#ffe27a;stroke-width:6;stroke-linecap:round;filter:drop-shadow(0 0 4px #ffe27a)}
+  #sqSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+  .sqnote{color:var(--muted);font-size:12.5px;line-height:1.5;text-align:center;margin-top:6px}
+
+  #howto summary{cursor:pointer;font-weight:700;font-size:15px;color:var(--ink);list-style:none}
+  #howto summary::-webkit-details-marker{display:none}
+  #howto summary::before{content:"▸ ";color:var(--accent)}
+  #howto[open] summary::before{content:"▾ "}
+  #howto .note{color:var(--muted);font-size:13.5px;line-height:1.6;margin-top:8px}
+  #howto .note b{color:var(--ink)}
+  #howto .note ol{margin:8px 0;padding-left:20px}
+  #howto .note li{margin-bottom:7px}
+  #howto .msq{font-family:var(--mono,monospace);font-size:14px;color:var(--ink);letter-spacing:.15em;
+    text-align:center;margin:10px 0;line-height:1.7}
+  footer{color:#5a6473;font-size:12px;text-align:center;margin-top:10px}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Fifteen</h1>
+  <p class="sub">Take turns claiming numbers <b>1–9</b> (each can be taken once). First to hold
+    <b>any three numbers that sum to 15</b> wins. Sounds like arithmetic — but it is
+    <b>tic-tac-toe in disguise</b>. Spot the fifteens yourself, then flip on the magic square to
+    see why.</p>
+
+  <div class="card">
+    <div class="row">
+      <span class="lbl">Computer
+        <span class="seg" id="diffSeg">
+          <button data-diff="perfect" class="on">Perfect</button>
+          <button data-diff="easy">Easy</button>
+        </span>
+      </span>
+      <span class="lbl">First
+        <span class="seg" id="firstSeg">
+          <button data-first="you" class="on">You</button>
+          <button data-first="cpu">Computer</button>
+        </span>
+      </span>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="ghost" id="revealBtn" aria-pressed="false">Reveal the magic square</button>
+      <button class="ghost" id="newBtn">New game</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="hud">
+      <div class="turn"><span class="dot you" id="turnDot"></span><span id="turnTxt">Your move — pick a number</span></div>
+      <span class="muted" id="countTxt">0 / 9 taken</span>
+    </div>
+
+    <div class="pad" id="pad"></div>
+
+    <div class="claims">
+      <div class="claim"><div class="who"><span class="dot you"></span>You</div><div class="chips" id="youChips"></div></div>
+      <div class="claim"><div class="who"><span class="dot cpu"></span>Computer</div><div class="chips" id="cpuChips"></div></div>
+    </div>
+
+    <div class="banner hidden" id="banner"></div>
+
+    <!-- the party trick: hidden until revealed -->
+    <div class="squarewrap hidden" id="squareWrap">
+      <div class="muted" style="text-align:center;font-size:13px">The Lo Shu magic square — every row, column and diagonal sums to 15</div>
+      <div class="square" id="square">
+        <svg id="sqSvg" viewBox="0 0 100 100" preserveAspectRatio="none"><line id="sqLineEl" class="sqline hidden" x1="0" y1="0" x2="0" y2="0"/></svg>
+      </div>
+      <div class="sqnote">Your picks land on cells. A winning triple that sums to 15 is exactly a straight
+        line — a row, column or diagonal. It was tic-tac-toe all along.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <details id="howto">
+      <summary>How it works — the secret</summary>
+      <div class="note">
+        <p>Write the numbers 1–9 into a <b>3×3 magic square</b> — the ancient <i>Lo Shu</i> arrangement:</p>
+        <div class="msq">2 &nbsp; 9 &nbsp; 4<br>7 &nbsp; 5 &nbsp; 3<br>6 &nbsp; 1 &nbsp; 8</div>
+        <p>Every row, column and long diagonal adds to <b>15</b>. There are exactly <b>eight</b> ways to
+          pick three of the numbers 1–9 that total 15 — and those eight triples are <b>precisely</b> the
+          eight lines of the square (3 rows + 3 columns + 2 diagonals).</p>
+        <ol>
+          <li>Claiming a number = marking its cell in the square.</li>
+          <li>Holding three numbers that sum to 15 = holding a full <b>line</b> — three in a row.</li>
+          <li>So "pick numbers summing to 15" <b>is</b> tic-tac-toe. Same game, same perfect strategy: with
+            best play by both sides it is always a draw.</li>
+        </ol>
+        <p>The computer here plays the position as tic-tac-toe on this square. On <b>Perfect</b> it runs a
+          full minimax search, so it never loses and punishes any slip. On <b>Easy</b> it moves at random,
+          so a learner can win — and, more usefully, can practise <i>seeing</i> the fifteens without a grid.
+          The game is also known as <b>Number Scrabble</b>, <b>Pick15</b> or <b>3-to-15</b>.</p>
+      </div>
+    </details>
+  </div>
+
+  <footer>One of <a href="../">the games</a>. Number Scrabble / Pick15 — Michon (1967), Simon (1969).</footer>
+</div>
+
+<script>
+"use strict";
+/* =====================================================================
+   CORE (testable) — pure logic, no DOM. Extracted verbatim by the Node
+   test harness between the markers below. Keep it DOM-free.
+   ===================================================================== */
+/* __CORE_START__ */
+// Lo Shu magic square, cell index 0..8 (reading order) -> the number in it.
+//   2 9 4
+//   7 5 3
+//   6 1 8
+const MAGIC = [2,9,4,7,5,3,6,1,8];
+const CELL_OF = {};                       // number (1..9) -> cell index 0..8
+MAGIC.forEach((n,i)=>{ CELL_OF[n] = i; });
+
+// the 8 lines of the 3x3 grid, as cell-index triples
+const LINES = [
+  [0,1,2],[3,4,5],[6,7,8],   // rows
+  [0,3,6],[1,4,7],[2,5,8],   // columns
+  [0,4,8],[2,4,6]            // diagonals
+];
+// the same 8 lines expressed as number-triples (each sums to 15)
+const LINE_NUMS = LINES.map(l => l.map(i => MAGIC[i]));
+
+// Does a collection of claimed numbers contain three that sum to 15?
+// Returns the winning number-triple, or null. (Equivalent to holding a line.)
+function winningTriple(nums){
+  const s = new Set(nums);
+  for(const t of LINE_NUMS){ if(t.every(n => s.has(n))) return t.slice(); }
+  return null;
+}
+
+// All 3-subsets of {1..9} summing to 15 (used for verification/tests).
+function triplesSummingTo15(){
+  const out = [];
+  for(let a=1;a<=9;a++) for(let b=a+1;b<=9;b++) for(let c=b+1;c<=9;c++)
+    if(a+b+c===15) out.push([a,b,c]);
+  return out;
+}
+
+// board: length-9 array of 'H' | 'C' | null, indexed by CELL.
+function winnerOnBoard(board){
+  for(const ln of LINES){
+    const [x,y,z] = ln;
+    if(board[x] && board[x]===board[y] && board[y]===board[z]) return {who:board[x], line:ln};
+  }
+  return null;
+}
+const boardFull = board => board.every(v => v);
+
+// Minimax from the given player's turn. Score is from the CPU's ('C') point of
+// view: +win, -loss, 0 draw. Depth-discounted so it prefers faster wins and
+// slower losses. Returns {score, cell}. Deterministic (first best cell wins).
+function minimax(board, player){
+  const w = winnerOnBoard(board);
+  if(w) return { score: (w.who==='C' ? 10 : -10), cell:-1 };
+  if(boardFull(board)) return { score:0, cell:-1 };
+  let best = { score: (player==='C' ? -Infinity : Infinity), cell:-1 };
+  for(let c=0;c<9;c++){
+    if(board[c]) continue;
+    board[c] = player;
+    const r = minimax(board, player==='C' ? 'H' : 'C');
+    board[c] = null;
+    const score = r.score - Math.sign(r.score);   // discount by depth
+    if(player==='C'){ if(score > best.score) best = {score, cell:c}; }
+    else            { if(score < best.score) best = {score, cell:c}; }
+  }
+  return best;
+}
+
+// Pick the CPU's cell. 'perfect' => minimax (never loses); 'easy' => random.
+// rnd defaults to Math.random; injectable for deterministic tests.
+function cpuCell(board, difficulty, rnd){
+  rnd = rnd || Math.random;
+  const empties = [];
+  for(let c=0;c<9;c++) if(!board[c]) empties.push(c);
+  if(empties.length===0) return -1;
+  if(difficulty==='easy') return empties[Math.floor(rnd()*empties.length)];
+  return minimax(board, 'C').cell;
+}
+/* __CORE_END__ */
+
+/* expose for Node */
+if (typeof module !== 'undefined' && module.exports){
+  module.exports = {MAGIC,CELL_OF,LINES,LINE_NUMS,winningTriple,triplesSummingTo15,
+                    winnerOnBoard,boardFull,minimax,cpuCell};
+}
+</script>
+
+<script>
+"use strict";
+/* ===================== UI ===================== */
+if (typeof document !== 'undefined') (function(){
+const $ = id => document.getElementById(id);
+
+const G = { board:null, taken:null, over:false, turn:'H', winLine:null,
+            diff:'perfect', first:'you', revealed:false, busy:false };
+
+function reset(){
+  G.board = new Array(9).fill(null);   // by cell
+  G.taken = {};                        // number -> 'H'|'C'
+  G.over = false; G.winLine = null; G.busy = false;
+  G.turn = (G.first==='you') ? 'H' : 'C';
+  $('banner').classList.add('hidden');
+  render();
+  if(G.turn==='C'){ G.busy = true; setTimeout(cpuTurn, 420); }
+}
+
+function claim(num, who){
+  G.taken[num] = who;
+  G.board[CELL_OF[num]] = who;
+}
+
+function humanPick(num){
+  if(G.over || G.busy || G.taken[num]) return;
+  if(G.turn!=='H') return;
+  claim(num, 'H');
+  if(afterMove()) return;
+  G.turn = 'C'; G.busy = true; render();
+  setTimeout(cpuTurn, 430);
+}
+
+function cpuTurn(){
+  if(G.over) { G.busy=false; return; }
+  const cell = cpuCell(G.board, G.diff);
+  if(cell>=0) claim(MAGIC[cell], 'C');
+  G.busy = false;
+  if(afterMove()) return;
+  G.turn = 'H'; render();
+}
+
+// returns true if the game ended
+function afterMove(){
+  const w = winnerOnBoard(G.board);
+  if(w){ G.over = true; G.winLine = w.line; render(); showBanner(w.who); return true; }
+  if(boardFull(G.board)){ G.over = true; render(); showBanner('draw'); return true; }
+  return false;
+}
+
+/* ---------- rendering ---------- */
+const numClass = n => G.taken[n]==='H' ? 'you' : G.taken[n]==='C' ? 'cpu' : '';
+function winNumbers(){ return G.winLine ? G.winLine.map(i=>MAGIC[i]) : []; }
+
+function render(){
+  const winNums = new Set(winNumbers());
+  // number pad (1..9 reading order)
+  const pad = $('pad'); pad.innerHTML = '';
+  for(let n=1;n<=9;n++){
+    const b = document.createElement('button');
+    const cls = numClass(n);
+    b.className = 'num' + (cls?(' '+cls):'') + (G.taken[n]?' taken':'') + (winNums.has(n)?' win':'');
+    b.textContent = n;
+    const disabled = G.over || G.busy || !!G.taken[n] || G.turn!=='H';
+    b.disabled = disabled;
+    if(!disabled) b.onclick = () => humanPick(n);
+    pad.appendChild(b);
+  }
+  // claimed chips
+  chips($('youChips'), 'H', winNums);
+  chips($('cpuChips'), 'C', winNums);
+  // hud
+  const taken = Object.keys(G.taken).length;
+  $('countTxt').textContent = `${taken} / 9 taken`;
+  const dot = $('turnDot'), txt = $('turnTxt');
+  if(G.over){
+    dot.className = 'dot';
+    dot.style.background = G.winLine ? '' : '#6b7689';
+  } else {
+    dot.className = 'dot ' + (G.turn==='H'?'you':'cpu');
+    dot.style.background = '';
+    txt.textContent = G.turn==='H' ? 'Your move — pick a number'
+                                   : (G.busy ? 'Computer thinking…' : 'Computer to move');
+  }
+  renderSquare(winNums);
+}
+
+function chips(el, who, winNums){
+  el.innerHTML = '';
+  const nums = [];
+  for(const n in G.taken) if(G.taken[n]===who) nums.push(+n);
+  nums.sort((a,b)=>a-b);
+  for(const n of nums){
+    const c = document.createElement('div');
+    c.className = 'chip ' + (who==='H'?'you':'cpu') + (winNums.has(n)?' win':'');
+    c.textContent = n;
+    el.appendChild(c);
+  }
+}
+
+function showBanner(who){
+  const b = $('banner');
+  const trip = winNumbers();
+  if(who==='draw'){
+    b.className = 'banner draw';
+    b.innerHTML = 'Draw — every number taken, no fifteen.<small>Perfect play always draws. That is tic-tac-toe for you.</small>';
+  } else {
+    const win = who==='H';
+    b.className = 'banner ' + (win?'you':'cpu');
+    const t = trip.slice().sort((x,y)=>x-y);
+    const sumTxt = `${t[0]} + ${t[1]} + ${t[2]} = 15`;
+    b.innerHTML = (win ? 'You win! 🎉' : 'Computer wins.')
+      + `<small>${win?'Your':'Its'} three-in-a-row: ${sumTxt}. Reveal the square to see the line.</small>`;
+  }
+  b.classList.remove('hidden');
+  $('turnTxt').textContent = who==='draw' ? 'Draw' : (who==='H'?'You win!':'Computer wins');
+}
+
+/* ---------- magic-square reveal ---------- */
+// cell centre in the 0..100 viewBox: 3 columns/rows, cells at ~16.7/50/83.3
+function cellCenter(i){
+  const col = i%3, r = (i/3)|0;
+  return { x: 16.667 + col*33.333, y: 16.667 + r*33.333 };
+}
+function renderSquare(winNums){
+  const sq = $('square');
+  // (re)build the 9 cells but keep the svg overlay element
+  const svg = $('sqSvg');
+  // remove old cells
+  Array.from(sq.querySelectorAll('.cell')).forEach(e=>e.remove());
+  const winSet = new Set(G.winLine || []);
+  const frag = document.createDocumentFragment();
+  for(let i=0;i<9;i++){
+    const n = MAGIC[i];
+    const owner = G.board[i];
+    const d = document.createElement('div');
+    d.className = 'cell' + (owner==='H'?' you':owner==='C'?' cpu':'') + (winSet.has(i)?' win':'');
+    d.textContent = n;
+    frag.appendChild(d);
+  }
+  sq.insertBefore(frag, svg);
+  // winning line stroke
+  const el = $('sqLineEl');
+  if(G.winLine){
+    const a = cellCenter(G.winLine[0]), c = cellCenter(G.winLine[2]);
+    el.setAttribute('x1', a.x); el.setAttribute('y1', a.y);
+    el.setAttribute('x2', c.x); el.setAttribute('y2', c.y);
+    el.classList.remove('hidden');
+  } else {
+    el.classList.add('hidden');
+  }
+}
+
+/* ---------- controls ---------- */
+$('diffSeg').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  G.diff = b.dataset.diff;
+  document.querySelectorAll('#diffSeg button').forEach(x=>x.classList.toggle('on',x===b));
+  reset();
+});
+$('firstSeg').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  G.first = b.dataset.first;
+  document.querySelectorAll('#firstSeg button').forEach(x=>x.classList.toggle('on',x===b));
+  reset();
+});
+$('newBtn').onclick = reset;
+$('revealBtn').onclick = () => {
+  G.revealed = !G.revealed;
+  $('squareWrap').classList.toggle('hidden', !G.revealed);
+  $('revealBtn').textContent = G.revealed ? 'Hide the magic square' : 'Reveal the magic square';
+  $('revealBtn').setAttribute('aria-pressed', G.revealed ? 'true':'false');
+};
+
+reset();
+})();
+</script>
+<footer style="text-align:center;padding:1.5rem 1rem 2rem;font-size:0.8rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--fg-dim);border-top:1px solid var(--rule);margin-top:2rem;font-family:var(--sans)">
+  <a href="/games/" style="color:var(--accent);text-decoration:none">↩ back to games</a>
+</footer>
+</body>
+</html>
