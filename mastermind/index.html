@@ -510,35 +510,41 @@ function hHint(){
           + ` <b>so it tests position ${i+1} on its own</b>: if <b>black</b> rises, position ${i+1} is`
           + ` ${pegTxt(g[i])}; if it falls, that spot was ${pegTxt(last[i])}; if it holds, it's neither.</div>`;
   } else {
-    // No single-peg still-possible probe exists, so the black delta of `g`
-    // can't point at one spot. Offer a clean isolation experiment instead:
-    // change exactly ONE unpinned position of the last guess. Its black delta
-    // then reads that spot alone. Pick the position S disagrees on the most,
-    // and a test color that actually occurs there (so the probe can confirm,
-    // not just eliminate).
+    // No single-peg still-possible probe exists, so g's black delta can't point
+    // at one spot. Offer an isolation experiment — but only if it's good advice.
+    // Isolating one peg only pays off when the OTHER pegs are worth holding
+    // fixed, so anchor on the STRONGEST past guess (most pegs already in place),
+    // not blindly the last one. If even the best guess has 0 in place, replaying
+    // it wastes three known-wrong pegs — so skip the test entirely there.
     html += ` It fits every clue, so it could be the answer — but it changes ${changed.length}`
           + ` pegs at once, so its black count won't single out any one spot.</div>`;
-    const known = [];
-    for(let i=0;i<LEN;i++){ const c=S[0][i]; known[i] = S.every(s=>s[i]===c)?c:null; }
-    let bi=-1, bv=-1;
-    for(let i=0;i<LEN;i++){
-      if(known[i]!=null) continue;
-      const set = new Set(S.map(s=>s[i]));
-      if(set.size>bv){ bv=set.size; bi=i; }
-    }
-    if(bi>=0){
-      const freq = {};
-      for(const s of S) freq[s[bi]] = (freq[s[bi]]||0)+1;
-      let y=null, fy=-1;
-      for(const c in freq){ if(+c!==last[bi] && freq[c]>fy){ fy=freq[c]; y=+c; } }
-      const probe = last.slice(); probe[bi]=y;
-      html += `<div style="margin-top:6px"><b>Or run a test to pin down position ${bi+1}.</b>`
-            + ` Replay your last guess changing only that one peg: ${probe.map(pegTxt).join(' ')}`
-            + ` (${pegTxt(last[bi])}→${pegTxt(y)}). Because a single peg moved, the change in black`
-            + ` <b>answers position ${bi+1} by itself</b>: <b>rises</b> ⇒ it's ${pegTxt(y)};`
-            + ` <b>falls</b> ⇒ it's ${pegTxt(last[bi])}; <b>unchanged</b> ⇒ it's neither ${pegTxt(last[bi])}`
-            + ` nor ${pegTxt(y)}. One unknown becomes a fact (this probe may cost a turn, since it might`
-            + ` not be the answer itself).</div>`;
+    let base = history[0];
+    for(const h of history) if(h.fb.black >= base.fb.black) base = h;   // ties → latest
+    if(base.fb.black >= 1){
+      const bg = base.guess, baseIdx = history.indexOf(base);
+      const known = [];
+      for(let i=0;i<LEN;i++){ const c=S[0][i]; known[i] = S.every(s=>s[i]===c)?c:null; }
+      let bi=-1, bv=-1;
+      for(let i=0;i<LEN;i++){
+        if(known[i]!=null) continue;                 // already pinned — nothing to test
+        const set = new Set(S.map(s=>s[i]));
+        if(set.size>bv){ bv=set.size; bi=i; }         // the spot S disagrees on most
+      }
+      if(bi>=0){
+        const freq = {};
+        for(const s of S) freq[s[bi]] = (freq[s[bi]]||0)+1;
+        let y=null, fy=-1;                            // a color that actually occurs there
+        for(const c in freq){ if(+c!==bg[bi] && freq[c]>fy){ fy=freq[c]; y=+c; } }
+        const probe = bg.slice(); probe[bi]=y;
+        const nb = base.fb.black;
+        html += `<div style="margin-top:6px"><b>Or run a test to pin down position ${bi+1}.</b>`
+              + ` Take row ${baseIdx+1} — your strongest guess, with ${nb} peg${nb>1?'s':''} already`
+              + ` in place — and change only position ${bi+1}: ${probe.map(pegTxt).join(' ')}`
+              + ` (${pegTxt(bg[bi])}→${pegTxt(y)}). Because a single peg moved, the change in black`
+              + ` <b>answers position ${bi+1} by itself</b>: <b>rises</b> ⇒ it's ${pegTxt(y)};`
+              + ` <b>falls</b> ⇒ it's ${pegTxt(bg[bi])}; <b>unchanged</b> ⇒ it's neither. One unknown`
+              + ` becomes a fact (this probe may cost a turn, since it might not be the answer itself).</div>`;
+      }
     }
   }
   box.innerHTML = html;
