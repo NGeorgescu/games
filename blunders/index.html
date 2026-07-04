@@ -92,6 +92,8 @@ body { font-family: var(--sans, system-ui, -apple-system, "Segoe UI", Roboto, sa
                   padding: 8px 18px; font-size: 18px; line-height: 1; cursor: pointer; }
 .linebar button:hover:not(:disabled) { background: #33363b; }
 .linebar button:disabled { opacity: .35; cursor: default; }
+.linebar #nav-analyze { font-size: 13px; font-weight: 600; padding: 8px 14px; margin-left: 6px;
+                        color: var(--accent, #6ab2d4); }
 #board .square-55d63.hl-move { box-shadow: inset 0 0 0 4px rgba(255,213,79,0.5); }
 .verdict .meta { color: #888; font-size: 12px; margin-top: 6px; }
 .verdict a { color: var(--accent, #6ab2d4); text-decoration: underline; }
@@ -477,10 +479,10 @@ function answer(saidBlunder) {
       `<button id="nav-back" onclick="stepBack()" title="Back (←)">◀</button>` +
       `<button id="nav-fwd" onclick="stepFwd()" title="Forward (→)">▶</button>` +
       `<button id="nav-end" onclick="stepEnd()" title="End">⏭</button>` +
+      `<button id="nav-analyze" onclick="analyzeCurrent()" title="Analyze this position on Lichess">Analyze ↗</button>` +
     `</div>` +
     `<div class="meta">Puzzle rating ${card.rating}` +
     (themes ? ` · ${themes}` : '') +
-    ` · <a href="https://lichess.org/analysis/standard/${encodeURIComponent(card.fen)}" target="_blank" rel="noopener">Analyze position →</a>` +
     ` · <a href="${card.gameUrl}" target="_blank" rel="noopener">See it on Lichess →</a></div>`;
   showNext(true);
 
@@ -515,6 +517,11 @@ function stepStart() { stepTo(0); }
 function stepBack() { stepTo(stepIdx - 1); }
 function stepFwd() { stepTo(stepIdx + 1); }
 function stepEnd() { stepTo(stepSans.length); }
+function analyzeCurrent() {
+  const fen = stepFens[stepIdx] || (card && card.fen);
+  if (fen) window.open('https://lichess.org/analysis/standard/' + encodeURIComponent(fen),
+                       '_blank', 'noopener');
+}
 
 /* ---------- difficulty selector ---------- */
 document.getElementById('tiers').addEventListener('click', (e) => {
