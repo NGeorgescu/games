@@ -40,18 +40,19 @@
   .pip[data-c=b].on{background:var(--b);color:#1a0f24;border-color:var(--b)}
   .pip[data-c=r].on{background:var(--r);color:#3a0f06;border-color:var(--r)}
   .pip[data-c=g].on{background:var(--g);color:#063a1f;border-color:var(--g)}
-  .progwrap{height:9px;background:var(--line);border-radius:999px;overflow:hidden;margin:6px 0 2px}
-  .progbar{height:100%;background:linear-gradient(90deg,#7ee0a3,#7cc6ff);width:0;transition:width .2s}
+  .waycap{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--accent);margin:0 0 10px}
+  .waycap .num{flex:0 0 auto;width:20px;height:20px;border-radius:6px;background:#16213a;border:1px solid #2c3e63;
+    display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--accent)}
+  .waycap .hint{font-weight:600;text-transform:none;letter-spacing:0;color:var(--muted)}
+  .orsep{display:flex;align-items:center;gap:12px;margin:18px 0 14px;color:var(--muted);
+    font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+  .orsep::before,.orsep::after{content:"";flex:1;height:1px;background:var(--line)}
   .step{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 14px;margin-bottom:11px}
-  .step.done{opacity:.62}
-  .step.done .stitle{text-decoration:line-through}
-  .shead{display:flex;align-items:flex-start;gap:10px;cursor:pointer}
+  .shead{display:flex;align-items:flex-start;gap:10px}
   .sno{flex:0 0 auto;width:26px;height:26px;border-radius:7px;background:#0e1117;border:1px solid var(--line);
     display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:var(--accent)}
   .stitle{font-weight:700;font-size:16px;line-height:1.3;flex:1}
-  .chk{flex:0 0 auto;width:24px;height:24px;border-radius:6px;border:2px solid var(--line);background:#0e1117;
-    display:flex;align-items:center;justify-content:center;font-size:15px;color:#7ee0a3}
-  .step.done .chk{background:#16462a;border-color:#2fe06a}
   .sbody{font-size:13.5px;color:#cfd6e2;line-height:1.6;margin:9px 0 0;padding-left:36px}
   .sbody p{margin:0 0 8px}
   .subtoggle{width:100%;margin-top:8px;text-align:left}
@@ -148,11 +149,13 @@
 <div class="wrap">
   <h1>COMBO</h1>
   <p class="tagline">Commander Off-Meta Brewing Optimizer</p>
-  <p class="sub">Turn any low-color, off-meta commander into a degen-power deck. Start typing your commander,
-  pick it from the list — its color identity auto-fills from Scryfall and every research link below pre-fills.
-  Work the steps top to bottom.</p>
+  <p class="sub">Turn any low-color, off-meta commander into a degen-power deck. <b>Two ways in:</b> type a
+  commander and pick it from the list, or paste a <b>Moxfield / Archidekt deck link</b> and we'll set the
+  commander for you. Either way your color identity and every research link below pre-fill. Work the steps
+  top to bottom.</p>
 
   <div class="card">
+    <div class="waycap"><span class="num">1</span>Start with a commander <span class="hint">— colors &amp; links auto-fill</span></div>
     <label class="fld" for="cmd">Commander</label>
     <div class="acwrap">
       <input type="text" id="cmd" placeholder="Start typing… e.g. Anje Falkenrath" autocapitalize="words" autocomplete="off">
@@ -162,25 +165,25 @@
       <input type="text" id="cmd2" placeholder="+ Partner / Background (optional)" autocapitalize="words" autocomplete="off">
       <div class="aclist" id="aclist2"></div>
     </div>
-    <label class="fld" style="margin-top:12px">Color identity <span style="text-transform:none;letter-spacing:0">(union of your commanders — tap to override)</span></label>
+
+    <div class="orsep">or</div>
+
+    <div class="waycap"><span class="num">2</span>Start with a deck link <span class="hint">— we'll set the commander for you</span></div>
+    <label class="fld" for="topdeck">Deck link or list <span style="text-transform:none;letter-spacing:0">(Moxfield or Archidekt link, or paste your list — fills every deck step below)</span></label>
+    <textarea id="topdeck" class="deckbox" oninput="onDeck(this.value)" placeholder="Paste a Moxfield or Archidekt deck link, or your decklist (one card per line)…" style="min-height:64px"></textarea>
+    <button class="btn" id="topsubmit" style="width:100%;margin-top:6px" onclick="submitTopDeck()">Load deck</button>
+    <div class="deckwarn" style="display:none"></div>
+
+    <label class="fld" style="margin-top:16px">Color identity <span style="text-transform:none;letter-spacing:0">(union of your commanders / deck — tap to override)</span></label>
     <div class="pips" id="pips">
       <div class="pip" data-c="w">W</div><div class="pip" data-c="u">U</div><div class="pip" data-c="b">B</div>
       <div class="pip" data-c="r">R</div><div class="pip" data-c="g">G</div>
     </div>
-    <label class="fld" style="margin-top:12px" for="topdeck">Decklist <span style="text-transform:none;letter-spacing:0">(optional — paste a Moxfield or Archidekt link or list; fills every deck step below, and sets the commander from a deck link)</span></label>
-    <textarea id="topdeck" class="deckbox" oninput="onDeck(this.value)" placeholder="Paste a Moxfield or Archidekt deck link, or your decklist (one card per line)…" style="min-height:64px"></textarea>
-    <button class="btn" id="topsubmit" style="width:100%;margin-top:6px" onclick="submitTopDeck()">Load deck</button>
-    <div class="deckwarn" style="display:none"></div>
   </div>
 
   <div id="preconbox" style="display:none"></div>
 
-  <div class="progwrap"><div class="progbar" id="bar"></div></div>
-  <div class="note" id="progtxt" style="text-align:center;margin-bottom:12px">0 / 11 steps done</div>
-
-  <div id="steps"></div>
-
-  <button class="btn reset" style="width:100%" onclick="resetAll()">Reset checklist for this commander</button>
+  <div id="steps" style="margin-top:12px"></div>
 
   <div class="foot">
     Every link is built from your commander and color identity. The bracket and staples views pull live EDHREC
@@ -364,11 +367,10 @@ function render(){
   computeDeckWarning();
   const S=steps(), box=$('#steps'); box.innerHTML='';
   S.forEach((s,i)=>{
-    const n=i+1, done=!!state.done[n];
-    const el=document.createElement('div'); el.className='step'+(done?' done':'');
-    let html=`<div class="shead" onclick="toggle(${n})">
-        <div class="sno">${n}</div><div class="stitle">${s.t}</div>
-        <div class="chk">${done?'✓':''}</div></div>
+    const n=i+1;
+    const el=document.createElement('div'); el.className='step';
+    let html=`<div class="shead">
+        <div class="sno">${n}</div><div class="stitle">${s.t}</div></div>
       <div class="sbody">${s.body||''}`;
     if(s.cardbox){
       html+=`<div class="mini"><input type="text" id="cardin${n}" placeholder="glue card name…" autocomplete="off">
@@ -384,14 +386,11 @@ function render(){
         +`<div class="subsec" id="subsec-${k}"${subOpen[k]?'':' style="display:none"'}>${inner}</div>`
       : inner;
     if(needsDeck) html+=deckBoxHTML();
+    if(A.includes('oneaway')){
+      html+=sub('oneaway','★ Combos You\'re One Card Away From',`<div id="oneaway">${oneAwayHTML||''}</div>`);
+    }
     if(A.includes('winning')){
       html+=sub('winning','Winningest cards (EDHTop16)',`<div id="winout">${winHTML||''}</div>`);
-    }
-    if(A.includes('oneaway')){
-      html+=sub('oneaway','Combos you\'re one away from',`<div id="oneaway">${oneAwayHTML||''}</div>`);
-    }
-    if(A.includes('audit')){
-      html+=sub('audit','Audit the deck you have',`<div id="auditout">${auditHTML||''}</div>`);
     }
     if(A.includes('staples')){
       const sm=state.staplesMode;
@@ -402,13 +401,16 @@ function render(){
         </div>
         <div id="staplesout">${staplesHTML||''}</div>`);
     }
-    if(A.includes('recs')){
-      html+=sub('recs','★ What to add — all signals combined',`<div id="recout">${recHTML||''}</div>`);
+    if(A.includes('audit')){
+      html+=sub('audit','Break down my current deck — every card by type, with the # of combos it enables',`<div id="auditout">${auditHTML||''}</div>`);
     }
     if(A.includes('winning')||A.includes('audit')){
-      html+=sub('cuts','Cut candidates — what to drop',
+      html+=sub('cuts','Cut candidates — the weakest cards already in my deck to consider dropping',
         `<div id="cutout">${cutHTML||''}</div>
         <div id="questout">${questHTML||''}</div>`, true);
+    }
+    if(A.includes('recs')){
+      html+=sub('recs','What to add — all signals combined',`<div id="recout">${recHTML||''}</div>`);
     }
     if(A.includes('mull')){
       const M=state.mull, H=state.hg, N=state.cmd2?98:99;
@@ -450,13 +452,9 @@ function render(){
     html+='</div>';
     el.innerHTML=html; box.appendChild(el);
   });
-  const total=S.length, n=Object.values(state.done).filter(Boolean).length;
-  $('#bar').style.width=(100*n/total)+'%';
-  $('#progtxt').textContent=n+' / '+total+' steps done';
   computeHG(); computeMull();
   ['#oneaway','#winout','#cutout','#recout','#staplesout','#auditout','#questout'].forEach(id=>{ const b=$(id); if(b) annotatePrices(b); });   // re-fill price tags from cache after re-render
 }
-function toggle(n){ state.done[n]=!state.done[n]; save(); render(); }
 function runSub(k){                                       // the subsection button IS the collapse/expand toggle; on expand it runs the query if not already populated
   subOpen[k]=!subOpen[k];
   const sec=document.getElementById('subsec-'+k); if(sec) sec.style.display=subOpen[k]?'':'none';
@@ -1081,10 +1079,6 @@ function computeMull(){
 function onMull(k,v){ state.mull[k]=v; save(); if(k==='combos') updateMullFields(); computeMull(); }
 function toggleMull(){ state.mull.open=!state.mull.open; save(); render(); }
 
-function resetAll(){
-  if(!confirm('Clear the checklist for "'+(state.cmd||'this commander')+'"?')) return;
-  state.done={}; save(); render();
-}
 
 /* ---------- commander autocomplete (Scryfall), slot 1 = commander, slot 2 = partner/background ---------- */
 const PIPHEX={w:'#f7f3d6',u:'#9bd0ff',b:'#b9a7c9',r:'#ff9a86',g:'#9fe0a8'};
