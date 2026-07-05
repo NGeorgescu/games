@@ -414,10 +414,32 @@ async function render() {
   `).join('');
   };
   drawItems();
+  const afterChildren = () => {
+    // Prefetch grandchildren so the NEXT click can paint with correct sort
+    // on the first frame instead of reshuffling once shards arrive.
+    const grandShards = new Set();
+    for (const mv of data.m) {
+      const mvObj = game.move(mv[0]);
+      if (!mvObj) continue;
+      const childSf = shortFen(game.fen());
+      const childEntry = POSITION_CACHE[childSf];
+      if (childEntry && childEntry.m) {
+        for (const cmv of childEntry.m) {
+          const cmvObj = game.move(cmv[0]);
+          if (cmvObj) { grandShards.add(shardId(shortFen(game.fen()))); game.undo(); }
+        }
+      }
+      game.undo();
+    }
+    for (const sid of grandShards) if (!(sid in SHARD_CACHE)) loadShard(sid);
+  };
   if (missingShards.size) {
     Promise.all([...missingShards].map(loadShard)).then(() => {
       if (myToken === renderToken) drawItems();
+      afterChildren();
     });
+  } else {
+    afterChildren();
   }
 }
 function playMove(san, dim) {
