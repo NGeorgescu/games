@@ -121,7 +121,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
   <div class="tabs">
     <button class="tab active" id="tab-explorer" onclick="setView('explorer')">Explorer</button>
     <button class="tab" id="tab-openings" onclick="setView('openings')">Openings</button>
-    <button class="help-btn" onclick="document.getElementById('help-modal').style.display='flex'" title="What is this?">?</button>
   </div>
   <div id="explorer-view" class="wrap">
     <div class="board-col">
@@ -136,6 +135,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
     <div class="panel">
       <div class="header-row">
         <h1>Winningest Openings</h1>
+        <button class="help-btn" onclick="document.getElementById('help-modal').style.display='flex'" title="What is this?">?</button>
         <div class="hero-toggle">
           <span>Playing as</span>
           <button id="hero-w" class="active" onclick="setHero(true)">White</button>
@@ -151,6 +151,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
   <div id="openings-view">
     <div class="header-row">
       <h1>Winningest Openings</h1>
+      <button class="help-btn" onclick="document.getElementById('help-modal').style.display='flex'" title="What is this?">?</button>
       <div class="hero-toggle">
         <span>Playing as</span>
         <button id="oh-w" class="active" onclick="setHero(true)">White</button>
