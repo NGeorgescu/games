@@ -395,6 +395,10 @@ async function render() {
   });
   const MIN_SAMPLE = 50;
   if (isHero) items.sort((a, b) => {
+    // Recommended always pinned first — its ranking is authoritative
+    // (memoized argmax on the server) and doesn't compete with the
+    // per-move vAfter that may be memoized OR empirical (different scales).
+    if (a.rec !== b.rec) return a.rec ? -1 : 1;
     const aSmall = a.total < MIN_SAMPLE, bSmall = b.total < MIN_SAMPLE;
     if (aSmall !== bSmall) return aSmall ? 1 : -1;
     return (b.vAfter ?? -1) - (a.vAfter ?? -1);
