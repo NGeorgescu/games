@@ -78,9 +78,10 @@ body { font-family: var(--sans, system-ui, -apple-system, "Segoe UI", Roboto, sa
 .verdict { display: none; padding: 12px 14px; border-radius: 6px; margin-bottom: 12px; font-size: 14px;
            line-height: 1.55; border: 1px solid #333; background: #202225; }
 .verdict.show { display: block; }
-.verdict .head { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
-.verdict.right .head { color: #6ab26a; }
-.verdict.wrong .head { color: #d46a6a; }
+.verdict .head { font-size: 15px; font-weight: 400; margin-bottom: 8px; }
+.verdict .head .sign { font-weight: 700; }
+.verdict.right .head .sign { color: #6ab26a; }
+.verdict.wrong .head .sign { color: #d46a6a; }
 .verdict .line { font-family: "SF Mono", Menlo, monospace; color: #c8c8c8; font-size: 13px;
                  word-break: break-word; margin: 6px 0; line-height: 1.9; }
 #line-moves .mvnum { color: #777; margin-right: 1px; }
@@ -471,9 +472,8 @@ function answer(saidBlunder) {
   const v = document.getElementById('verdict');
   v.className = 'verdict show ' + (correct ? 'right' : 'wrong');
   v.innerHTML =
-    `<div class="head">${correct ? '✓ Correct' : '✗ Incorrect'}</div>` +
-    `<div class="ruling"><b>${san}</b> was ${label}.</div>` +
-    `<div class="line" id="line-moves">${renderMoveListHtml(card.fen, stepSans)}</div>` +
+    `<div class="head"><span class="sign">${correct ? '✓ Correct' : '✗ Incorrect'}</span>` +
+    ` &mdash; <b>${san}</b> was ${label}.</div>` +
     `<div class="linebar">` +
       `<button id="nav-start" onclick="stepStart()" title="Start">⏮</button>` +
       `<button id="nav-back" onclick="stepBack()" title="Back (←)">◀</button>` +
@@ -481,6 +481,7 @@ function answer(saidBlunder) {
       `<button id="nav-end" onclick="stepEnd()" title="End">⏭</button>` +
       `<button id="nav-analyze" onclick="analyzePosition()" title="Analyze the starting position on Lichess">Analyze ↗</button>` +
     `</div>` +
+    `<div class="line" id="line-moves">${renderMoveListHtml(card.fen, stepSans)}</div>` +
     `<div class="meta">Puzzle rating ${card.rating}` +
     (themes ? ` · ${themes}` : '') +
     ` · <a href="${card.gameUrl}" target="_blank" rel="noopener">See it on Lichess →</a></div>`;
