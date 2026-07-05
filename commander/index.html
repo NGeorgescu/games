@@ -310,8 +310,8 @@ function steps(){ return [
       real resource/control deck — hard without oodles of free interaction in your colors.</p>`,
     links:[['Scryfall · tutors in your colors', ()=>scry('id<='+ci()+' o:"search your library" -t:land')],
            ['Scryfall · mana rocks & dorks', ()=>scry('id<='+ci()+' (t:artifact or t:creature) o:" add " mv<=3')],
-           ['Good untapped lands '+(/moxfield\.com\/decks\//i.test(state.deck||'')?'(in your deck)':'(in your colors)'), landsLink],
-           ['Scryfall · stax pieces in your colors', ()=>scry('id<='+ci()+' '+STAX_TERMS)]] },
+           ['Scryfall · stax pieces in your colors', ()=>scry('id<='+ci()+' '+STAX_TERMS)],
+           ['Good untapped lands '+(/moxfield\.com\/decks\//i.test(state.deck||'')?'(in your deck)':'(in your colors)'), landsLink]] },
 
   { t:"Check your mulligans",
     body:`<p>Tune toward a ~2-in-3 keepable-hand rate (looser or tighter depending how mull-sensitive the deck is).
@@ -382,7 +382,7 @@ function render(){
     // in the merged analysis step each subsection is a single collapsible button:
     // clicking it expands (and runs the query if empty) or collapses; no separate header
     const sub = (k,title,inner,ghost)=> multi
-      ? `<button class="btn${ghost?' ghost':''} subtoggle" id="subbtn-${k}" onclick="runSub('${k}')"><span class="subarrow">${subOpen[k]?'▾':'▸'}</span>${title}</button>`
+      ? `<button class="btn ghost subtoggle" id="subbtn-${k}" onclick="runSub('${k}')"><span class="subarrow">${subOpen[k]?'▾':'▸'}</span>${title}</button>`
         +`<div class="subsec" id="subsec-${k}"${subOpen[k]?'':' style="display:none"'}>${inner}</div>`
       : inner;
     if(needsDeck) html+=deckBoxHTML();
