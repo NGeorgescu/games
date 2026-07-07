@@ -89,6 +89,8 @@
   .evdetail .lane{margin:3px 0}
   .evdetail .verdict{margin-top:6px;color:var(--ink)}
   .evdetail .peg{vertical-align:-4px;margin:0 1px}
+  .hintbox .acc{margin:0 0 9px;color:var(--ink)}
+  .hintbox .acc .gr{font-weight:800}
   #howto summary{cursor:pointer;font-weight:700;font-size:15px;color:var(--ink);list-style:none}
   #howto summary::-webkit-details-marker{display:none}
   #howto summary::before{content:"▸ ";color:var(--accent)}
@@ -603,6 +605,23 @@ function hintDeductions(history){
   });
   return out;
 }
+// One-line "how good was your last guess" for the top of the hint: the guess's
+// decision entropy as a percentage of the best move available (100% = best,
+// 0% = ruled nothing out, e.g. a replay or a proven-absent color).
+function lastMoveAccuracyHTML(ev, rowNum){
+  if(ev.grade==='Forced')
+    return `<div class="acc">Row ${rowNum} came when only one code remained — no information to measure.</div>`;
+  const pct = Math.round(ev.ratio*100);
+  let why;
+  if(ev.usesAbsent) why = ` — it replayed a color already ruled out, so it couldn't separate any remaining codes.`;
+  else if(ev.ratio < 0.05) why = ` — every still-possible code gives it the same feedback, so it ruled nothing out.`;
+  else if(ev.grade==='Brilliant') why = ` — essentially the best move on the board.`;
+  else if(ev.grade==='Strong') why = ` — a strong, information-rich guess.`;
+  else if(ev.grade==='OK') why = ` — solid, though a more even split was available.`;
+  else why = ` — it left a lot on the table; a sharper guess was available.`;
+  return `<div class="acc">Your last guess (row ${rowNum}) rated `
+       + `<span class="gr ${ev.cls}">${pct}%</span> of the best move here${why}</div>`;
+}
 function hHint(){
   if(H.over) return;
   const box = $('hintBox');
@@ -622,6 +641,11 @@ function hHint(){
     return;
   }
 
+  // Rate the LAST guess (top of hint): its fraction of the best-available info.
+  const lastG = H.guesses[H.guesses.length-1];
+  if(!lastG.eval) lastG.eval = computeEval(lastG.Sprev, lastG.code, lastG.fb);
+  const accHTML = lastMoveAccuracyHTML(lastG.eval, H.guesses.length);
+
   // Rebuild the set S of codes still consistent with every clue so far.
   let S = ALL;
   for(const h of history) S = filterConsistent(S, h.guess, h.fb);
@@ -636,8 +660,8 @@ function hHint(){
 
   if(S.length===1){
     const g = S[0];
-    box.innerHTML =
-      `<div class="pegline">It must be ${g.map(pegTxt).join(' ')}</div>`
+    box.innerHTML = accHTML
+      + `<div class="pegline">It must be ${g.map(pegTxt).join(' ')}</div>`
     + (deds.length ? `<div>Putting your clues together:</div><ul>${deds.slice(0,4).map(d=>`<li>${d}</li>`).join('')}</ul>` : '')
     + `<div>Just <b>one</b> code still fits every clue — so that's the secret. Enter it to win.</div>`;
     return;
@@ -698,7 +722,7 @@ function hHint(){
       }
     }
   }
-  box.innerHTML = html;
+  box.innerHTML = accHTML + html;
 }
 function hNew(){
   H.secret = randomCode(); H.guesses = []; H.cur = empty4(); H.over = false;
