@@ -609,7 +609,7 @@ async function deckComboCounts(allNames){
       const deckIdx=new Set(); for(const nm of allNames){ const ix=lookupIdx(idxByName,nm); if(ix!=null) deckIdx.add(ix); }
       for(const combo of bundle.combos){
         if(combo.some(i=>bannedIdx.has(i))) continue;
-        if(combo.every(i=>deckIdx.has(i))){ live++; for(const i of combo){ const k=normName(bundle.cards[i]); comboCount.set(k,(comboCount.get(k)||0)+1); } }
+        if(combo.every(i=>deckIdx.has(i))){ live++; for(const i of combo){ for(const k of nameKeys(bundle.cards[i])) comboCount.set(k,(comboCount.get(k)||0)+1); } }
       }
     }
   }catch(e){}
@@ -626,7 +626,7 @@ async function comboParticipation(){
       const bannedIdx=new Set(); bundle.cards.forEach((nm,i)=>{ if(ban.has(normName(nm))) bannedIdx.add(i); });
       for(const combo of bundle.combos){
         if(combo.some(i=>bannedIdx.has(i))) continue;
-        for(const i of combo){ const k=normName(bundle.cards[i]); count.set(k,(count.get(k)||0)+1); }
+        for(const i of combo){ for(const k of nameKeys(bundle.cards[i])) count.set(k,(count.get(k)||0)+1); }
       }
     }
   }catch(e){}
