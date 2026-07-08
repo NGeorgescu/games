@@ -73,22 +73,9 @@
   .hintbox ul{margin:6px 0 8px;padding-left:18px}
   .hintbox li{margin-bottom:5px}
   .hintbox .peg{vertical-align:-4px;margin:0 1px}
-  /* ---- move evaluation badge + detail (human mode) ---- */
-  .hgwrap{display:flex;flex-direction:column}
-  .evbadge{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;
-    background:transparent;border:0;padding:2px 0 2px 4px;margin:0;cursor:pointer;
-    font-size:11px;font-weight:700;color:var(--muted)}
-  .evbadge .cut{color:var(--muted);font-weight:600;font-variant-numeric:tabular-nums}
-  .evbadge .grade{padding:1px 7px;border-radius:999px;border:1px solid currentColor;line-height:1.45}
-  .evbadge .caret{color:var(--muted);font-size:10px}
+  /* ---- last-move rating shown inside the Hint ---- */
   .g-brilliant{color:#2fe06a} .g-strong{color:#56b4e9} .g-ok{color:#e69f00}
   .g-wasteful{color:#ff8088} .g-solved{color:#7ee0a3} .g-forced{color:var(--muted)}
-  .evdetail{font-size:12.5px;line-height:1.55;color:var(--muted);
-    background:#12151b;border:1px solid var(--line);border-radius:11px;padding:8px 10px;margin:6px 0 2px}
-  .evdetail b{color:var(--ink)}
-  .evdetail .lane{margin:3px 0}
-  .evdetail .verdict{margin-top:6px;color:var(--ink)}
-  .evdetail .peg{vertical-align:-4px;margin:0 1px}
   .hintbox .acc{margin:0 0 9px;color:var(--ink)}
   .hintbox .acc .gr{font-weight:800}
   #howto summary{cursor:pointer;font-weight:700;font-size:15px;color:var(--ink);list-style:none}
@@ -318,7 +305,7 @@ function randomCode(){ return Array.from({length:LEN},()=>1+Math.floor(Math.rand
 const empty4 = ()=>[0,0,0,0];   // slots fill left-to-right (0 = empty)
 
 /* ---------- HUMAN MODE ---------- */
-const H = { secret:[], guesses:[], cur:empty4(), over:false, S:ALL, openEval:{} };
+const H = { secret:[], guesses:[], cur:empty4(), over:false, S:ALL };
 
 function buildPalette(el, onPick){
   el.innerHTML = '';
@@ -359,38 +346,7 @@ function hRenderHistory(){
   const el = $('hHistory'); el.innerHTML = '';
   if(!H.guesses.length){ el.innerHTML = '<div class="muted">No guesses yet.</div>'; return; }
   H.guesses.forEach((g,i)=>{
-    const win = g.fb.black===LEN;
-    const wrap = document.createElement('div');
-    wrap.className = 'hgwrap';
-    wrap.innerHTML = rowHTML(i+1, g.code, g.fb, win);   // rowHTML unchanged (shared with CPU mode)
-    const row = wrap.querySelector('.grow');
-    const badge = document.createElement('button');
-    badge.className = 'evbadge';
-    const ev = g.eval;                                   // cached on the guess; null while pending
-    if(ev){
-      badge.innerHTML = `<span class="cut">${ev.N}→${ev.M}</span>`
-                      + `<span class="grade ${ev.cls}">${ev.grade}</span>`
-                      + `<span class="caret">▸</span>`;
-      badge.title = 'Review this move';
-    } else {
-      badge.innerHTML = `<span class="cut">…</span>`;
-      badge.title = 'Analysing…';
-    }
-    row.appendChild(badge);
-    const detail = document.createElement('div');
-    detail.className = 'evdetail hidden';
-    wrap.appendChild(detail);
-    if(ev){
-      let open = !!H.openEval[i];
-      const sync = ()=>{
-        detail.classList.toggle('hidden', !open);
-        badge.querySelector('.caret').textContent = open ? '▾' : '▸';
-        if(open && !detail.innerHTML) detail.innerHTML = evDetailHTML(ev);
-      };
-      sync();
-      badge.onclick = ()=>{ open = !open; H.openEval[i] = open; sync(); };
-    }
-    el.appendChild(wrap);
+    el.insertAdjacentHTML('beforeend', rowHTML(i+1, g.code, g.fb, g.fb.black===LEN));
   });
 }
 function hSubmit(){
@@ -403,8 +359,7 @@ function hSubmit(){
   H.S = filterConsistent(Sprev, code, fb);    // codes still possible AFTER it (for next turn)
   H.cur = empty4();
   $('hintBox').textContent = '';
-  hRenderHistory();                           // badge shows "…" at once — no blocking compute
-  scheduleEval(g);                            // grade off the input path, then re-render
+  hRenderHistory();                           // plain rows; move rating shows only via Hint
   if(fb.black===LEN){ hEnd(true); }
   else if(H.guesses.length>=MAX_ROWS){ hEnd(false); }
   hRefresh();
@@ -495,49 +450,6 @@ function computeEval(Sprev, guess, fb){
   return {N, M, ruledOut:N-M, black:fb.black, white:fb.white,
           realized, decision:H, bestBits, bestEx, ratio, grade, cls, usesAbsent};
 }
-const evBits = x => x.toFixed(2);
-
-// One-line plain-English verdict, incl. the luck note when realized and decision diverge.
-function evVerdict(ev){
-  if(ev.grade==='Solved') return `You matched the secret, extracting the last <b>${evBits(ev.realized)}</b> bits. Nice finish.`;
-  if(ev.grade==='Forced') return `Only one code was still possible, so this move was forced — no skill to grade.`;
-  let s;
-  if(ev.usesAbsent) s = `This guess replayed a colour already ruled out, so part of it couldn't teach you anything. `;
-  else if(ev.grade==='Brilliant') s = `An essentially optimal split — about the most any guess could learn here. `;
-  else if(ev.grade==='Strong') s = `A strong, information-rich guess. `;
-  else if(ev.grade==='OK') s = `A reasonable guess, though a more even split was on offer. `;
-  else s = `This guess left a lot on the table — it barely narrowed the field. `;
-  const d = ev.realized - ev.decision;
-  if(d > LUCK_BITS) s += `The feedback was luckier than the choice deserved: it ruled out more codes than the guess averages.`;
-  else if(d < -LUCK_BITS) s += `The feedback fell unluckily — that's the draw of the secret, not the decision.`;
-  else s += `The result landed about where the choice predicted.`;
-  return s;
-}
-
-// The expand-on-tap breakdown. Black (positions) and black+white (colours present)
-// are named explicitly, matching the Hint framing.
-function evDetailHTML(ev){
-  if(ev.grade==='Forced') return `<div class="verdict">${evVerdict(ev)}</div>`;
-  const ex = ev.bestEx ? ev.bestEx.map(pegTxt).join(' ') : '—';
-  return `<div class="lane"><b>This feedback:</b> ${ev.black} black (right colour, right spot) `
-       + `+ ${ev.white} white (right colour, wrong spot) — ${ev.black+ev.white} of ${LEN} colours present.</div>`
-       + `<div class="lane"><b>Realized:</b> ruled out <b>${ev.ruledOut}</b> of ${ev.N} codes `
-       + `(${ev.N}→${ev.M}) = <b>${evBits(ev.realized)}</b> bits gained this turn.</div>`
-       + `<div class="lane"><b>Decision:</b> this choice averages <b>${evBits(ev.decision)}</b> bits `
-       + `across every feedback it could have drawn (luck removed).</div>`
-       + `<div class="lane"><b>Best available:</b> <b>${evBits(ev.bestBits)}</b> bits, e.g. ${ex} `
-       + `— your guess reached <b>${Math.round(ev.ratio*100)}%</b> of it.</div>`
-       + `<div class="verdict">${evVerdict(ev)}</div>`;
-}
-
-// Compute an eval OFF the input path (double rAF → a paint shows the "…" badge
-// first), then re-render so the first move (N=1296) never blocks the click.
-function scheduleEval(g){
-  const run = ()=>{ if(!g.eval){ g.eval = computeEval(g.Sprev, g.code, g.fb); hRenderHistory(); } };
-  if(typeof requestAnimationFrame!=='undefined') requestAnimationFrame(()=>requestAnimationFrame(run));
-  else setTimeout(run, 0);
-}
-
 // Suggested next guess under the teachable "consistent minimal-change probe"
 // method: play a code that could still be right (∈ S, so never a wasted turn)
 // and that changes the fewest pegs from your last guess (so its black-peg
@@ -726,7 +638,7 @@ function hHint(){
 }
 function hNew(){
   H.secret = randomCode(); H.guesses = []; H.cur = empty4(); H.over = false;
-  H.S = ALL; H.openEval = {};
+  H.S = ALL;
   $('hBanner').classList.add('hidden'); $('hReveal').classList.add('hidden');
   $('hintBox').textContent = ''; $('hintBtn').disabled = false;
   $('hStatus').textContent = 'Pick 4 colors, then Guess';
