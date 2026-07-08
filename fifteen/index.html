@@ -147,7 +147,7 @@
       <summary>How it works — the secret</summary>
       <div class="note">
         <p>Write the numbers 1–9 into a <b>3×3 magic square</b> — the ancient <i>Lo Shu</i> arrangement:</p>
-        <div class="msq">2 &nbsp; 9 &nbsp; 4<br>7 &nbsp; 5 &nbsp; 3<br>6 &nbsp; 1 &nbsp; 8</div>
+        <div class="msq">8 &nbsp; 1 &nbsp; 6<br>3 &nbsp; 5 &nbsp; 7<br>4 &nbsp; 9 &nbsp; 2</div>
         <p>Every row, column and long diagonal adds to <b>15</b>. There are exactly <b>eight</b> ways to
           pick three of the numbers 1–9 that total 15 — and those eight triples are <b>precisely</b> the
           eight lines of the square (3 rows + 3 columns + 2 diagonals).</p>
@@ -176,10 +176,10 @@
    ===================================================================== */
 /* __CORE_START__ */
 // Lo Shu magic square, cell index 0..8 (reading order) -> the number in it.
-//   2 9 4
-//   7 5 3
-//   6 1 8
-const MAGIC = [2,9,4,7,5,3,6,1,8];
+//   8 1 6
+//   3 5 7
+//   4 9 2
+const MAGIC = [8,1,6,3,5,7,4,9,2];
 const CELL_OF = {};                       // number (1..9) -> cell index 0..8
 MAGIC.forEach((n,i)=>{ CELL_OF[n] = i; });
 
