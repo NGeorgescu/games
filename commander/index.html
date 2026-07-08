@@ -86,6 +86,13 @@
   .oacombos{padding:4px 11px 9px 51px;border-bottom:1px solid var(--line);background:#0d130f}
   .oacombos:last-child{border-bottom:0}
   .oacombo{display:block;color:var(--accent);text-decoration:none;font-size:12.5px;padding:4px 0;line-height:1.45}
+  .cidx{display:inline-block;min-width:2.2em;text-align:center;font-size:11px;font-weight:800;border-radius:6px;
+    padding:1px 5px;margin-right:7px;background:#1c2230;color:#9aa3b2;vertical-align:baseline}
+  .oacnt.cidx{margin-right:0}
+  .cidx-f0{background:#3a1f24;color:#ff9aa9}   /* win / damage / draw = strongest payoff */
+  .cidx-f1{background:#37280f;color:#ffce85}
+  .cidx-f2{background:#16243f;color:#7cc6ff}
+  .cidx-f3{background:#1c2230;color:#9aa3b2}   /* weak trigger loop */
   .oahead{font-size:12px;color:var(--muted);margin-top:9px;line-height:1.5}
   .rrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:9px 11px;border-bottom:1px solid var(--line)}
   .rrow:last-child{border-bottom:0}
@@ -188,7 +195,7 @@
   <div class="foot">
     Every link is built from your commander and color identity. The bracket and staples views pull live EDHREC
     data; the one-away finder runs entirely in your browser on a snapshot of the Commander Spellbook combo
-    database (v5.4.10, 2026-06-22), fetching only the bundle for your colors. Card prices are pulled live from
+    database (v5.5.0, 2026-07-08), fetching only the bundle for your colors. Card prices are pulled live from
     the Scryfall <code>cards/collection</code> API (market USD); the precon alert matches your commander against
     a snapshot index built from EDHREC's precon pages. Scryfall queries are editable starting points — tweak the
     syntax to taste.
@@ -207,6 +214,7 @@ let subOpen = {};   // which collapsible analysis subsections (winning/oneaway/a
 let auditHideMana = false;
 let pendingAdds = new Map();   // one-away "what if I add this" simulation: normName -> display name
 let oneAwayBundle = null;      // current combo bundle, so the add checkboxes can resolve idx -> card name
+let comboEaseSort = false;     // one-away: rank by the combo-ease index instead of raw combo count
 let deckCache = {key:null, names:null, commanders:null, deckCI:null};
 function deckBoxHTML(){
   return `<textarea class="deckbox" oninput="onDeck(this.value)" placeholder="Paste a Moxfield or Archidekt deck link, or your decklist (one card per line)…">${(state.deck||'').replace(/</g,'&lt;')}</textarea>
@@ -737,28 +745,37 @@ async function findOneAway(){
   const pendingIdx=new Set();   // cards you've ticked to "add" — treated as owned for the simulation
   for(const k of pendingAdds.keys()){ const ix=lookupIdx(idxByName,k); if(ix!=null) pendingIdx.add(ix); }
   const deck=new Set([...realDeck, ...pendingIdx]);
+  // the deck's own commander(s) don't count toward "cards in the combo" for the ease index
+  const cmdSet=new Set(); for(const cn of [state.cmd, state.cmd2]){ const ix=lookupIdx(idxByName,cn||''); if(ix!=null) cmdSet.add(ix); }
+  const metaOf=new Map();                          // combo array -> its cmeta {mv,req,pre,feat,pop}
   const tally=new Map(); let already=0;
-  for(const combo of bundle.combos){
+  for(let ci=0; ci<bundle.combos.length; ci++){
+    const combo=bundle.combos[ci];
     if(combo.some(i=>bannedIdx.has(i))) continue;   // skip combos that need a banned card — can't legally play them
     let miss=-1, n=0;
     for(const idx of combo){ if(!deck.has(idx)){ n++; miss=idx; if(n>1) break; } }
     if(n===0) already++;
-    else if(n===1){ let a=tally.get(miss); if(!a){ a=[]; tally.set(miss,a); } a.push(combo); }
+    else if(n===1){ let a=tally.get(miss); if(!a){ a=[]; tally.set(miss,a); } a.push(combo); if(bundle.cmeta) metaOf.set(combo, bundle.cmeta[ci]); }
   }
-  // rank by combos-completed desc, then by SHORTEST combo completed (a tight 2-card combo you're one piece from
-  // is more actionable than one longer combo), then bundle index.
+  const idxOf=combo=>comboIndex(combo, metaOf.get(combo), bundle.cmc, cmdSet);   // {score,n,maxc,tot,req,pre,feat,mv}
+  const bestIdx=combos=>combos.reduce((m,c)=>Math.min(m,idxOf(c).score),1e9);
+  // default: rank by combos-completed desc, then shortest combo; ease mode: rank by best (lowest) combo index.
   const minLen=arr=>arr.reduce((m,c)=>Math.min(m,c.length),99);
-  const ranked=[...tally.entries()].sort((a,b)=>b[1].length-a[1].length || minLen(a[1])-minLen(b[1]) || a[0]-b[0]);
+  const ranked=[...tally.entries()].sort(comboEaseSort
+    ? (a,b)=> bestIdx(a[1])-bestIdx(b[1]) || b[1].length-a[1].length || a[0]-b[0]
+    : (a,b)=> b[1].length-a[1].length || minLen(a[1])-minLen(b[1]) || a[0]-b[0]);
   const esc=s=>s.replace(/</g,'&lt;');
   const rowHTML=([idx,combos])=>{
     const nm=bundle.cards[idx], cnt=combos.length;
-    const inner=combos.slice(0,25).map(combo=>{
+    const ordered=comboEaseSort ? [...combos].sort((a,b)=>idxOf(a).score-idxOf(b).score) : combos;
+    const inner=ordered.slice(0,25).map(combo=>{
       // bold = this row's missing card; italic = a card you've queued to add; plain = already in your real deck
       const parts=combo.map(i=> i===idx ? '<b>'+esc(bundle.cards[i])+'</b>' : pendingIdx.has(i) ? '<i>'+esc(bundle.cards[i])+'</i>' : esc(bundle.cards[i]));
       const q=combo.map(i=>'"'+bundle.cards[i].replace(/"/g,'')+'"').join(' ');
-      return `<a class="oacombo" href="${CSB+enc(q)}" target="_blank" rel="noopener">${parts.join(' + ')}</a>`;
+      return `<a class="oacombo" href="${CSB+enc(q)}" target="_blank" rel="noopener">${comboBadge(idxOf(combo))}${parts.join(' + ')}</a>`;
     }).join('')+(cnt>25?`<div class="oacombo" style="color:var(--muted)">…and ${cnt-25} more</div>`:'');
-    return `<div class="oarow" onclick="toggleOA(${idx})"><span class="oacnt">${cnt}</span>`+
+    const rowbadge = comboEaseSort ? `<span class="oacnt cidx" title="best combo-ease index for this card (lower = easier + stronger payoff)">${bestIdx(combos)}</span>` : `<span class="oacnt">${cnt}</span>`;
+    return `<div class="oarow" onclick="toggleOA(${idx})">${rowbadge}`+
       `<label class="oaadd" onclick="event.stopPropagation()" title="add to a simulated deck and recalculate"><input type="checkbox" onchange="toggleAdd(${idx})">add</label>`+
       `<span class="oaname">${esc(nm)} <span class="oacar" id="oacar${idx}">▸</span></span>${priceTag(nm)}</div>`+
       `<div class="oacombos" id="oac${idx}" style="display:none">${inner}</div>`;
@@ -771,7 +788,17 @@ async function findOneAway(){
       `<button class="btn ghost" style="width:100%;margin-top:6px" onclick="copyOneAway(this)">⧉ Copy the ${pendingAdds.size} card${pendingAdds.size===1?'':'s'} you added</button>`;
   }
   h+=`<div class="oahead">From the Commander Spellbook combo database (v${bundle.v}, colors ${code}). ${pendingAdds.size?'With those adds you':'You'} complete <b>${already}</b> combo${already===1?'':'s'}. The number on each card = how many <i>more</i> combos it would finish — tick <b>add</b> to drop it into the simulated deck and recalculate, or tap a card to list its combos (cards you'd add show <i>italic</i>).</div>`;
+  if(ranked.length && bundle.cmeta){
+    h+=`<button class="btn ghost" onclick="toggleComboEase()" title="Combo-ease index — lower is better. Priority: fewest cards (excl. commander), then payoff (infinite damage/draw beats death-trigger loops), then requirements, then mana (priciest card + total).">⚖ ${comboEaseSort?'Ranked by combo ease — switch back to most combos':'Rank by combo ease (index)'}</button>`;
+    if(comboEaseSort) h+=`<div class="oahead">Badges show the <b>combo-ease index</b> (lower = easier + stronger payoff). Tap a card to see each combo's index; hover a badge for the breakdown.</div>`;
+  }
   if(!ranked.length){ h+='<div class="oahead">No one-away combos found — either this list already completes everything it can in your colors, or paste more of the deck.</div>'; }
+  else if(comboEaseSort){
+    // ease mode: one flat list already sorted by index (splitting by combo count would bury the best-index cards)
+    h+='<div class="oalist">'+ranked.slice(0,120).map(rowHTML).join('')+'</div>';
+    if(ranked.length>120) h+=`<div class="oahead">Showing the 120 easiest of ${ranked.length} cards.</div>`;
+    h+='<div class="rpricetotal"></div>';
+  }
   else {
     // cards finishing 2+ combos stay up top; the long tail that finishes exactly one combo collapses behind a toggle
     const multi=ranked.filter(e=>e[1].length>=2), singles=ranked.filter(e=>e[1].length===1).slice(0,80);
@@ -786,6 +813,28 @@ async function findOneAway(){
   }
   oneAwayHTML=h; box.innerHTML=h; annotatePrices(box);
 }
+/* ---------- combo-ease index ----------
+ * Lower = easier to assemble AND stronger payoff. Priority (per weight): fewest cards (excl. the deck's
+ * own commander) > payoff tier (0 win/damage/draw .. 3 weak trigger loop) > additional requirements
+ * (non-card templates + notable game-state prereq) > mana (priciest single card ×2 + total mana value). */
+const IDX_W = { n:100, feat:22, req:12, pre:8, mana:1 };
+function comboIndex(combo, meta, cmc, cmdSet){
+  let n=0, maxc=0, tot=0;
+  for(const i of combo){ if(cmdSet&&cmdSet.has(i)) continue; n++; const c=(cmc&&cmc[i])||0; if(c>maxc) maxc=c; tot+=c; }
+  const req=meta?meta[0]||0:0, pre=meta?meta[1]||0:0, feat=meta&&meta[2]!=null?meta[2]:3, mv=meta?meta[3]||0:0;
+  const mana=maxc*2+tot;
+  const score=n*IDX_W.n + feat*IDX_W.feat + req*IDX_W.req + pre*IDX_W.pre + mana*IDX_W.mana;
+  return {score, n, maxc, tot, req, pre, feat, mv};
+}
+const FEAT_LABEL=['win / damage','card draw / mill','mana / tokens','trigger loop'];
+function comboBadge(x){
+  if(!comboEaseSort) return '';
+  const tip=`index ${x.score} — ${x.n} card${x.n===1?'':'s'}, payoff: ${FEAT_LABEL[x.feat]}`+
+    `${x.req?`, ${x.req} extra requirement${x.req===1?'':'s'}`:''}${x.pre?', game-state prereq':''}`+
+    `, mana ${x.maxc} top / ${x.tot} total`;
+  return `<span class="cidx cidx-f${x.feat}" title="${tip}">${x.score}</span>`;
+}
+function toggleComboEase(){ comboEaseSort=!comboEaseSort; findOneAway(); }
 function toggleOA(idx){ const el=document.getElementById('oac'+idx); if(!el) return; const open=el.style.display==='none'; el.style.display=open?'block':'none'; const car=document.getElementById('oacar'+idx); if(car) car.textContent=open?'▾':'▸'; }
 // "what if I add this card" — tick a one-away card into a simulated deck and recompute
 function toggleAdd(idx){ if(!oneAwayBundle) return; const nm=oneAwayBundle.cards[idx]; if(nm==null) return; const k=normName(nm);
