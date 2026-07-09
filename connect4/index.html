@@ -40,6 +40,11 @@
   button.go{appearance:none;border:0;border-radius:12px;padding:14px;font-size:16px;font-weight:700;
     background:var(--accent);color:#06243a;width:100%;margin-top:12px;cursor:pointer}
   button.go.alt{background:var(--good);color:#063a1f}
+  .subnav{display:flex;justify-content:space-between;gap:10px;margin-top:18px}
+  .subnav button{flex:1;background:var(--panel);border:1px solid var(--line);color:var(--ink);
+    border-radius:10px;padding:11px;font-size:14px;font-weight:600;cursor:pointer}
+  .subnav button:hover:not(:disabled){border-color:var(--accent)}
+  .subnav button:disabled{opacity:.35;cursor:default}
 
   .scoreline{display:flex;justify-content:space-between;color:var(--muted);font-size:13px;margin:2px 0 10px}
   .scoreline b{color:var(--ink)}
@@ -114,6 +119,7 @@
     <div class="top"><button class="back" onclick="app.home()">←</button><h2 id="lessonTitle"></h2></div>
     <div class="lesson" id="lessonBody"></div>
     <button class="go alt" id="lessonGo" onclick="app.practice()">Practice →</button>
+    <div class="subnav"><button class="prev" onclick="app.navSubject(-1)">← Prev lesson</button><button class="next" onclick="app.navSubject(1)">Next lesson →</button></div>
   </section>
 
   <!-- PRACTICE -->
@@ -126,6 +132,7 @@
     <div class="fb" id="fb"></div>
     <div class="explain" id="explain"></div>
     <button class="go hidden" id="nextBtn" onclick="app.nextDrill()">Next →</button>
+    <div class="subnav"><button class="prev" onclick="app.navSubject(-1)">← Prev lesson</button><button class="next" onclick="app.navSubject(1)">Next lesson →</button></div>
   </section>
 
   <!-- SANDBOX -->
@@ -736,7 +743,9 @@ const app={
       "3 · Tactics & traps":"One-move wins and blocks, plus the classic traps.",
       "4 · Reading the board":"The master skill: parity, dead threats, and seeing who wins before it happens." };
     let lastCat="";
-    [...CONCEPTS].sort((a,b)=>order.indexOf(a.cat)-order.indexOf(b.cat)).forEach(t=>{
+    const ordered=[...CONCEPTS].sort((a,b)=>order.indexOf(a.cat)-order.indexOf(b.cat));
+    this.order=ordered.map(t=>t.id);   // sequence for the prev/next lesson nav
+    ordered.forEach(t=>{
       if(t.cat!==lastCat){ const h=document.createElement("div"); h.className="cat"; h.textContent=t.cat; list.appendChild(h);
         if(DESC[t.cat]){ const p=document.createElement("p"); p.className="catdesc"; p.textContent=DESC[t.cat]; list.appendChild(p); }
         lastCat=t.cat; }
@@ -748,9 +757,14 @@ const app={
   home(){ show("home"); },
   lesson(id){ this.cur=CONCEPTS.find(t=>t.id===id);
     $("lessonTitle").textContent=this.cur.name; $("lessonBody").innerHTML=this.cur.lesson;
-    $("lessonGo").classList.toggle("hidden", !DRILLS[id]); show("lesson"); },
+    $("lessonGo").classList.toggle("hidden", !DRILLS[id]); this._syncNav(); show("lesson"); },
   practice(){ this.total=0;this.correct=0;this.streak=0;this.best=0;
-    $("practiceTitle").textContent=this.cur.name; show("practice"); this.nextDrill(); },
+    $("practiceTitle").textContent=this.cur.name; this._syncNav(); show("practice"); this.nextDrill(); },
+  navSubject(dir){ const i=this.order.indexOf(this.cur.id)+dir;
+    if(i>=0 && i<this.order.length) this.lesson(this.order[i]); },
+  _syncNav(){ const i=this.order.indexOf(this.cur.id);
+    document.querySelectorAll(".subnav .prev").forEach(b=>b.disabled=i<=0);
+    document.querySelectorAll(".subnav .next").forEach(b=>b.disabled=i>=this.order.length-1); },
 
   nextDrill(){
     this.answered=false; this.picked=null;
