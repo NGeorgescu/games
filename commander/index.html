@@ -748,36 +748,53 @@ async function findOneAway(){
   const deck=new Set([...realDeck, ...pendingIdx]);
   // the deck's own commander(s) don't count toward "cards in the combo" for the ease index
   const cmdSet=new Set(); for(const cn of [state.cmd, state.cmd2]){ const ix=lookupIdx(idxByName,cn||''); if(ix!=null) cmdSet.add(ix); }
-  const metaOf=new Map(), treqOf=new Map();        // combo array -> its cmeta [req,pre,feat,castMax,castTot] / template-idx list
+  const cmdSet2=cmdSet;
+  const tplcards=bundle.tplcards||[];              // per template (aligned to bundle.tpl): concrete filler card indices in this colour identity
+  // A combo needs its named cards AND, for each template requirement, any one matching "filler" card. A template
+  // is satisfied if you own a filler; if the ONLY missing piece is a template, every unowned filler is a card that
+  // would complete it (so "creature with persist" expands to the real persist creatures you could add).
   const tally=new Map(); let already=0;
+  const pushEntry=(cardIdx, e)=>{ let a=tally.get(cardIdx); if(!a){ a=[]; tally.set(cardIdx,a); } a.push(e); };
   for(let ci=0; ci<bundle.combos.length; ci++){
     const combo=bundle.combos[ci];
     if(combo.some(i=>bannedIdx.has(i))) continue;   // skip combos that need a banned card — can't legally play them
-    let miss=-1, n=0;
-    for(const idx of combo){ if(!deck.has(idx)){ n++; miss=idx; if(n>1) break; } }
-    if(n===0) already++;
-    else if(n===1){ let a=tally.get(miss); if(!a){ a=[]; tally.set(miss,a); } a.push(combo); if(bundle.cmeta) metaOf.set(combo, bundle.cmeta[ci]); if(bundle.treq) treqOf.set(combo, bundle.treq[ci]); }
+    const missNamed=[]; for(const idx of combo){ if(!deck.has(idx)){ missNamed.push(idx); if(missNamed.length>1) break; } }
+    if(missNamed.length>1) continue;
+    const treq=(bundle.treq&&bundle.treq[ci])||[];
+    const fills={}, unsat=[];                        // fills: tplIdx -> owned filler cardIdx; unsat: resolved templates you can't satisfy
+    for(const t of treq){ const fl=tplcards[t]||[]; if(!fl.length) continue;   // unresolved template -> not enforced
+      const owned=fl.find(c=>deck.has(c)); if(owned!=null) fills[t]=owned; else unsat.push(t); }
+    const totalMissing=missNamed.length+unsat.length;
+    if(totalMissing===0){ already++; continue; }
+    if(totalMissing!==1) continue;
+    if(missNamed.length===1) pushEntry(missNamed[0], {ci, add:missNamed[0], fills});
+    else { const t=unsat[0]; for(const P of (tplcards[t]||[])){ if(deck.has(P)||bannedIdx.has(P)) continue; pushEntry(P, {ci, add:P, fillTemplate:t, fills}); } }
   }
-  const scoreOf=combo=>comboScore(combo, metaOf.get(combo), cmdSet);   // {score,n,maxc,tot,req,pre,feat}
-  const tplsOf=combo=>(bundle.tpl && treqOf.get(combo)||[]).map(ti=>bundle.tpl[ti]);   // template-requirement names
-  const potential=combos=>combos.reduce((s,c)=>s+scoreOf(c).score,0);              // card value = sum of its combos' scores
+  const scoreOf=ci=>comboScore(bundle.combos[ci], (bundle.cmeta&&bundle.cmeta[ci])||null, cmdSet2);   // {score,n,maxc,tot,req,pre,feat}
+  const potential=es=>es.reduce((s,e)=>s+scoreOf(e.ci).score,0);
   // default: rank by combos-completed desc, then shortest combo; value mode: rank by total combo value desc.
-  const minLen=arr=>arr.reduce((m,c)=>Math.min(m,c.length),99);
+  const minLen=es=>es.reduce((m,e)=>Math.min(m,bundle.combos[e.ci].length),99);
   const ranked=[...tally.entries()].sort(comboEaseSort
     ? (a,b)=> potential(b[1])-potential(a[1]) || b[1].length-a[1].length || a[0]-b[0]
     : (a,b)=> b[1].length-a[1].length || minLen(a[1])-minLen(b[1]) || a[0]-b[0]);
   const esc=s=>s.replace(/</g,'&lt;');
-  const rowHTML=([idx,combos])=>{
-    const nm=bundle.cards[idx], cnt=combos.length;
-    const ordered=comboEaseSort ? [...combos].sort((a,b)=>scoreOf(b).score-scoreOf(a).score) : combos;
-    const inner=ordered.slice(0,25).map(combo=>{
-      // bold = this row's missing card; italic = a card you've queued to add; plain = already in your real deck
-      const parts=combo.map(i=> i===idx ? '<b>'+esc(bundle.cards[i])+'</b>' : pendingIdx.has(i) ? '<i>'+esc(bundle.cards[i])+'</i>' : esc(bundle.cards[i]));
-      const tpls=tplsOf(combo).map(s=>`<span class="oatpl" title="not a specific card — any card matching this">${esc(s)}</span>`);
+  const rowHTML=([idx,entries])=>{
+    const nm=bundle.cards[idx], cnt=entries.length;
+    const ordered=comboEaseSort ? [...entries].sort((a,b)=>scoreOf(b.ci).score-scoreOf(a.ci).score) : entries;
+    const inner=ordered.slice(0,25).map(e=>{
+      const combo=bundle.combos[e.ci];
+      // bold = the piece you'd add (a named card, or the filler for a template); italic = queued add; plain = owned
+      const named=combo.map(i=> i===e.add ? '<b>'+esc(bundle.cards[i])+'</b>' : pendingIdx.has(i) ? '<i>'+esc(bundle.cards[i])+'</i>' : esc(bundle.cards[i]));
+      const treq=(bundle.treq&&bundle.treq[e.ci])||[];
+      const tparts=treq.map(t=>{
+        if(e.fillTemplate===t) return '<b>'+esc(bundle.cards[e.add])+'</b>';                 // the filler card you'd add for this slot
+        const fc=e.fills&&e.fills[t]; if(fc!=null) return pendingIdx.has(fc)?'<i>'+esc(bundle.cards[fc])+'</i>':esc(bundle.cards[fc]);   // a filler you already own
+        return `<span class="oatpl" title="not a specific card — any card matching this">${esc(bundle.tpl[t])}</span>`;                 // unresolved -> placeholder
+      });
       const q=combo.map(i=>'"'+bundle.cards[i].replace(/"/g,'')+'"').join(' ');
-      return `<a class="oacombo" href="${CSB+enc(q)}" target="_blank" rel="noopener">${comboBadge(scoreOf(combo))}${parts.concat(tpls).join(' + ')}</a>`;
+      return `<a class="oacombo" href="${CSB+enc(q)}" target="_blank" rel="noopener">${comboBadge(scoreOf(e.ci))}${named.concat(tparts).join(' + ')}</a>`;
     }).join('')+(cnt>25?`<div class="oacombo" style="color:var(--muted)">…and ${cnt-25} more</div>`:'');
-    const rowbadge = comboEaseSort ? `<span class="oacnt cidx" title="combo value = sum of this card's combos' scores (higher = more / easier / stronger-payoff combos)">${Math.round(potential(combos))}</span>` : `<span class="oacnt">${cnt}</span>`;
+    const rowbadge = comboEaseSort ? `<span class="oacnt cidx" title="combo value = sum of this card's combos' scores (higher = more / easier / stronger-payoff combos)">${Math.round(potential(entries))}</span>` : `<span class="oacnt">${cnt}</span>`;
     return `<div class="oarow" onclick="toggleOA(${idx})">${rowbadge}`+
       `<label class="oaadd" onclick="event.stopPropagation()" title="add to a simulated deck and recalculate"><input type="checkbox" onchange="toggleAdd(${idx})">add</label>`+
       `<span class="oaname">${esc(nm)} <span class="oacar" id="oacar${idx}">▸</span></span>${priceTag(nm)}</div>`+
