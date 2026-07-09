@@ -822,22 +822,24 @@ async function findOneAway(){
  * its one-away combos' scores, so a card enabling several easy high-payoff combos outranks one enabling more
  * weak combos. difficulty = cards×10 + mana(priciest×2 + total) + req×8 + notable-prereq×5. */
 const PAYOFF = [8, 4, 2, 1];   // feat tier 0 (win/damage/draw) .. 3 (weak trigger loop) -> payoff weight
-const DIFF = { cards:10, mana:1, req:8, pre:5 };
-// cmeta[i] = [req, pre, feat, castMax, castTot]; mana counts only cards cast from hand (castTot; priciest = castMax)
+const DIFF = { cards:10, mana:1, pre:5 };
+// cmeta[i] = [req, pre, feat, castMax, castTot]; mana counts only cards cast from hand (castTot; priciest = castMax).
+// A template requirement (e.g. "a creature with persist") counts as another card you need, so it adds to the card count.
 function comboScore(combo, meta, cmdSet){
-  let n=0; for(const i of combo){ if(cmdSet&&cmdSet.has(i)) continue; n++; }
+  let named=0; for(const i of combo){ if(cmdSet&&cmdSet.has(i)) continue; named++; }
   const req=meta?meta[0]||0:0, pre=meta?meta[1]||0:0, feat=meta&&meta[2]!=null?meta[2]:3, cmax=meta?meta[3]||0:0, ctot=meta?meta[4]||0:0;
+  const n=named+req;             // template requirements are extra cards you still need
   const mana=cmax*2+ctot;
-  const difficulty=n*DIFF.cards + mana*DIFF.mana + req*DIFF.req + pre*DIFF.pre;
+  const difficulty=n*DIFF.cards + mana*DIFF.mana + pre*DIFF.pre;
   const score=PAYOFF[feat]*100/Math.max(difficulty,1);
   return {score, n, maxc:cmax, tot:ctot, req, pre, feat};
 }
 const FEAT_LABEL=['win / damage','card draw / mill','mana / tokens','trigger loop'];
 function comboBadge(x){
   if(!comboEaseSort) return '';
-  const tip=`value ${x.score.toFixed(1)} (higher=better) — ${x.n} card${x.n===1?'':'s'}, payoff: ${FEAT_LABEL[x.feat]}`+
-    `${x.req?`, ${x.req} extra requirement${x.req===1?'':'s'}`:''}${x.pre?', game-state prereq':''}`+
-    `, cast mana ${x.tot}${x.maxc?` (priciest ${x.maxc})`:''}`;
+  const tip=`value ${x.score.toFixed(1)} (higher=better) — ${x.n} card${x.n===1?'':'s'}`+
+    `${x.req?` (incl. ${x.req} non-card requirement${x.req===1?'':'s'})`:''}, payoff: ${FEAT_LABEL[x.feat]}`+
+    `${x.pre?', game-state prereq':''}, cast mana ${x.tot}${x.maxc?` (priciest ${x.maxc})`:''}`;
   return `<span class="cidx cidx-f${x.feat}" title="${tip}">${Math.round(x.score)}</span>`;
 }
 function toggleComboEase(){ comboEaseSort=!comboEaseSort; findOneAway(); }
