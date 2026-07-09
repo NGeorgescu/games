@@ -44,6 +44,8 @@
   .num.taken{cursor:default}
   .num.win{box-shadow:0 0 0 3px #ffe27a inset, 0 0 14px #ffe27a55}
   .num:disabled{cursor:default}
+  /* while morphing between the 1-9 line and the magic square, tiles glide */
+  .pad.morph .num{transition:transform .55s cubic-bezier(.34,1.1,.6,1),background .15s}
 
   /* claimed lists */
   .claims{display:flex;flex-direction:column;gap:8px;margin-top:4px}
@@ -60,18 +62,8 @@
   .banner.you{color:#7ee0a3} .banner.cpu{color:#ff8088} .banner.draw{color:var(--muted)}
   .banner small{display:block;font-weight:500;font-size:13px;color:var(--muted);margin-top:3px}
 
-  /* the reveal: Lo Shu magic square */
-  .squarewrap{margin-top:10px}
-  .square{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:280px;margin:8px auto 4px;position:relative}
-  .cell{position:relative;aspect-ratio:1/1;border-radius:12px;border:1px solid var(--line);background:#12151b;
-    display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800;
-    font-variant-numeric:tabular-nums;color:var(--muted);transition:background .2s,color .2s}
-  .cell.you{background:linear-gradient(180deg,#173247,#102534);border-color:var(--you);color:#cdeaff}
-  .cell.cpu{background:linear-gradient(180deg,#3a1620,#2a1017);border-color:var(--cpu);color:#ffd6da}
-  .cell.win{box-shadow:0 0 0 3px #ffe27a inset, 0 0 16px #ffe27a55}
-  .sqline{stroke:#ffe27a;stroke-width:6;stroke-linecap:round;filter:drop-shadow(0 0 4px #ffe27a)}
-  #sqSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
-  .sqnote{color:var(--muted);font-size:12.5px;line-height:1.5;text-align:center;margin-top:6px}
+  /* the reveal caption (pad morphs into the Lo Shu magic square) */
+  .sqnote{color:var(--muted);font-size:12.5px;line-height:1.5;text-align:center;margin:8px 2px 2px}
 
   #howto summary{cursor:pointer;font-weight:700;font-size:15px;color:var(--ink);list-style:none}
   #howto summary::-webkit-details-marker{display:none}
@@ -100,12 +92,14 @@
       <span class="lbl">Computer
         <span class="seg" id="diffSeg">
           <button data-diff="perfect" class="on">Perfect</button>
+          <button data-diff="medium">Medium</button>
           <button data-diff="easy">Easy</button>
         </span>
       </span>
       <span class="lbl">First
         <span class="seg" id="firstSeg">
-          <button data-first="you" class="on">You</button>
+          <button data-first="alt" class="on">Alternate</button>
+          <button data-first="you">You</button>
           <button data-first="cpu">Computer</button>
         </span>
       </span>
@@ -123,6 +117,10 @@
     </div>
 
     <div class="pad" id="pad"></div>
+    <!-- the party trick: caption shown when the pad morphs into the magic square -->
+    <div class="sqnote hidden" id="sqNote">The <b>Lo Shu magic square</b> — every row, column and
+      diagonal sums to <b>15</b>. Any winning triple lines up as a straight row, column or
+      diagonal. It was tic-tac-toe all along.</div>
 
     <div class="claims">
       <div class="claim"><div class="who"><span class="dot you"></span>You</div><div class="chips" id="youChips"></div></div>
@@ -130,16 +128,6 @@
     </div>
 
     <div class="banner hidden" id="banner"></div>
-
-    <!-- the party trick: hidden until revealed -->
-    <div class="squarewrap hidden" id="squareWrap">
-      <div class="muted" style="text-align:center;font-size:13px">The Lo Shu magic square — every row, column and diagonal sums to 15</div>
-      <div class="square" id="square">
-        <svg id="sqSvg" viewBox="0 0 100 100" preserveAspectRatio="none"><line id="sqLineEl" class="sqline hidden" x1="0" y1="0" x2="0" y2="0"/></svg>
-      </div>
-      <div class="sqnote">Your picks land on cells. A winning triple that sums to 15 is exactly a straight
-        line — a row, column or diagonal. It was tic-tac-toe all along.</div>
-    </div>
   </div>
 
   <div class="card">
@@ -238,7 +226,50 @@ function minimax(board, player){
   return best;
 }
 
-// Pick the CPU's cell. 'perfect' => minimax (never loses); 'easy' => random.
+// The empty cell that would complete a line for player p (an immediate win),
+// or -1 if none. Used by the 'medium' heuristic to win / block / fork.
+function winningCell(board, p){
+  for(const [a,b,c] of LINES){
+    const v = [board[a],board[b],board[c]];
+    if(v.filter(x=>x===p).length===2 && v.filter(x=>!x).length===1)
+      return [a,b,c][v.indexOf(null)];
+  }
+  return -1;
+}
+// How many lines currently give p two-in-a-row with the third empty — i.e. the
+// number of immediate threats p is sitting on. Two threats at once is a fork.
+function threatCount(board, p){
+  let t = 0;
+  for(const [a,b,c] of LINES){
+    const v = [board[a],board[b],board[c]];
+    if(v.filter(x=>x===p).length===2 && v.filter(x=>!x).length===1) t++;
+  }
+  return t;
+}
+// 'medium' CPU: win, then block, then fork, otherwise develop on an EDGE cell
+// (the Lo-Shu edges 1/3/7/9). It sets its own forks up but — unlike 'perfect' —
+// never blocks the human's forks, so a player who knows the trick can still win.
+function mediumCell(board, rnd){
+  rnd = rnd || Math.random;
+  const empties = [];
+  for(let c=0;c<9;c++) if(!board[c]) empties.push(c);
+  if(!empties.length) return -1;
+  const win = winningCell(board,'C'); if(win>=0) return win;      // 1. take the win
+  const blk = winningCell(board,'H'); if(blk>=0) return blk;      // 2. block their win
+  for(const c of empties){                                        // 3. make a fork
+    board[c] = 'C'; const forks = threatCount(board,'C')>=2; board[c] = null;
+    if(forks) return c;
+  }
+  const edges = [1,3,5,7].filter(c=>!board[c]);                   // 4. solo edge move
+  if(edges.length) return edges[Math.floor(rnd()*edges.length)];
+  if(!board[4]) return 4;                                         // 5. else centre,
+  const corners = [0,2,6,8].filter(c=>!board[c]);                 //    then a corner,
+  if(corners.length) return corners[Math.floor(rnd()*corners.length)];
+  return empties[0];                                              //    then anything
+}
+
+// Pick the CPU's cell. 'perfect' => minimax (never loses); 'medium' => heuristic
+// (win/block/fork, edge-first, beatable); 'easy' => random.
 // rnd defaults to Math.random; injectable for deterministic tests.
 function cpuCell(board, difficulty, rnd){
   rnd = rnd || Math.random;
@@ -246,6 +277,7 @@ function cpuCell(board, difficulty, rnd){
   for(let c=0;c<9;c++) if(!board[c]) empties.push(c);
   if(empties.length===0) return -1;
   if(difficulty==='easy') return empties[Math.floor(rnd()*empties.length)];
+  if(difficulty==='medium') return mediumCell(board, rnd);
   return minimax(board, 'C').cell;
 }
 /* __CORE_END__ */
@@ -253,7 +285,8 @@ function cpuCell(board, difficulty, rnd){
 /* expose for Node */
 if (typeof module !== 'undefined' && module.exports){
   module.exports = {MAGIC,CELL_OF,LINES,LINE_NUMS,winningTriple,triplesSummingTo15,
-                    winnerOnBoard,boardFull,minimax,cpuCell};
+                    winnerOnBoard,boardFull,minimax,cpuCell,
+                    winningCell,threatCount,mediumCell};
 }
 </script>
 
@@ -264,13 +297,16 @@ if (typeof document !== 'undefined') (function(){
 const $ = id => document.getElementById(id);
 
 const G = { board:null, taken:null, over:false, turn:'H', winLine:null,
-            diff:'perfect', first:'you', revealed:false, busy:false };
+            diff:'perfect', first:'alt', altNext:'H', revealed:false, busy:false };
 
 function reset(){
   G.board = new Array(9).fill(null);   // by cell
   G.taken = {};                        // number -> 'H'|'C'
   G.over = false; G.winLine = null; G.busy = false;
-  G.turn = (G.first==='you') ? 'H' : 'C';
+  // 'you' => human starts, 'cpu' => computer starts, 'alt' => swap each new game.
+  if(G.first==='you')      G.turn = 'H';
+  else if(G.first==='cpu') G.turn = 'C';
+  else { G.turn = G.altNext; G.altNext = (G.altNext==='H') ? 'C' : 'H'; }
   $('banner').classList.add('hidden');
   render();
   if(G.turn==='C'){ G.busy = true; setTimeout(cpuTurn, 420); }
@@ -320,6 +356,7 @@ function render(){
     const cls = numClass(n);
     b.className = 'num' + (cls?(' '+cls):'') + (G.taken[n]?' taken':'') + (winNums.has(n)?' win':'');
     b.textContent = n;
+    b.dataset.num = n;
     const disabled = G.over || G.busy || !!G.taken[n] || G.turn!=='H';
     b.disabled = disabled;
     if(!disabled) b.onclick = () => humanPick(n);
@@ -341,7 +378,32 @@ function render(){
     txt.textContent = G.turn==='H' ? 'Your move — pick a number'
                                    : (G.busy ? 'Computer thinking…' : 'Computer to move');
   }
-  renderSquare(winNums);
+  // freshly rebuilt tiles: place them (instantly) in whichever arrangement is active
+  positionPad(false);
+}
+
+/* ---------- pad <-> magic-square morph ---------- */
+// Move each pad tile from its 1-9 line position to its Lo Shu cell (or back).
+// animate=true lets the .morph transition run; false snaps (used after re-render).
+function positionPad(animate){
+  const pad = $('pad');
+  const tiles = Array.from(pad.children);
+  if(!tiles.length) return;
+  const step = tiles[0].offsetWidth + 10;   // tile side + pad gap (see .pad{gap:10px})
+  if(animate) pad.classList.add('morph');
+  for(const t of tiles){
+    const n = +t.dataset.num;
+    if(G.revealed){
+      const from = n - 1, to = CELL_OF[n];   // reading-order index -> magic cell index
+      const dx = ((to%3) - (from%3)) * step;
+      const dy = (((to/3)|0) - ((from/3)|0)) * step;
+      t.style.transform = `translate(${dx}px,${dy}px)`;
+    } else {
+      t.style.transform = '';
+    }
+  }
+  // drop the transition class once the glide is done so tap feedback stays snappy
+  if(animate) setTimeout(() => pad.classList.remove('morph'), 600);
 }
 
 function chips(el, who, winNums){
@@ -369,45 +431,10 @@ function showBanner(who){
     const t = trip.slice().sort((x,y)=>x-y);
     const sumTxt = `${t[0]} + ${t[1]} + ${t[2]} = 15`;
     b.innerHTML = (win ? 'You win! 🎉' : 'Computer wins.')
-      + `<small>${win?'Your':'Its'} three-in-a-row: ${sumTxt}. Reveal the square to see the line.</small>`;
+      + `<small>${win?'Your':'Its'} three-in-a-row: ${sumTxt}. Reveal the magic square to watch them line up.</small>`;
   }
   b.classList.remove('hidden');
   $('turnTxt').textContent = who==='draw' ? 'Draw' : (who==='H'?'You win!':'Computer wins');
-}
-
-/* ---------- magic-square reveal ---------- */
-// cell centre in the 0..100 viewBox: 3 columns/rows, cells at ~16.7/50/83.3
-function cellCenter(i){
-  const col = i%3, r = (i/3)|0;
-  return { x: 16.667 + col*33.333, y: 16.667 + r*33.333 };
-}
-function renderSquare(winNums){
-  const sq = $('square');
-  // (re)build the 9 cells but keep the svg overlay element
-  const svg = $('sqSvg');
-  // remove old cells
-  Array.from(sq.querySelectorAll('.cell')).forEach(e=>e.remove());
-  const winSet = new Set(G.winLine || []);
-  const frag = document.createDocumentFragment();
-  for(let i=0;i<9;i++){
-    const n = MAGIC[i];
-    const owner = G.board[i];
-    const d = document.createElement('div');
-    d.className = 'cell' + (owner==='H'?' you':owner==='C'?' cpu':'') + (winSet.has(i)?' win':'');
-    d.textContent = n;
-    frag.appendChild(d);
-  }
-  sq.insertBefore(frag, svg);
-  // winning line stroke
-  const el = $('sqLineEl');
-  if(G.winLine){
-    const a = cellCenter(G.winLine[0]), c = cellCenter(G.winLine[2]);
-    el.setAttribute('x1', a.x); el.setAttribute('y1', a.y);
-    el.setAttribute('x2', c.x); el.setAttribute('y2', c.y);
-    el.classList.remove('hidden');
-  } else {
-    el.classList.add('hidden');
-  }
 }
 
 /* ---------- controls ---------- */
@@ -426,9 +453,10 @@ $('firstSeg').addEventListener('click', e=>{
 $('newBtn').onclick = reset;
 $('revealBtn').onclick = () => {
   G.revealed = !G.revealed;
-  $('squareWrap').classList.toggle('hidden', !G.revealed);
-  $('revealBtn').textContent = G.revealed ? 'Hide the magic square' : 'Reveal the magic square';
+  $('revealBtn').textContent = G.revealed ? 'Back to 1–9 order' : 'Reveal the magic square';
   $('revealBtn').setAttribute('aria-pressed', G.revealed ? 'true':'false');
+  $('sqNote').classList.toggle('hidden', !G.revealed);
+  positionPad(true);   // glide the existing tiles into (or out of) the magic square
 };
 
 reset();
