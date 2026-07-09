@@ -1,1 +1,1 @@
-{"version":"5.5.0","timestamp":"2026-07-08T21:56:48.332Z","combos":97537,"source":"https://json.commanderspellbook.com/variants.json","index":"v2: cmc[] + cmeta{mv,req,pre,feat,pop}"}
+{"version":"5.5.2","timestamp":"2026-07-09T03:14:16.191Z","combos":97606,"source":"https://json.commanderspellbook.com/variants.json","index":"v3: cmeta[req,pre,feat,castMax,castTot] + tpl/treq template requirements; mana = hand-cast cards only"}

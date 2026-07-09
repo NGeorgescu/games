@@ -86,6 +86,7 @@
   .oacombos{padding:4px 11px 9px 51px;border-bottom:1px solid var(--line);background:#0d130f}
   .oacombos:last-child{border-bottom:0}
   .oacombo{display:block;color:var(--accent);text-decoration:none;font-size:12.5px;padding:4px 0;line-height:1.45}
+  .oatpl{font-style:italic;color:#c3a7e0;border:1px dashed #4a3d63;border-radius:5px;padding:0 4px}   /* a required piece that isn't a specific card */
   .cidx{display:inline-block;min-width:2.2em;text-align:center;font-size:11px;font-weight:800;border-radius:6px;
     padding:1px 5px;margin-right:7px;background:#1c2230;color:#9aa3b2;vertical-align:baseline}
   .oacnt.cidx{margin-right:0}
@@ -747,7 +748,7 @@ async function findOneAway(){
   const deck=new Set([...realDeck, ...pendingIdx]);
   // the deck's own commander(s) don't count toward "cards in the combo" for the ease index
   const cmdSet=new Set(); for(const cn of [state.cmd, state.cmd2]){ const ix=lookupIdx(idxByName,cn||''); if(ix!=null) cmdSet.add(ix); }
-  const metaOf=new Map();                          // combo array -> its cmeta {mv,req,pre,feat,pop}
+  const metaOf=new Map(), treqOf=new Map();        // combo array -> its cmeta [req,pre,feat,castMax,castTot] / template-idx list
   const tally=new Map(); let already=0;
   for(let ci=0; ci<bundle.combos.length; ci++){
     const combo=bundle.combos[ci];
@@ -755,9 +756,10 @@ async function findOneAway(){
     let miss=-1, n=0;
     for(const idx of combo){ if(!deck.has(idx)){ n++; miss=idx; if(n>1) break; } }
     if(n===0) already++;
-    else if(n===1){ let a=tally.get(miss); if(!a){ a=[]; tally.set(miss,a); } a.push(combo); if(bundle.cmeta) metaOf.set(combo, bundle.cmeta[ci]); }
+    else if(n===1){ let a=tally.get(miss); if(!a){ a=[]; tally.set(miss,a); } a.push(combo); if(bundle.cmeta) metaOf.set(combo, bundle.cmeta[ci]); if(bundle.treq) treqOf.set(combo, bundle.treq[ci]); }
   }
-  const scoreOf=combo=>comboScore(combo, metaOf.get(combo), bundle.cmc, cmdSet);   // {score,n,maxc,tot,req,pre,feat,mv}
+  const scoreOf=combo=>comboScore(combo, metaOf.get(combo), cmdSet);   // {score,n,maxc,tot,req,pre,feat}
+  const tplsOf=combo=>(bundle.tpl && treqOf.get(combo)||[]).map(ti=>bundle.tpl[ti]);   // template-requirement names
   const potential=combos=>combos.reduce((s,c)=>s+scoreOf(c).score,0);              // card value = sum of its combos' scores
   // default: rank by combos-completed desc, then shortest combo; value mode: rank by total combo value desc.
   const minLen=arr=>arr.reduce((m,c)=>Math.min(m,c.length),99);
@@ -771,8 +773,9 @@ async function findOneAway(){
     const inner=ordered.slice(0,25).map(combo=>{
       // bold = this row's missing card; italic = a card you've queued to add; plain = already in your real deck
       const parts=combo.map(i=> i===idx ? '<b>'+esc(bundle.cards[i])+'</b>' : pendingIdx.has(i) ? '<i>'+esc(bundle.cards[i])+'</i>' : esc(bundle.cards[i]));
+      const tpls=tplsOf(combo).map(s=>`<span class="oatpl" title="not a specific card — any card matching this">${esc(s)}</span>`);
       const q=combo.map(i=>'"'+bundle.cards[i].replace(/"/g,'')+'"').join(' ');
-      return `<a class="oacombo" href="${CSB+enc(q)}" target="_blank" rel="noopener">${comboBadge(scoreOf(combo))}${parts.join(' + ')}</a>`;
+      return `<a class="oacombo" href="${CSB+enc(q)}" target="_blank" rel="noopener">${comboBadge(scoreOf(combo))}${parts.concat(tpls).join(' + ')}</a>`;
     }).join('')+(cnt>25?`<div class="oacombo" style="color:var(--muted)">…and ${cnt-25} more</div>`:'');
     const rowbadge = comboEaseSort ? `<span class="oacnt cidx" title="combo value = sum of this card's combos' scores (higher = more / easier / stronger-payoff combos)">${Math.round(potential(combos))}</span>` : `<span class="oacnt">${cnt}</span>`;
     return `<div class="oarow" onclick="toggleOA(${idx})">${rowbadge}`+
@@ -787,7 +790,7 @@ async function findOneAway(){
       `<a href="#" onclick="clearAdds();return false;" style="font-size:12px">clear all</a></div>`+
       `<button class="btn ghost" style="width:100%;margin-top:6px" onclick="copyOneAway(this)">⧉ Copy the ${pendingAdds.size} card${pendingAdds.size===1?'':'s'} you added</button>`;
   }
-  h+=`<div class="oahead">From the Commander Spellbook combo database (v${bundle.v}, colors ${code}). ${pendingAdds.size?'With those adds you':'You'} complete <b>${already}</b> combo${already===1?'':'s'}. The number on each card = how many <i>more</i> combos it would finish — tick <b>add</b> to drop it into the simulated deck and recalculate, or tap a card to list its combos (cards you'd add show <i>italic</i>).</div>`;
+  h+=`<div class="oahead">From the Commander Spellbook combo database (v${bundle.v}, colors ${code}). ${pendingAdds.size?'With those adds you':'You'} complete <b>${already}</b> combo${already===1?'':'s'}. The number on each card = how many <i>more</i> combos it would finish — tick <b>add</b> to drop it into the simulated deck and recalculate, or tap a card to list its combos (cards you'd add show <i>italic</i>; <span class="oatpl">dashed</span> pieces are requirements that aren't a specific card, e.g. any creature with persist).</div>`;
   if(ranked.length && bundle.cmeta){
     h+=`<button class="btn ghost" onclick="toggleComboEase()" title="Combo value — higher is better. A combo scores higher for a stronger payoff (infinite damage/draw beats death-trigger loops), fewer cards, cheaper mana, and fewer requirements. A card's value is the SUM of its combos' scores, so many easy strong combos beat a few weak ones.">⚖ ${comboEaseSort?'Ranked by combo value — switch back to most combos':'Rank by combo value'}</button>`;
     if(comboEaseSort) h+=`<div class="oahead">Badges show <b>combo value</b> (higher = better). A card's number is the sum of its combos' values, so a card enabling several easy high-payoff combos outranks one that enables more weak combos. Tap a card to see each combo's value; hover a badge for the breakdown.</div>`;
@@ -820,21 +823,21 @@ async function findOneAway(){
  * weak combos. difficulty = cards×10 + mana(priciest×2 + total) + req×8 + notable-prereq×5. */
 const PAYOFF = [8, 4, 2, 1];   // feat tier 0 (win/damage/draw) .. 3 (weak trigger loop) -> payoff weight
 const DIFF = { cards:10, mana:1, req:8, pre:5 };
-function comboScore(combo, meta, cmc, cmdSet){
-  let n=0, maxc=0, tot=0;
-  for(const i of combo){ if(cmdSet&&cmdSet.has(i)) continue; n++; const c=(cmc&&cmc[i])||0; if(c>maxc) maxc=c; tot+=c; }
-  const req=meta?meta[0]||0:0, pre=meta?meta[1]||0:0, feat=meta&&meta[2]!=null?meta[2]:3, mv=meta?meta[3]||0:0;
-  const mana=maxc*2+tot;
+// cmeta[i] = [req, pre, feat, castMax, castTot]; mana counts only cards cast from hand (castTot; priciest = castMax)
+function comboScore(combo, meta, cmdSet){
+  let n=0; for(const i of combo){ if(cmdSet&&cmdSet.has(i)) continue; n++; }
+  const req=meta?meta[0]||0:0, pre=meta?meta[1]||0:0, feat=meta&&meta[2]!=null?meta[2]:3, cmax=meta?meta[3]||0:0, ctot=meta?meta[4]||0:0;
+  const mana=cmax*2+ctot;
   const difficulty=n*DIFF.cards + mana*DIFF.mana + req*DIFF.req + pre*DIFF.pre;
   const score=PAYOFF[feat]*100/Math.max(difficulty,1);
-  return {score, n, maxc, tot, req, pre, feat, mv};
+  return {score, n, maxc:cmax, tot:ctot, req, pre, feat};
 }
 const FEAT_LABEL=['win / damage','card draw / mill','mana / tokens','trigger loop'];
 function comboBadge(x){
   if(!comboEaseSort) return '';
   const tip=`value ${x.score.toFixed(1)} (higher=better) — ${x.n} card${x.n===1?'':'s'}, payoff: ${FEAT_LABEL[x.feat]}`+
     `${x.req?`, ${x.req} extra requirement${x.req===1?'':'s'}`:''}${x.pre?', game-state prereq':''}`+
-    `, mana ${x.maxc} top / ${x.tot} total`;
+    `, cast mana ${x.tot}${x.maxc?` (priciest ${x.maxc})`:''}`;
   return `<span class="cidx cidx-f${x.feat}" title="${tip}">${Math.round(x.score)}</span>`;
 }
 function toggleComboEase(){ comboEaseSort=!comboEaseSort; findOneAway(); }
