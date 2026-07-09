@@ -131,11 +131,13 @@
   <section id="start">
     <h1>Hue Sense</h1>
     <p class="sub">A quiz for the colors whose <i>names</i> you know but whose <i>coordinates</i> you don't —
-    vermilion, chartreuse, cerulean. Each round locks the one axis the name gives away (azure is
-    <i>obviously</i> blue) and asks you to place the other two on the square.</p>
+    vermilion, chartreuse, cerulean. <b>Hue is always the left–right axis</b> — you place where the color
+    sits across the spectrum. Each round locks whichever of saturation or brightness the color makes
+    obvious, and asks you to place the hue plus the one still in play (up–down).</p>
     <div class="card small">
-      Tap where you think the color sits. The third HSB axis is fixed for you — baked into the gradient.
-      You'll be scored by how close you land, then shown the true spot.
+      Tap where you think the color sits. Left–right is always <b>hue</b>; up–down is <b>saturation</b> or
+      <b>brightness</b>. The locked axis is baked into the gradient. You'll be scored by how close you land,
+      then shown the true spot.
     </div>
     <button onclick="game.start()">Place — 8 colors on a gradient</button>
     <div class="modegrid">
@@ -380,18 +382,20 @@ const COLORS = [
   {n:"Ecru",hex:"#C2B280"},         {n:"Kobicha",hex:"#6B4423"},       {n:"Damask",hex:"#E5989B"},
 ];
 
-/* derive lock axis + rationale for any color that wasn't hand-curated:
-   vivid (high saturation) -> lock S, quiz hue & brightness;
-   bright but not fully saturated -> lock B, quiz hue & saturation;
-   otherwise (muted / dark / pale) -> lock H, quiz saturation & brightness. */
+/* derive the locked axis. Hue is ALWAYS a free (left-right) axis, so we never
+   lock H — the name's job is to make you place the hue, not skip it. We lock
+   whichever of saturation / brightness the color makes a given:
+     near-pure (high saturation)  -> lock S, quiz hue & brightness;
+     near-max bright              -> lock B, quiz hue & saturation;
+     otherwise                    -> lock whichever sits nearer an extreme
+                                     (the more "maxed/mined", least-informative trait). */
 function deriveLock(h,s,v){
   if(s>=90) return "S";
-  if(v>=90 && s>=30) return "B";
-  return "H";
+  if(v>=95) return "B";
+  return Math.abs(v-50) >= Math.abs(s-50) ? "B" : "S";
 }
 const WHY_TMPL = {
   S:"It's a near-pure, vivid color — that's the giveaway. What's left is the exact hue and how bright it sits.",
-  H:"The name pins the hue; what's left is how saturated and how light or dark it really is.",
 };
 // name-origin blurbs, scraped from Wikipedia opening sentences (memory hooks).
 const BLURBS = {
@@ -527,8 +531,13 @@ function wikiUrl(name){ return "https://en.wikipedia.org/w/index.php?title=Speci
 
 function prep(c){
   const t=rgb2hsv(...hex2rgb(c.hex));
+  // Hue is always a free axis now: re-derive any hand-curated H-lock to S/B and
+  // drop its old (hue-fixed) rationale, which no longer describes the round.
+  if(c.lock==="H"){ c.lock=deriveLock(t[0],t[1],t[2]); c.why=""; }
   if(!c.lock) c.lock=deriveLock(t[0],t[1],t[2]);
-  if(!c.why)  c.why=WHY_TMPL[c.lock]||"";   // B-locked colors intentionally show no axis blurb
+  // only genuinely vivid (S-locked, high-saturation) colors get the "it's pure" nudge;
+  // B-locked and muted S-locked colors intentionally show no axis blurb.
+  if(c.why===undefined) c.why = (c.lock==="S" && t[1]>=90) ? WHY_TMPL.S : "";
   c.blurb = BLURBS[c.n] || "";
   return c;
 }
