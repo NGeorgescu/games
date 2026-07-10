@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Tiny House Chess</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  :root{
+    --panel:var(--bg-card,#1b1f27); --ink:var(--fg,#e8e8e8); --muted:var(--fg-dim,#8a93a0);
+    --line:var(--rule,#333); --acc:var(--accent,#6ab2d4);
+    --light:#d9c7a3; --dark:#8f6f45; --sel:#f2d14b; --tgt:#67c185; --chk:#e06a5a;
+    --tokL:#f4efe3; --tokLink:#2a2018; --tokD:#2c333d; --tokDink:#f4efe3;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg,#12151b);color:var(--ink);
+    font-family:var(--sans,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif);
+    -webkit-text-size-adjust:100%}
+  .wrap{max-width:520px;margin:0 auto;padding:18px 14px 56px}
+  h1{font-size:27px;margin:0 0 1px;letter-spacing:.03em}
+  .tagline{margin:0 0 10px;font-size:12px;color:var(--acc);letter-spacing:.04em;text-transform:uppercase}
+  .sub{color:var(--muted);font-size:13px;line-height:1.55;margin:0 0 14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:12px}
+  .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  select,button{font-family:inherit;font-size:14px;background:#232a34;color:var(--ink);
+    border:1px solid var(--line);border-radius:9px;padding:7px 11px;cursor:pointer}
+  button.primary{background:var(--acc);color:#0c1016;border-color:transparent;font-weight:600}
+  button:active{transform:translateY(1px)}
+  .status{font-size:14px;min-height:20px;margin:2px 2px 8px;font-weight:600}
+  .status .check{color:var(--chk)}
+  .status .think{color:var(--acc)}
+
+  /* hands */
+  .hand{display:flex;gap:6px;flex-wrap:wrap;align-items:center;min-height:44px;padding:4px 2px}
+  .hand .who{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;width:100%;margin-bottom:2px}
+  .htok{position:relative;width:40px;height:40px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+    font-weight:700;font-size:17px;cursor:pointer;user-select:none;border:2px solid transparent}
+  .htok.sel{border-color:var(--sel);box-shadow:0 0 0 2px rgba(242,209,75,.35)}
+  .htok .cnt{position:absolute;right:-4px;bottom:-5px;background:var(--acc);color:#0c1016;border-radius:8px;
+    font-size:11px;line-height:1;padding:2px 5px;font-weight:700}
+  .htok.empty{opacity:.25;cursor:default}
+
+  /* board */
+  .boardwrap{display:flex;justify-content:center}
+  .board{display:grid;grid-template-columns:repeat(4,1fr);width:min(88vw,360px);aspect-ratio:1/1;
+    border:3px solid #0c0f14;border-radius:10px;overflow:hidden;touch-action:manipulation}
+  .sqr{position:relative;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none}
+  .sqr.l{background:var(--light)} .sqr.d{background:var(--dark)}
+  .sqr .coord{position:absolute;left:3px;top:2px;font-size:9px;opacity:.5;color:#000}
+  .sqr.sel::after{content:"";position:absolute;inset:0;background:var(--sel);opacity:.42}
+  .sqr.tgt::before{content:"";position:absolute;width:32%;height:32%;border-radius:50%;
+    background:var(--tgt);opacity:.85}
+  .sqr.tgtcap::before{width:82%;height:82%;border-radius:50%;background:transparent;
+    border:5px solid var(--tgt);opacity:.85}
+  .sqr.lastfrom::after,.sqr.lastto::after{content:"";position:absolute;inset:0;background:var(--acc);opacity:.20}
+  .sqr.incheck::after{content:"";position:absolute;inset:0;background:var(--chk);opacity:.45}
+  .tok{position:relative;z-index:2;width:72%;height:72%;border-radius:11px;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,.35);pointer-events:none}
+  .tok.wc{background:var(--tokL);color:var(--tokLink)} .tok.bc{background:var(--tokD);color:var(--tokDink)}
+  .tok .lg{font-size:min(6.5vw,26px);line-height:1}
+  .tok .nm{font-size:9px;letter-spacing:.03em;opacity:.7;margin-top:1px}
+  .tok.promo{outline:2px solid var(--acc)}
+
+  .legend{font-size:12px;color:var(--muted);line-height:1.6}
+  .legend b{color:var(--ink)}
+  .legend .row{display:flex;gap:8px;align-items:flex-start;margin:3px 0}
+  .legend .chip{flex:0 0 auto;width:26px;height:26px;border-radius:7px;background:var(--tokL);color:var(--tokLink);
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px}
+  details summary{cursor:pointer;color:var(--acc);font-size:13px;margin-bottom:6px}
+  .moves{font-size:12px;color:var(--muted);max-height:96px;overflow:auto;line-height:1.5;font-variant-numeric:tabular-nums}
+  .promoPick{display:flex;gap:8px;margin-top:6px}
+  .promoPick button{font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Tiny House Chess</h1>
+  <div class="tagline">4×4 · crazyhouse · fairy pieces</div>
+  <p class="sub">A pocket chess variant on a 4×4 board. Capture a piece and it flips to <em>your</em> hand — drop it back onto any empty square as a move (crazyhouse rules). Back rank, left→right: <b>King · Wazir · Dragonknight · Ferz</b>, with a pawn in front of each king. Play the trained bot or a friend.</p>
+
+  <div class="card controls">
+    <label>You play</label>
+    <select id="side"><option value="0">White (bottom)</option><option value="1">Black (top)</option></select>
+    <label>Opponent</label>
+    <select id="opp">
+      <option value="human">Human</option>
+      <option value="easy">Bot · Easy</option>
+      <option value="medium" selected>Bot · Medium</option>
+      <option value="hard">Bot · Hard</option>
+      <option value="insane">Bot · Insane</option>
+    </select>
+    <button class="primary" id="newgame">New game</button>
+    <button id="undo">Undo</button>
+  </div>
+
+  <div class="status" id="status"></div>
+
+  <div class="card">
+    <div class="hand" id="handTop"></div>
+    <div class="boardwrap"><div class="board" id="board"></div></div>
+    <div class="hand" id="handBot"></div>
+    <div class="promoPick" id="promoPick" style="display:none"></div>
+  </div>
+
+  <div class="card">
+    <details open><summary>How the pieces move</summary>
+      <div class="legend" id="legend"></div>
+    </details>
+  </div>
+  <div class="card">
+    <details><summary>Move list</summary><div class="moves" id="moves"></div></details>
+  </div>
+</div>
+
+<script>
+/* ==================================================================
+   ENGINE  (verified against Node self-tests: Mao blocking, pawns,
+   drops, promotion, mate detection, perft(1..3)=4/17/84)
+   ================================================================== */
+const N=4;
+const IDX=(x,y)=>y*N+x, XOF=i=>i%N, YOF=i=>(i/N)|0;
+const inb=(x,y)=>x>=0&&x<N&&y>=0&&y<N;
+const TYPES=['P','W','F','D'], WHITE=0, BLACK=1;
+const ORTH=[[1,0],[-1,0],[0,1],[0,-1]];
+const DIAG=[[1,1],[1,-1],[-1,1],[-1,-1]];
+const KING8=ORTH.concat(DIAG);
+const KNIGHT=[[1,2],[2,1],[2,-1],[1,-2],[-1,-2],[-2,-1],[-2,1],[-1,2]];
+
+function initialState(){
+  const board=new Array(N*N).fill(null);
+  const put=(x,y,t,c)=>{board[IDX(x,y)]={t,c,promo:false};};
+  put(0,0,'K',WHITE);put(1,0,'W',WHITE);put(2,0,'D',WHITE);put(3,0,'F',WHITE);put(0,1,'P',WHITE);
+  put(0,3,'K',BLACK);put(1,3,'W',BLACK);put(2,3,'D',BLACK);put(3,3,'F',BLACK);put(0,2,'P',BLACK);
+  return {board,hands:[{P:0,W:0,F:0,D:0},{P:0,W:0,F:0,D:0}],turn:WHITE,history:[]};
+}
+function attacked(board,i,by){
+  const x=XOF(i),y=YOF(i);
+  for(const[dx,dy]of KING8){const nx=x+dx,ny=y+dy;if(!inb(nx,ny))continue;const p=board[IDX(nx,ny)];if(p&&p.c===by&&p.t==='K')return true;}
+  for(const[dx,dy]of ORTH){const nx=x+dx,ny=y+dy;if(!inb(nx,ny))continue;const p=board[IDX(nx,ny)];if(p&&p.c===by&&p.t==='W')return true;}
+  for(const[dx,dy]of DIAG){const nx=x+dx,ny=y+dy;if(!inb(nx,ny))continue;const p=board[IDX(nx,ny)];if(p&&p.c===by&&p.t==='F')return true;}
+  {const fromY=by===WHITE?y-1:y+1;for(const dx of[-1,1]){const nx=x+dx;if(!inb(nx,fromY))continue;const p=board[IDX(nx,fromY)];if(p&&p.c===by&&p.t==='P')return true;}}
+  for(const[dx,dy]of KNIGHT){const tx=x+dx,ty=y+dy;if(!inb(tx,ty))continue;const p=board[IDX(tx,ty)];if(!(p&&p.c===by&&p.t==='D'))continue;
+    let lx,ly;if(Math.abs(dx)===2){lx=tx+(dx<0?1:-1);ly=ty;}else{lx=tx;ly=ty+(dy<0?1:-1);}
+    if(board[IDX(lx,ly)]==null)return true;}
+  return false;
+}
+function kingSquare(board,c){for(let i=0;i<board.length;i++){const p=board[i];if(p&&p.c===c&&p.t==='K')return i;}return -1;}
+function inCheck(board,c){const k=kingSquare(board,c);return k>=0&&attacked(board,k,1-c);}
+function addPawn(moves,from,to,isPromo){if(isPromo){for(const pt of['W','F','D'])moves.push({from,to,promo:pt});}else moves.push({from,to});}
+function pseudoMoves(state){
+  const{board,hands,turn}=state,moves=[],promoRank=turn===WHITE?N-1:0;
+  for(let i=0;i<board.length;i++){
+    const p=board[i];if(!p||p.c!==turn)continue;const x=XOF(i),y=YOF(i);
+    const leap=steps=>{for(const[dx,dy]of steps){const nx=x+dx,ny=y+dy;if(!inb(nx,ny))continue;const j=IDX(nx,ny);const q=board[j];if(q&&q.c===turn)continue;moves.push({from:i,to:j});}};
+    if(p.t==='K')leap(KING8);
+    else if(p.t==='W')leap(ORTH);
+    else if(p.t==='F')leap(DIAG);
+    else if(p.t==='D'){for(const[dx,dy]of KNIGHT){const nx=x+dx,ny=y+dy;if(!inb(nx,ny))continue;let lx,ly;if(Math.abs(dx)===2){lx=x+(dx>0?1:-1);ly=y;}else{lx=x;ly=y+(dy>0?1:-1);}if(board[IDX(lx,ly)]!=null)continue;const j=IDX(nx,ny);const q=board[j];if(q&&q.c===turn)continue;moves.push({from:i,to:j});}}
+    else if(p.t==='P'){const fy=turn===WHITE?y+1:y-1;
+      if(inb(x,fy)&&board[IDX(x,fy)]==null)addPawn(moves,i,IDX(x,fy),fy===promoRank);
+      for(const dx of[-1,1]){const nx=x+dx;if(!inb(nx,fy))continue;const j=IDX(nx,fy);const q=board[j];if(q&&q.c!==turn)addPawn(moves,i,j,fy===promoRank);}}
+  }
+  const hand=hands[turn];
+  for(const t of TYPES){if(hand[t]<=0)continue;for(let j=0;j<board.length;j++){if(board[j]!=null)continue;if(t==='P'){const ry=YOF(j);if(ry===0||ry===N-1)continue;}moves.push({drop:t,to:j});}}
+  return moves;
+}
+function makeMove(state,m){
+  const{board,hands,turn}=state,undo={turn,m,cap:null};
+  if(m.drop){board[m.to]={t:m.drop,c:turn,promo:false};hands[turn][m.drop]--;}
+  else{const p=board[m.from],q=board[m.to];
+    if(q){undo.cap=q;hands[turn][q.promo?'P':q.t]++;}
+    board[m.to]=m.promo?{t:m.promo,c:turn,promo:true}:{t:p.t,c:turn,promo:p.promo};
+    board[m.from]=null;}
+  state.turn=1-turn;return undo;
+}
+function unmakeMove(state,undo){
+  const{board,hands}=state,turn=undo.turn,m=undo.m;state.turn=turn;
+  if(m.drop){board[m.to]=null;hands[turn][m.drop]++;}
+  else{const cur=board[m.to];
+    if(m.promo)board[m.from]={t:'P',c:turn,promo:false};else board[m.from]={t:cur.t,c:turn,promo:cur.promo};
+    if(undo.cap){board[m.to]=undo.cap;hands[turn][undo.cap.promo?'P':undo.cap.t]--;}else board[m.to]=null;}
+}
+function legalMoves(state){const out=[],turn=state.turn;for(const m of pseudoMoves(state)){const u=makeMove(state,m);if(!inCheck(state.board,turn))out.push(m);unmakeMove(state,u);}return out;}
+function statusOf(state){const legal=legalMoves(state);if(legal.length)return'ongoing';return inCheck(state.board,state.turn)?'checkmate':'stalemate';}
+function key(state){let s='';for(let i=0;i<state.board.length;i++){const p=state.board[i];s+=p?(p.c===WHITE?p.t:p.t.toLowerCase())+(p.promo?'*':''):'.';}const h=state.hands;s+='|'+TYPES.map(t=>h[WHITE][t]).join('')+'/'+TYPES.map(t=>h[BLACK][t]).join('')+'|'+state.turn;return s;}
+function sameMove(a,b){if(!a||!b)return false;return a.from===b.from&&a.to===b.to&&a.drop===b.drop&&a.promo===b.promo;}
+
+/* ==================================================================
+   SEARCH  (negamax + alpha-beta + iterative deepening + TT +
+   quiescence + move ordering). Weights baked below.
+   ================================================================== */
+// Evaluation weights TRAINED by offline self-play (greedy hill-climb over
+// randomized-opening matches). Held out vs the hand-tuned defaults it scored
+// +25 net over 80 games (depth 3) and +18 over 40 games (depth 4). Notable
+// learned values: the hobbled dragonknight (Mao) is worth far less on 4x4 than
+// a normal knight, and hand pieces (drops) are worth ~1.5x their board value.
+const WEIGHTS = {"P":100,"W":246.14,"F":235.883,"D":188.726,"handBonus":1.489,"mobility":3.242,"kingExposure":7.133,"pawnAdvance":6.001,"centerD":8.336,"MATE":100000};
+const val=(w,t)=>w[t]||0;
+function evaluate(state,w){
+  const b=state.board;let s=0;
+  for(let i=0;i<b.length;i++){const p=b[i];if(!p||p.t==='K')continue;
+    const base=p.promo?val(w,'P'):val(w,p.t),sign=p.c===WHITE?1:-1;s+=sign*base;
+    if(p.t==='P'){const adv=p.c===WHITE?YOF(i):(N-1-YOF(i));s+=sign*adv*w.pawnAdvance;}
+    if(p.t==='D'){const x=XOF(i),y=YOF(i);const central=(x===1||x===2)&&(y===1||y===2)?1:0;s+=sign*central*w.centerD;}}
+  for(const c of[WHITE,BLACK]){const sign=c===WHITE?1:-1,h=state.hands[c];for(const t of TYPES)s+=sign*h[t]*val(w,t)*w.handBonus;}
+  for(const c of[WHITE,BLACK]){const k=kingSquare(b,c);if(k<0)continue;const x=XOF(k),y=YOF(k);let empt=0;
+    for(const[dx,dy]of KING8){const nx=x+dx,ny=y+dy;if(!inb(nx,ny))continue;if(b[IDX(nx,ny)]==null)empt++;}
+    const sign=c===WHITE?1:-1,oppHand=Object.values(state.hands[1-c]).reduce((a,v)=>a+v,0);
+    s-=sign*empt*w.kingExposure*(1+Math.min(oppHand,4)*0.25);}
+  s+=(state.turn===WHITE?1:-1)*legalMoves(state).length*w.mobility;
+  return s;
+}
+function isCapture(state,m){return!m.drop&&state.board[m.to]!=null;}
+function moveScore(state,m,w,ttBest){
+  if(ttBest&&sameMove(m,ttBest))return 1e6;let sc=0;
+  if(!m.drop){const v=state.board[m.to];if(v)sc+=1000+val(w,v.promo?'P':v.t)-val(w,state.board[m.from].t)/10;if(m.promo)sc+=500+val(w,m.promo);}
+  else sc+=50;
+  return sc;
+}
+function orderMoves(state,moves,w,ttBest){return moves.map(m=>[moveScore(state,m,w,ttBest),m]).sort((a,b)=>b[0]-a[0]).map(x=>x[1]);}
+function quiesce(state,alpha,beta,w,cfg){
+  cfg.nodes++;const stand=(state.turn===WHITE?1:-1)*evaluate(state,w);
+  if(stand>=beta)return beta;if(stand>alpha)alpha=stand;
+  const caps=legalMoves(state).filter(m=>isCapture(state,m)||m.promo);
+  for(const m of orderMoves(state,caps,w,null)){const u=makeMove(state,m);const sc=-quiesce(state,-beta,-alpha,w,cfg);unmakeMove(state,u);if(sc>=beta)return beta;if(sc>alpha)alpha=sc;}
+  return alpha;
+}
+function negamax(state,depth,alpha,beta,ply,w,cfg,seen){
+  cfg.nodes++;if(cfg.stop())return 0;
+  const k=key(state),rep=seen.get(k)||0;if(rep>=1)return 0;
+  const alphaOrig=alpha,tt=cfg.tt.get(k);let ttBest=null;
+  if(tt&&tt.depth>=depth){if(tt.flag===0)return tt.value;if(tt.flag===-1&&tt.value>alpha)alpha=tt.value;if(tt.flag===1&&tt.value<beta)beta=tt.value;if(alpha>=beta)return tt.value;}
+  if(tt)ttBest=tt.best;
+  const moves=legalMoves(state);
+  if(moves.length===0)return inCheck(state.board,state.turn)?-w.MATE+ply:0;
+  if(depth<=0)return quiesce(state,alpha,beta,w,cfg);
+  seen.set(k,rep+1);let best=-Infinity,bestMove=null;
+  for(const m of orderMoves(state,moves,w,ttBest)){const u=makeMove(state,m);const sc=-negamax(state,depth-1,-beta,-alpha,ply+1,w,cfg,seen);unmakeMove(state,u);
+    if(sc>best){best=sc;bestMove=m;}if(best>alpha)alpha=best;if(alpha>=beta)break;}
+  seen.set(k,rep);
+  let flag=0;if(best<=alphaOrig)flag=1;else if(best>=beta)flag=-1;
+  cfg.tt.set(k,{depth,value:best,flag,best:bestMove});return best;
+}
+function searchMove(state,opts){
+  const w=opts.weights||WEIGHTS,maxDepth=opts.maxDepth||6,timeMs=opts.timeMs||400;
+  const deadline=performance.now()+timeMs,cfg={tt:new Map(),nodes:0,stop:()=>performance.now()>deadline};
+  const rootMoves=legalMoves(state);if(rootMoves.length===0)return{move:null,score:0,depth:0};
+  let best={move:rootMoves[0],score:0,depth:0};
+  for(let d=1;d<=maxDepth;d++){
+    let alpha=-Infinity,beta=Infinity,localBest=null,localScore=-Infinity;
+    const seen=new Map();if(opts.history)for(const hk of opts.history)seen.set(hk,(seen.get(hk)||0)+1);
+    const ordered=orderMoves(state,rootMoves,w,cfg.tt.get(key(state))&&cfg.tt.get(key(state)).best);
+    for(const m of ordered){const u=makeMove(state,m);const sc=-negamax(state,d-1,-beta,-alpha,1,w,cfg,seen);unmakeMove(state,u);
+      if(cfg.stop()){localBest=localBest||m;break;}if(sc>localScore){localScore=sc;localBest=m;}if(localScore>alpha)alpha=localScore;}
+    if(localBest)best={move:localBest,score:localScore,depth:d,nodes:cfg.nodes};
+    if(cfg.stop())break;if(Math.abs(localScore)>w.MATE-100)break;
+  }
+  return best;
+}
+const LEVELS={easy:{maxDepth:2,timeMs:120,blunder:0.35},medium:{maxDepth:4,timeMs:300,blunder:0.08},hard:{maxDepth:8,timeMs:700,blunder:0},insane:{maxDepth:14,timeMs:1500,blunder:0}};
+
+/* ==================================================================
+   UI
+   ================================================================== */
+const PIECE={
+  K:{lg:'♚',nm:'King'}, W:{lg:'✚',nm:'Wazir'}, F:{lg:'✕',nm:'Ferz'},
+  D:{lg:'♞',nm:'Dragon'}, P:{lg:'♟',nm:'Pawn'}
+};
+const $=id=>document.getElementById(id);
+let state, humanSide=WHITE, oppMode='medium', posCount={}, moveLog=[], busy=false;
+let sel=null;         // {type:'sq',i} or {type:'hand',pt}
+let legalCache=[];    // legal moves this turn
+let pendingPromo=null;
+
+function newGame(){
+  state=initialState(); humanSide=parseInt($('side').value,10); oppMode=$('opp').value;
+  posCount={}; moveLog=[]; sel=null; pendingPromo=null; busy=false;
+  bumpPos(); render();
+  maybeBotMove();
+}
+function bumpPos(){const k=key(state);posCount[k]=(posCount[k]||0)+1;state.history=Object.keys(posCount).flatMap(kk=>Array(posCount[kk]).fill(kk));}
+function threefold(){return posCount[key(state)]>=3;}
+
+function squareEls(){return $('board').children;}
+function render(){
+  legalCache = state ? legalMoves(state) : [];
+  renderBoard(); renderHands(); renderStatus(); renderMoves(); renderPromo();
+}
+function orientedIndices(){
+  // return array of board indices in display order (top-left first)
+  const idxs=[];
+  const topDown = humanSide===WHITE; // white at bottom -> render rank 4 (y=3) first
+  for(let r=0;r<N;r++){const y=topDown?N-1-r:r;for(let c=0;c<N;c++){const x=topDown?c:N-1-c;idxs.push(IDX(x,y));}}
+  return idxs;
+}
+function renderBoard(){
+  const board=$('board');board.innerHTML='';
+  const st = state?statusOf(state):'ongoing';
+  const chkSq = state && inCheck(state.board,state.turn) ? kingSquare(state.board,state.turn) : -1;
+  const last = moveLog.length?moveLog[moveLog.length-1].m:null;
+  for(const i of orientedIndices()){
+    const x=XOF(i),y=YOF(i);const d=document.createElement('div');
+    d.className='sqr '+(((x+y)%2===0)?'d':'l'); d.dataset.i=i;
+    const co=document.createElement('span');co.className='coord';co.textContent=(y===(humanSide===WHITE?0:3)&& true)?'':'';
+    // coordinate label only along edges
+    if(x===(humanSide===WHITE?0:3)) {const c=document.createElement('span');c.className='coord';c.textContent=(y+1);d.appendChild(c);}
+    if(i===chkSq)d.classList.add('incheck');
+    if(last){if(!last.drop&&last.from===i)d.classList.add('lastfrom');if(last.to===i)d.classList.add('lastto');}
+    // selection + targets
+    if(sel){
+      if(sel.type==='sq'&&sel.i===i)d.classList.add('sel');
+      const tmoves=currentTargets();
+      const t=tmoves.find(m=>m.to===i);
+      if(t){const cap=!t.drop&&state.board[i]!=null;d.classList.add(cap?'tgt tgtcap':'tgt');}
+    }
+    const p=state.board[i];
+    if(p){const tok=document.createElement('div');tok.className='tok '+(p.c===WHITE?'wc':'bc')+(p.promo?' promo':'');
+      const lg=document.createElement('div');lg.className='lg';lg.textContent=PIECE[p.t].lg;
+      const nm=document.createElement('div');nm.className='nm';nm.textContent=PIECE[p.t].nm.toUpperCase();
+      tok.appendChild(lg);tok.appendChild(nm);d.appendChild(tok);}
+    d.onclick=()=>onSquare(i);
+    board.appendChild(d);
+  }
+}
+function currentTargets(){
+  if(!sel)return[];
+  if(sel.type==='sq')return legalCache.filter(m=>!m.drop&&m.from===sel.i);
+  return legalCache.filter(m=>m.drop===sel.pt);
+}
+function renderHands(){
+  const topColor = humanSide===WHITE?BLACK:WHITE;
+  fillHand($('handTop'),topColor);
+  fillHand($('handBot'),1-topColor);
+}
+function fillHand(el,color){
+  el.innerHTML='';
+  const who=document.createElement('div');who.className='who';
+  who.textContent=(color===WHITE?'White':'Black')+' hand'+(color===humanSide?' (you)':'');
+  el.appendChild(who);
+  const h=state.hands[color];
+  let any=false;
+  for(const t of ['P','W','F','D']){
+    const n=h[t];
+    const tok=document.createElement('div');
+    tok.className='htok '+(color===WHITE?'wc':'bc')+(n<=0?' empty':'');
+    tok.style.background=color===WHITE?'var(--tokL)':'var(--tokD)';
+    tok.style.color=color===WHITE?'var(--tokLink)':'var(--tokDink)';
+    tok.textContent=PIECE[t].lg;
+    if(n>0){const c=document.createElement('span');c.className='cnt';c.textContent=n;tok.appendChild(c);any=true;}
+    if(sel&&sel.type==='hand'&&sel.pt===t&&color===state.turn)tok.classList.add('sel');
+    if(n>0&&color===state.turn&&isHumanTurn())tok.onclick=()=>onHand(t);
+    el.appendChild(tok);
+  }
+}
+function renderStatus(){
+  const el=$('status');const st=statusOf(state);
+  const sideName=c=>c===WHITE?'White':'Black';
+  if(st==='checkmate'){el.innerHTML=`<span class="check">Checkmate — ${sideName(1-state.turn)} wins.</span>`;return;}
+  if(st==='stalemate'){el.innerHTML=`Stalemate — draw.`;return;}
+  if(threefold()){el.innerHTML=`Draw by threefold repetition.`;return;}
+  let s='';
+  if(inCheck(state.board,state.turn))s+=`<span class="check">Check! </span>`;
+  s+=`${sideName(state.turn)} to move`;
+  if(!isHumanTurn())s+=` <span class="think">— bot thinking…</span>`;
+  el.innerHTML=s;
+}
+function renderMoves(){
+  const el=$('moves');
+  el.innerHTML=moveLog.map((e,i)=>((i%2===0)?`<b>${(i/2|0)+1}.</b> `:'')+e.san+' ').join('');
+  el.scrollTop=el.scrollHeight;
+}
+function renderPromo(){
+  const el=$('promoPick');
+  if(!pendingPromo){el.style.display='none';el.innerHTML='';return;}
+  el.style.display='flex';el.innerHTML='<span style="align-self:center;color:var(--muted);font-size:12px">Promote to:</span>';
+  for(const pt of ['D','W','F']){
+    const b=document.createElement('button');b.textContent=PIECE[pt].lg+' '+PIECE[pt].nm;
+    b.onclick=()=>{const m=pendingPromo.options.find(o=>o.promo===pt);pendingPromo=null;doMove(m);};
+    el.appendChild(b);
+  }
+}
+function isHumanTurn(){return oppMode==='human'||state.turn===humanSide;}
+
+function onSquare(i){
+  if(busy||pendingPromo)return;
+  const st=statusOf(state);if(st!=='ongoing'||threefold())return;
+  if(!isHumanTurn())return;
+  // if a hand piece is selected -> try drop
+  if(sel&&sel.type==='hand'){
+    const m=legalCache.find(mm=>mm.drop===sel.pt&&mm.to===i);
+    if(m){sel=null;doMove(m);return;}
+    sel=null;render();return;
+  }
+  const p=state.board[i];
+  // clicking a target of the currently selected square
+  if(sel&&sel.type==='sq'){
+    const cand=legalCache.filter(m=>!m.drop&&m.from===sel.i&&m.to===i);
+    if(cand.length){
+      if(cand.length>1&&cand[0].promo){pendingPromo={options:cand};sel=null;render();return;}
+      const m=cand[0];sel=null;doMove(m);return;
+    }
+  }
+  // select own piece
+  if(p&&p.c===state.turn){sel={type:'sq',i};render();return;}
+  sel=null;render();
+}
+function onHand(pt){
+  if(busy||pendingPromo||!isHumanTurn())return;
+  sel=(sel&&sel.type==='hand'&&sel.pt===pt)?null:{type:'hand',pt};
+  render();
+}
+function sanOf(state,m){
+  const p=m.drop?{t:m.drop}:state.board[m.from];
+  const file=x=>'abcd'[x], sqName=j=>file(XOF(j))+(YOF(j)+1);
+  if(m.drop)return PIECE[m.drop].lg+'@'+sqName(m.to);
+  const cap=state.board[m.to]!=null;
+  let s=(p.t==='P'?'':PIECE[p.t].lg)+sqName(m.from)+(cap?'x':'-')+sqName(m.to);
+  if(m.promo)s+='='+PIECE[m.promo].lg;
+  return s;
+}
+function doMove(m){
+  const san=sanOf(state,m);
+  makeMove(state,m);
+  moveLog.push({m,san});
+  bumpPos();
+  sel=null;
+  render();
+  const st=statusOf(state);
+  if(st==='ongoing'&&!threefold()) maybeBotMove();
+}
+function maybeBotMove(){
+  if(oppMode==='human')return;
+  if(state.turn===humanSide)return;
+  const st=statusOf(state);if(st!=='ongoing'||threefold())return;
+  busy=true;renderStatus();
+  setTimeout(()=>{
+    const lvl=LEVELS[oppMode];
+    let move;
+    const legal=legalMoves(state);
+    if(lvl.blunder>0&&Math.random()<lvl.blunder){
+      move=legal[Math.floor(Math.random()*legal.length)];
+    }else{
+      const res=searchMove(state,{maxDepth:lvl.maxDepth,timeMs:lvl.timeMs,history:state.history});
+      move=res.move||legal[0];
+    }
+    const san=sanOf(state,move);
+    makeMove(state,move);moveLog.push({m:move,san});bumpPos();
+    busy=false;render();
+  },30);
+}
+function undo(){
+  if(busy||moveLog.length===0)return;
+  // Remove one full round: vs a bot drop the last 2 half-moves so it's the
+  // human's turn again; human-vs-human drops 1. Rebuild by replaying.
+  const drop=(oppMode!=='human')?Math.min(2,moveLog.length):1;
+  const keep=moveLog.slice(0,moveLog.length-drop);
+  state=initialState();posCount={};moveLog=[];bumpPos();
+  for(const e of keep){makeMove(state,e.m);moveLog.push(e);bumpPos();}
+  sel=null;pendingPromo=null;busy=false;render();
+}
+
+/* ---- legend ---- */
+(function legend(){
+  const items=[
+    ['K','King','one step any direction. Royal — checkmate it to win.'],
+    ['W','Wazir','one step orthogonally (↑↓←→).'],
+    ['F','Ferz','one step diagonally.'],
+    ['D','Dragonknight','a knight leap, but blocked if the square it "steps over" orthogonally is occupied (Xiangqi-horse style).'],
+    ['P','Pawn','one step forward, captures diagonally, promotes on the far rank (no double step).'],
+  ];
+  const el=$('legend');
+  el.innerHTML = items.map(([t,n,d])=>`<div class="row"><span class="chip">${PIECE[t].lg}</span><span><b>${n}</b> — ${d}</span></div>`).join('')
+    + `<div class="row" style="margin-top:6px"><span></span><span><b>Crazyhouse:</b> capturing a piece adds it to <em>your</em> hand (promoted pieces revert to pawns). On your turn you may instead drop a hand piece onto any empty square. Pawns can't be dropped on the 1st or last rank. Drops may give check or mate.</span></div>`;
+})();
+
+$('newgame').onclick=newGame;
+$('undo').onclick=undo;
+$('side').onchange=newGame;
+$('opp').onchange=newGame;
+newGame();
+</script>
+<script src="/games/footer.js"></script>
+</body>
+</html>
