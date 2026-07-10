@@ -286,17 +286,19 @@ function searchMove(state,opts){
   const rootMoves=legalMoves(state);if(rootMoves.length===0)return{move:null,score:0,depth:0};
   let best={move:rootMoves[0],score:0,depth:0};
   for(let d=1;d<=maxDepth;d++){
-    let alpha=-Infinity,beta=Infinity,localBest=null,localScore=-Infinity;
+    let alpha=-Infinity,beta=Infinity,localBest=null,localScore=-Infinity,aborted=false;
     const seen=new Map();if(opts.history)for(const hk of opts.history)seen.set(hk,(seen.get(hk)||0)+1);
     const ordered=orderMoves(state,rootMoves,w,cfg.tt.get(key(state))&&cfg.tt.get(key(state)).best);
     for(const m of ordered){const u=makeMove(state,m);const sc=-negamax(state,d-1,-beta,-alpha,1,w,cfg,seen);unmakeMove(state,u);
-      if(cfg.stop()){localBest=localBest||m;break;}if(sc>localScore){localScore=sc;localBest=m;}if(localScore>alpha)alpha=localScore;}
-    if(localBest)best={move:localBest,score:localScore,depth:d,nodes:cfg.nodes};
-    if(cfg.stop())break;if(Math.abs(localScore)>w.MATE-100)break;
+      if(cfg.stop()){aborted=true;break;}if(sc>localScore){localScore=sc;localBest=m;}if(localScore>alpha)alpha=localScore;}
+    // Only commit a fully-completed depth; a time-aborted depth has a partial
+    // (and possibly -Infinity) score, so keep the last completed depth's result.
+    if(!aborted&&localBest)best={move:localBest,score:localScore,depth:d,nodes:cfg.nodes};
+    if(aborted||cfg.stop())break;if(Math.abs(localScore)>w.MATE-100)break;
   }
   return best;
 }
-const LEVELS={easy:{maxDepth:2,timeMs:120,blunder:0.35},medium:{maxDepth:4,timeMs:300,blunder:0.08},hard:{maxDepth:8,timeMs:700,blunder:0},insane:{maxDepth:14,timeMs:1500,blunder:0}};
+const LEVELS={easy:{maxDepth:2,timeMs:150,blunder:0.35},medium:{maxDepth:6,timeMs:500,blunder:0.06},hard:{maxDepth:10,timeMs:1200,blunder:0},insane:{maxDepth:18,timeMs:3000,blunder:0}};
 
 /* ==================================================================
    UI
