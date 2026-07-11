@@ -246,15 +246,26 @@ export function boot(config, mount){
   function renderStatus(){
     const el=$('status');const S=dstate;const st=statusOf(S);
     const sideName=c=>c===WHITE?'White':'Black';
-    if(st==='checkmate'){el.innerHTML=`<span class="check">Checkmate — ${sideName(1-S.turn)} wins.</span>`;return;}
-    if(st==='stalemate'){el.innerHTML=`<span class="check">Stalemate — ${sideName(S.turn)} wins!</span>`;return;}
-    if(!analyzeMode&&threefold()){el.innerHTML=`Draw by threefold repetition.`;return;}
-    let s='';
-    if(analyzeMode)s+=`<span class="think">Analysis · </span>`;
-    if(inCheck(S.board,S.turn))s+=`<span class="check">Check! </span>`;
-    s+=`${sideName(S.turn)} to move`;
-    if(!analyzeMode&&!isHumanTurn())s+=` <span class="think">— bot thinking…</span>`;
-    el.innerHTML=s;
+    const gameOver = !analyzeMode && (st==='checkmate'||st==='stalemate'||threefold());
+    let html;
+    if(st==='checkmate') html=`<span class="check">Checkmate — ${sideName(1-S.turn)} wins.</span>`;
+    else if(st==='stalemate') html=`<span class="check">Stalemate — ${sideName(S.turn)} wins!</span>`;
+    else if(!analyzeMode&&threefold()) html=`Draw by threefold repetition.`;
+    else {
+      let s='';
+      if(analyzeMode)s+=`<span class="think">Analysis · </span>`;
+      if(inCheck(S.board,S.turn))s+=`<span class="check">Check! </span>`;
+      s+=`${sideName(S.turn)} to move`;
+      if(!analyzeMode&&!isHumanTurn())s+=` <span class="think">— bot thinking…</span>`;
+      html=s;
+    }
+    el.innerHTML=html;
+    // at the end of a real game, offer to analyze it right here
+    if(gameOver && moveLog.length>0){
+      const b=document.createElement('button');
+      b.textContent='Analyze game'; b.className='analyze-cta'; b.onclick=analyzeGame;
+      el.appendChild(b);
+    }
   }
   function renderMoves(){
     const el=$('moves');
