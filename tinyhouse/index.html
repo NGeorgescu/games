@@ -110,7 +110,7 @@
 
   <div class="card controls">
     <label>You play</label>
-    <select id="side"><option value="0">White (bottom)</option><option value="1">Black (top)</option></select>
+    <select id="side"><option value="alt" selected>Alternate</option><option value="0">White (bottom)</option><option value="1">Black (top)</option></select>
     <label>Opponent</label>
     <select id="opp">
       <option value="human">Human</option>
@@ -336,13 +336,16 @@ const PIECE={
   D:{ltr:'D',nm:'Dragonknight'}, P:{ltr:'',nm:'Pawn'}
 };
 const $=id=>document.getElementById(id);
-let state, humanSide=WHITE, oppMode='medium', posCount={}, moveLog=[], busy=false;
+let state, humanSide=WHITE, oppMode='medium', posCount={}, moveLog=[], busy=false, altSide=WHITE;
 let sel=null;         // {type:'sq',i} or {type:'hand',pt}
 let legalCache=[];    // legal moves this turn
 let pendingPromo=null;
 
 function newGame(){
-  state=initialState(); humanSide=parseInt($('side').value,10); oppMode=$('opp').value;
+  state=initialState();
+  const sv=$('side').value;
+  if(sv==='alt'){ humanSide=altSide; altSide=1-altSide; } else humanSide=parseInt(sv,10);
+  oppMode=$('opp').value;
   posCount={}; moveLog=[]; sel=null; pendingPromo=null; busy=false;
   bumpPos(); render();
   maybeBotMove();
