@@ -713,6 +713,20 @@ function doMove(m){
   const st=statusOf(state);
   if(st==='ongoing'&&!threefold()) maybeBotMove();
 }
+// Opening variety: for the first few plies, pick randomly among near-best moves
+// (weighted by strength) so games don't always follow the same line.
+const OPENING_PLIES=8;
+function pickOpeningMove(state,lvl,history){
+  const depth=Math.min(lvl.maxDepth,4);
+  const res=analyze(state,depth,6,history);
+  const lines=res.lines; if(!lines.length)return null;
+  const best=lines[0].score;
+  const cands=lines.filter(l=>best-l.score<=60);   // within ~0.6 pawn of best
+  const T=35; const w=cands.map(l=>Math.exp((l.score-best)/T));
+  const tot=w.reduce((a,b)=>a+b,0); let r=Math.random()*tot;
+  for(let i=0;i<cands.length;i++){r-=w[i];if(r<=0)return cands[i].move;}
+  return cands[cands.length-1].move;
+}
 function maybeBotMove(){
   if(oppMode==='human')return;
   if(state.turn===humanSide)return;
@@ -724,6 +738,8 @@ function maybeBotMove(){
     const legal=legalMoves(state);
     if(lvl.blunder>0&&Math.random()<lvl.blunder){
       move=legal[Math.floor(Math.random()*legal.length)];
+    }else if(moveLog.length<OPENING_PLIES){
+      move=pickOpeningMove(state,lvl,state.history)||searchMove(state,{maxDepth:lvl.maxDepth,timeMs:lvl.timeMs,history:state.history}).move||legal[0];
     }else{
       const res=searchMove(state,{maxDepth:lvl.maxDepth,timeMs:lvl.timeMs,history:state.history});
       move=res.move||legal[0];
