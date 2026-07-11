@@ -229,7 +229,7 @@ function kingSquare(board,c){for(let i=0;i<board.length;i++){const p=board[i];if
 function inCheck(board,c){const k=kingSquare(board,c);return k>=0&&attacked(board,k,1-c);}
 function addPawn(moves,from,to,isPromo){if(isPromo){for(const pt of['R','N','B'])moves.push({from,to,promo:pt});}else moves.push({from,to});}
 function pseudoMoves(state){
-  const{board,hands,turn}=state,moves=[],promoRank=turn===WHITE?N-1:0,homeRank=turn===WHITE?1:N-2;
+  const{board,hands,turn}=state,moves=[],promoRank=turn===WHITE?N-1:0;
   for(let i=0;i<board.length;i++){
     const p=board[i];if(!p||p.c!==turn)continue;const x=XOF(i),y=YOF(i);
     const leap=steps=>{for(const[dx,dy]of steps){const nx=x+dx,ny=y+dy;if(!inb(nx,ny))continue;const j=IDX(nx,ny);const q=board[j];if(q&&q.c===turn)continue;moves.push({from:i,to:j});}};
@@ -242,10 +242,7 @@ function pseudoMoves(state){
     else if(p.t==='B')slide(DIAG);
     else if(p.t==='N')leap(KNIGHT);
     else if(p.t==='P'){const fy=turn===WHITE?y+1:y-1;
-      if(inb(x,fy)&&board[IDX(x,fy)]==null){addPawn(moves,i,IDX(x,fy),fy===promoRank);
-        // double step from home rank if both squares empty
-        const fy2=turn===WHITE?y+2:y-2;
-        if(y===homeRank&&inb(x,fy2)&&board[IDX(x,fy2)]==null)moves.push({from:i,to:IDX(x,fy2)});}
+      if(inb(x,fy)&&board[IDX(x,fy)]==null)addPawn(moves,i,IDX(x,fy),fy===promoRank);  // single step only
       for(const dx of[-1,1]){const nx=x+dx;if(!inb(nx,fy))continue;const j=IDX(nx,fy);const q=board[j];if(q&&q.c!==turn)addPawn(moves,i,j,fy===promoRank);}}
   }
   const hand=hands[turn];
@@ -780,7 +777,7 @@ function undo(){
     ['R','Rook','slides any distance orthogonally (↑↓←→), blocked by the first piece.'],
     ['N','Knight','a standard knight leap — jumps over anything, nothing blocks it.'],
     ['B','Bishop','slides any distance diagonally, blocked by the first piece.'],
-    ['P','Pawn','one step forward (or two from its home rank), captures diagonally, promotes to R/N/B on the far rank.'],
+    ['P','Pawn','one step forward (no double step), captures diagonally, promotes to R/N/B on the far rank.'],
   ];
   const el=$('legend');
   el.innerHTML = items.map(([t,n,d])=>`<div class="row"><span class="chip">${pieceMarkup(t,WHITE)}</span><span><b>${n}</b> — ${d}</span></div>`).join('');
