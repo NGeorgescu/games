@@ -174,7 +174,8 @@
   <div class="modal-box">
     <button class="close" id="helpClose">×</button>
     <h2>Tiny House Chess</h2>
-    <p>A pocket chess variant on a 4×4 board with four fairy pieces. Capture an enemy piece and it flips to <strong>your</strong> hand — on a later turn you may <strong>drop</strong> it back onto any empty square instead of moving (crazyhouse rules). Checkmate the enemy King to win.</p>
+    <p>A pocket chess variant on a 4×4 board with four fairy pieces. Capture an enemy piece and it flips to <strong>your</strong> hand — on a later turn you may <strong>drop</strong> it back onto any empty square instead of moving (crazyhouse rules). <strong>Checkmate</strong> the enemy King to win.</p>
+    <p><strong>Stalemate rule:</strong> if it's your turn and you have <em>no</em> legal move but you're <em>not</em> in check, <strong>you win</strong>. So you can never win by stalemating your opponent — you must always leave them a move, or you lose. (Being checkmated — no move <em>while</em> in check — is still a loss.)</p>
     <p>The start is a 180° rotation: White's back rank a1→d1 is <strong>King · Wazir · Dragonknight · Ferz</strong> with a pawn on a2; Black is the same shape rotated, so the kings sit on diagonally opposite corners.</p>
     <h2>How the pieces move</h2>
     <div class="legend" id="legend"></div>
@@ -304,7 +305,8 @@ function negamax(state,depth,alpha,beta,ply,w,cfg,seen){
   if(tt&&tt.depth>=depth){if(tt.flag===0)return tt.value;if(tt.flag===-1&&tt.value>alpha)alpha=tt.value;if(tt.flag===1&&tt.value<beta)beta=tt.value;if(alpha>=beta)return tt.value;}
   if(tt)ttBest=tt.best;
   const moves=legalMoves(state);
-  if(moves.length===0)return inCheck(state.board,state.turn)?-w.MATE+ply:0;
+  // House rule: no legal moves = you WIN, unless you're in check (checkmate = loss).
+  if(moves.length===0)return inCheck(state.board,state.turn)?(-w.MATE+ply):(w.MATE-ply);
   if(depth<=0)return quiesce(state,alpha,beta,w,cfg);
   seen.set(k,rep+1);let best=-Infinity,bestMove=null;
   for(const m of orderMoves(state,moves,w,ttBest)){const u=makeMove(state,m);const sc=-negamax(state,depth-1,-beta,-alpha,ply+1,w,cfg,seen);unmakeMove(state,u);
@@ -506,7 +508,7 @@ function renderStatus(){
   const el=$('status');const S=dstate;const st=statusOf(S);
   const sideName=c=>c===WHITE?'White':'Black';
   if(st==='checkmate'){el.innerHTML=`<span class="check">Checkmate — ${sideName(1-S.turn)} wins.</span>`;return;}
-  if(st==='stalemate'){el.innerHTML=`Stalemate — draw.`;return;}
+  if(st==='stalemate'){el.innerHTML=`<span class="check">Stalemate — ${sideName(S.turn)} wins!</span>`;return;}
   if(!analyzeMode&&threefold()){el.innerHTML=`Draw by threefold repetition.`;return;}
   let s='';
   if(analyzeMode)s+=`<span class="think">Analysis · </span>`;
@@ -574,7 +576,15 @@ function startAnalysis(){
   setTimeout(step,16);
 }
 function whiteEvalCp(){
-  if(!analysisData||!analysisData.lines.length)return null;
+  if(!analysisData)return null;
+  if(analysisData.terminal){
+    const mover=analysisData.turn; // side to move (has no legal moves)
+    // checkmate: mover loses;  stalemate: mover wins (house rule)
+    const moverWins = analysisData.terminal==='stalemate';
+    const cp = moverWins ? WEIGHTS.MATE : -WEIGHTS.MATE;
+    return mover===WHITE?cp:-cp;
+  }
+  if(!analysisData.lines.length)return null;
   const sc=analysisData.lines[0].score;
   return analysisData.turn===WHITE?sc:-sc;
 }
@@ -616,7 +626,9 @@ function renderAnalysis(){
   const el=$('analysis'); if(!analyzeMode)return;
   const A=analysisData;
   if(!A){el.innerHTML='<div class="head">Starting engine…</div>';return;}
-  if(A.terminal){ el.innerHTML=`<div class="head">${A.terminal==='checkmate'?'Checkmate — game over':A.terminal==='stalemate'?'Stalemate — draw':'Game over'}</div>`; return; }
+  if(A.terminal){ const w=A.turn===WHITE?'White':'Black',b=A.turn===WHITE?'Black':'White';
+    const msg=A.terminal==='checkmate'?`Checkmate — ${b} wins`:A.terminal==='stalemate'?`Stalemate — ${w} wins`:'Game over';
+    el.innerHTML=`<div class="head">${msg}</div>`; return; }
   const cp=whiteEvalCp();
   let h=`<div class="head">Depth ${A.depth||'…'}${A.nodes?` · ${(A.nodes/1000|0)}k nodes`:''}${cp!=null?` · <b>${evalLabel(cp)}</b>`:''}</div>`;
   h+=(A.lines||[]).map(ln=>{
