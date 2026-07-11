@@ -44,7 +44,25 @@
   .htok.empty{opacity:.25;cursor:default}
 
   /* board */
-  .boardwrap{display:flex;justify-content:center}
+  .boardwrap{display:flex;justify-content:center;align-items:stretch;gap:8px}
+  .evalbar{width:18px;flex:0 0 auto;background:#242424;border:1px solid #0c0f14;border-radius:5px;
+    position:relative;overflow:hidden}
+  .evalbar[hidden]{display:none}
+  .evalbar .fill{position:absolute;left:0;right:0;bottom:0;height:50%;background:#f2f2f2;transition:height .25s ease}
+  .evalbar .num{position:absolute;left:0;right:0;text-align:center;font-size:9px;font-weight:800;z-index:2;
+    line-height:1;color:#111;text-shadow:0 0 2px #fff,0 0 3px #fff}
+  .evalbar .num.top{top:3px} .evalbar .num.bot{bottom:3px}
+  .navrow{display:flex;gap:6px;justify-content:center;align-items:center;margin-bottom:8px}
+  .navrow button{padding:6px 12px;font-size:15px}
+  .navrow .navlbl{font-size:12px;color:var(--muted);min-width:74px;text-align:center;font-variant-numeric:tabular-nums}
+  .analyze-card[hidden]{display:none}
+  .analysis{font-size:12px;color:var(--muted)}
+  .analysis .head{color:var(--ink);margin-bottom:2px;font-variant-numeric:tabular-nums}
+  .analysis .ln{display:flex;gap:8px;padding:4px 0;border-top:1px solid var(--line)}
+  .analysis .sc{flex:0 0 50px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+  .analysis .sc.neg{color:#e08a7a} .analysis .sc.pos{color:#9fd28a}
+  .analysis .pv{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+  .moves .mv{cursor:default} .moves .mv.cur{background:var(--acc);color:#0c1016;border-radius:3px;padding:0 3px}
   .board{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,1fr);
     width:min(88vw,360px);aspect-ratio:1/1;
     border:3px solid #0c0f14;border-radius:10px;overflow:hidden;touch-action:manipulation}
@@ -121,15 +139,30 @@
     </select>
     <button class="primary" id="newgame">New game</button>
     <button id="undo">Undo</button>
+    <button id="analyzeBtn">Analyze</button>
   </div>
 
   <div class="status" id="status"></div>
 
   <div class="card">
     <div class="hand" id="handTop"></div>
-    <div class="boardwrap"><div class="board" id="board"></div></div>
+    <div class="boardwrap">
+      <div class="evalbar" id="evalbar" hidden><div class="fill" id="evalfill"></div><span class="num top" id="evalNumTop"></span><span class="num bot" id="evalNumBot"></span></div>
+      <div class="board" id="board"></div>
+    </div>
     <div class="hand" id="handBot"></div>
     <div class="promoPick" id="promoPick" style="display:none"></div>
+  </div>
+
+  <div class="card analyze-card" id="analyzeCard" hidden>
+    <div class="navrow">
+      <button id="navStart" title="First">⏮</button>
+      <button id="navPrev" title="Back">◀</button>
+      <span class="navlbl" id="navlbl">start</span>
+      <button id="navNext" title="Forward">▶</button>
+      <button id="navEnd" title="Latest">⏭</button>
+    </div>
+    <div class="analysis" id="analysis"></div>
   </div>
 
   <div class="card">
@@ -300,6 +333,40 @@ function searchMove(state,opts){
 }
 const LEVELS={easy:{maxDepth:2,timeMs:150,blunder:0.35},medium:{maxDepth:6,timeMs:500,blunder:0.06},hard:{maxDepth:10,timeMs:1200,blunder:0},insane:{maxDepth:18,timeMs:3000,blunder:0}};
 
+/* ---- analysis: multi-PV + principal-variation extraction ---- */
+function mvId(m){return m.drop?('*'+m.drop+'@'+m.to):(m.from+'>'+m.to+(m.promo||''));}
+function extractPV(state,firstMove,maxLen,tt){
+  const pv=[firstMove],undos=[makeMove(state,firstMove)];
+  while(pv.length<maxLen){
+    const e=tt.get(key(state));
+    if(!e||!e.best)break;
+    if(!legalMoves(state).some(mm=>sameMove(mm,e.best)))break;
+    pv.push(e.best);undos.push(makeMove(state,e.best));
+  }
+  for(let i=undos.length-1;i>=0;i--)unmakeMove(state,undos[i]);
+  return pv;
+}
+// Top-K lines at a fixed depth. Scores are side-to-move perspective.
+function analyze(state,depth,K,history){
+  const w=WEIGHTS,rootMoves=legalMoves(state);
+  if(rootMoves.length===0)return{depth,nodes:0,terminal:inCheck(state.board,state.turn)?'mate':'stalemate',lines:[]};
+  const lines=[],excluded=new Set();let nodes=0;
+  for(let k=0;k<K&&excluded.size<rootMoves.length;k++){
+    const cfg={tt:new Map(),nodes:0,stop:()=>false};
+    let alpha=-Infinity,bestM=null,bestSc=-Infinity;
+    const seen=new Map();if(history)for(const hk of history)seen.set(hk,(seen.get(hk)||0)+1);
+    for(const m of orderMoves(state,rootMoves,w,null)){
+      if(excluded.has(mvId(m)))continue;
+      const u=makeMove(state,m);const sc=-negamax(state,depth-1,-Infinity,-alpha,1,w,cfg,seen);unmakeMove(state,u);
+      if(sc>bestSc){bestSc=sc;bestM=m;}if(bestSc>alpha)alpha=bestSc;
+    }
+    nodes+=cfg.nodes;if(!bestM)break;
+    excluded.add(mvId(bestM));
+    lines.push({move:bestM,score:bestSc,pv:extractPV(state,bestM,depth,cfg.tt)});
+  }
+  return{depth,nodes,lines};
+}
+
 /* ==================================================================
    UI
    ================================================================== */
@@ -340,6 +407,7 @@ let state, humanSide=WHITE, oppMode='medium', posCount={}, moveLog=[], busy=fals
 let sel=null;         // {type:'sq',i} or {type:'hand',pt}
 let legalCache=[];    // legal moves this turn
 let pendingPromo=null;
+let analyzeMode=false, viewPly=0, dstate=null, analysisData=null, analysisToken=0;
 
 function newGame(){
   state=initialState();
@@ -347,16 +415,27 @@ function newGame(){
   if(sv==='alt'){ humanSide=altSide; altSide=1-altSide; } else humanSide=parseInt(sv,10);
   oppMode=$('opp').value;
   posCount={}; moveLog=[]; sel=null; pendingPromo=null; busy=false;
+  analyzeMode=false; analysisToken++; analysisData=null;
   bumpPos(); render();
   maybeBotMove();
+}
+// Reconstruct the game position after `ply` half-moves (for analyze navigation).
+function stateAtPly(ply){
+  const s=initialState(); const hist=[]; const pc={};
+  const bump=()=>{const k=key(s);pc[k]=(pc[k]||0)+1;hist.push(k);};
+  bump();
+  for(let i=0;i<ply;i++){ makeMove(s,moveLog[i].m); bump(); }
+  s.history=hist; return s;
 }
 function bumpPos(){const k=key(state);posCount[k]=(posCount[k]||0)+1;state.history=Object.keys(posCount).flatMap(kk=>Array(posCount[kk]).fill(kk));}
 function threefold(){return posCount[key(state)]>=3;}
 
 function squareEls(){return $('board').children;}
 function render(){
-  legalCache = state ? legalMoves(state) : [];
+  dstate = analyzeMode ? stateAtPly(viewPly) : state;
+  legalCache = dstate ? legalMoves(dstate) : [];
   renderBoard(); renderHands(); renderStatus(); renderMoves(); renderPromo();
+  renderAnalyzeUI();
 }
 function orientedIndices(){
   // return array of board indices in display order (top-left first)
@@ -367,9 +446,10 @@ function orientedIndices(){
 }
 function renderBoard(){
   const board=$('board');board.innerHTML='';
-  const st = state?statusOf(state):'ongoing';
-  const chkSq = state && inCheck(state.board,state.turn) ? kingSquare(state.board,state.turn) : -1;
-  const last = moveLog.length?moveLog[moveLog.length-1].m:null;
+  const S=dstate;
+  const chkSq = S && inCheck(S.board,S.turn) ? kingSquare(S.board,S.turn) : -1;
+  const last = analyzeMode ? (viewPly>0?moveLog[viewPly-1].m:null)
+                           : (moveLog.length?moveLog[moveLog.length-1].m:null);
   for(const i of orientedIndices()){
     const x=XOF(i),y=YOF(i);const d=document.createElement('div');
     d.className='sqr '+(((x+y)%2===0)?'d':'l'); d.dataset.i=i;
@@ -383,9 +463,9 @@ function renderBoard(){
       if(sel.type==='sq'&&sel.i===i)d.classList.add('sel');
       const tmoves=currentTargets();
       const t=tmoves.find(m=>m.to===i);
-      if(t){const cap=!t.drop&&state.board[i]!=null;d.classList.add('tgt');if(cap)d.classList.add('tgtcap');}
+      if(t){const cap=!t.drop&&S.board[i]!=null;d.classList.add('tgt');if(cap)d.classList.add('tgtcap');}
     }
-    const p=state.board[i];
+    const p=S.board[i];
     if(p){const tok=document.createElement('div');tok.className='tok '+(p.c===WHITE?'wc':'bc')+(p.promo?' promo':'');
       const lg=document.createElement('div');lg.className='lg';lg.innerHTML=pieceMarkup(p.t,p.c);
       tok.appendChild(lg);d.appendChild(tok);}
@@ -408,7 +488,7 @@ function fillHand(el,color){
   const who=document.createElement('div');who.className='who';
   who.textContent=(color===WHITE?'White':'Black')+' hand'+(color===humanSide?' (you)':'');
   el.appendChild(who);
-  const h=state.hands[color];
+  const h=dstate.hands[color];
   let any=false;
   for(const t of ['P','W','F','D']){
     const n=h[t];
@@ -417,27 +497,33 @@ function fillHand(el,color){
     const ic=document.createElement('div');ic.className='hicon';ic.innerHTML=pieceMarkup(t,color);
     tok.appendChild(ic);
     if(n>0){const c=document.createElement('span');c.className='cnt';c.textContent=n;tok.appendChild(c);any=true;}
-    if(sel&&sel.type==='hand'&&sel.pt===t&&color===state.turn)tok.classList.add('sel');
-    if(n>0&&color===state.turn&&isHumanTurn())tok.onclick=()=>onHand(t);
+    if(sel&&sel.type==='hand'&&sel.pt===t&&color===dstate.turn)tok.classList.add('sel');
+    if(n>0&&!analyzeMode&&color===dstate.turn&&isHumanTurn())tok.onclick=()=>onHand(t);
     el.appendChild(tok);
   }
 }
 function renderStatus(){
-  const el=$('status');const st=statusOf(state);
+  const el=$('status');const S=dstate;const st=statusOf(S);
   const sideName=c=>c===WHITE?'White':'Black';
-  if(st==='checkmate'){el.innerHTML=`<span class="check">Checkmate — ${sideName(1-state.turn)} wins.</span>`;return;}
+  if(st==='checkmate'){el.innerHTML=`<span class="check">Checkmate — ${sideName(1-S.turn)} wins.</span>`;return;}
   if(st==='stalemate'){el.innerHTML=`Stalemate — draw.`;return;}
-  if(threefold()){el.innerHTML=`Draw by threefold repetition.`;return;}
+  if(!analyzeMode&&threefold()){el.innerHTML=`Draw by threefold repetition.`;return;}
   let s='';
-  if(inCheck(state.board,state.turn))s+=`<span class="check">Check! </span>`;
-  s+=`${sideName(state.turn)} to move`;
-  if(!isHumanTurn())s+=` <span class="think">— bot thinking…</span>`;
+  if(analyzeMode)s+=`<span class="think">Analysis · </span>`;
+  if(inCheck(S.board,S.turn))s+=`<span class="check">Check! </span>`;
+  s+=`${sideName(S.turn)} to move`;
+  if(!analyzeMode&&!isHumanTurn())s+=` <span class="think">— bot thinking…</span>`;
   el.innerHTML=s;
 }
 function renderMoves(){
   const el=$('moves');
-  el.innerHTML=moveLog.map((e,i)=>((i%2===0)?`<b>${(i/2|0)+1}.</b> `:'')+e.san+' ').join('');
+  el.innerHTML=moveLog.map((e,i)=>{
+    const num=(i%2===0)?`<b>${(i/2|0)+1}.</b> `:'';
+    const on=analyzeMode&&viewPly===i+1?' cur':'';
+    return `${num}<span class="mv${on}" data-ply="${i+1}">${e.san}</span> `;
+  }).join('')||'<span style="opacity:.6">No moves yet.</span>';
   el.scrollTop=el.scrollHeight;
+  el.querySelectorAll('.mv').forEach(sp=>sp.onclick=()=>{ if(analyzeMode) goto(parseInt(sp.dataset.ply,10)); });
 }
 function renderPromo(){
   const el=$('promoPick');
@@ -455,8 +541,101 @@ function renderPromo(){
 }
 function isHumanTurn(){return oppMode==='human'||state.turn===humanSide;}
 
+/* ---------------- analyze mode ---------------- */
+function toggleAnalyze(){
+  analyzeMode=!analyzeMode;
+  if(analyzeMode){ sel=null; pendingPromo=null; viewPly=moveLog.length; render(); startAnalysis(); }
+  else { stopAnalysis(); render(); }
+  const b=$('analyzeBtn'); b.classList.toggle('primary',analyzeMode); b.textContent=analyzeMode?'Analyzing ✓':'Analyze';
+}
+function goto(ply){
+  ply=Math.max(0,Math.min(moveLog.length,ply));
+  viewPly=ply; sel=null; render(); startAnalysis();
+}
+function stopAnalysis(){ analysisToken++; analysisData=null; }
+function startAnalysis(){
+  const token=++analysisToken;
+  const S=stateAtPly(viewPly);
+  const status=statusOf(S);
+  if(status!=='ongoing'){ analysisData={depth:0,lines:[],turn:S.turn,terminal:status,base:S}; renderEvalBar(); renderAnalysis(); return; }
+  analysisData={depth:0,lines:[],turn:S.turn,terminal:null,base:S};
+  const MAXD=8; let d=1;
+  const step=()=>{
+    if(token!==analysisToken) return;
+    const t0=performance.now();
+    const r=analyze(S,d,3,S.history);
+    if(token!==analysisToken) return;
+    analysisData={depth:d,lines:r.lines,turn:S.turn,terminal:null,base:S,nodes:r.nodes};
+    renderEvalBar(); renderAnalysis();
+    const dt=performance.now()-t0;
+    const mate=r.lines.length&&Math.abs(r.lines[0].score)>WEIGHTS.MATE-100;
+    if(d<MAXD && !mate && dt<900){ d++; setTimeout(step,16); }
+  };
+  setTimeout(step,16);
+}
+function whiteEvalCp(){
+  if(!analysisData||!analysisData.lines.length)return null;
+  const sc=analysisData.lines[0].score;
+  return analysisData.turn===WHITE?sc:-sc;
+}
+function evalLabel(cp){
+  if(cp==null)return '';
+  if(Math.abs(cp)>WEIGHTS.MATE-100){ const n=Math.max(1,Math.ceil((WEIGHTS.MATE-Math.abs(cp))/2)); return (cp>0?'M':'-M')+n; }
+  return (cp>0?'+':'')+(cp/100).toFixed(1);
+}
+function renderEvalBar(){
+  const bar=$('evalbar'); bar.hidden=!analyzeMode; if(!analyzeMode)return;
+  const cp=whiteEvalCp();
+  let p=0.5;
+  if(cp!=null){ if(Math.abs(cp)>WEIGHTS.MATE-100) p=cp>0?1:0; else p=1/(1+Math.pow(10,-cp/400)); }
+  const bottomIsWhite = humanSide===WHITE;
+  // white fill = white's win share (p), anchored at White's end of the bar
+  const fill=$('evalfill');
+  fill.style.height=(100*p)+'%';
+  if(bottomIsWhite){ fill.style.bottom='0'; fill.style.top='auto'; }
+  else { fill.style.top='0'; fill.style.bottom='auto'; }
+  const lab=cp==null?'':evalLabel(cp);
+  // number at White's end (near the fill)
+  $('evalNumTop').textContent=bottomIsWhite?'':lab;
+  $('evalNumBot').textContent=bottomIsWhite?lab:'';
+}
+function pvToSan(baseState,pv,maxShow){
+  const S=baseState,undos=[],out=[];
+  let mvNo=Math.floor(viewPly/2)+1,white=(S.turn===WHITE);
+  for(let i=0;i<pv.length&&i<(maxShow||99);i++){
+    const m=pv[i];
+    const pre=white?`${mvNo}.`:(i===0?`${mvNo}…`:'');
+    out.push(pre+sanOf(S,m));
+    undos.push(makeMove(S,m));
+    if(!white)mvNo++; white=!white;
+  }
+  for(let i=undos.length-1;i>=0;i--)unmakeMove(S,undos[i]);
+  return out.join(' ');
+}
+function renderAnalysis(){
+  const el=$('analysis'); if(!analyzeMode)return;
+  const A=analysisData;
+  if(!A){el.innerHTML='<div class="head">Starting engine…</div>';return;}
+  if(A.terminal){ el.innerHTML=`<div class="head">${A.terminal==='checkmate'?'Checkmate — game over':A.terminal==='stalemate'?'Stalemate — draw':'Game over'}</div>`; return; }
+  const cp=whiteEvalCp();
+  let h=`<div class="head">Depth ${A.depth||'…'}${A.nodes?` · ${(A.nodes/1000|0)}k nodes`:''}${cp!=null?` · <b>${evalLabel(cp)}</b>`:''}</div>`;
+  h+=(A.lines||[]).map(ln=>{
+    const wcp=A.turn===WHITE?ln.score:-ln.score;
+    const cls=wcp>20?'pos':(wcp<-20?'neg':'');
+    return `<div class="ln"><span class="sc ${cls}">${evalLabel(wcp)}</span><span class="pv">${pvToSan(A.base,ln.pv,8)}</span></div>`;
+  }).join('');
+  el.innerHTML=h;
+}
+function renderAnalyzeUI(){
+  $('analyzeCard').hidden=!analyzeMode;
+  if(analyzeMode){
+    $('navlbl').textContent = viewPly===0?'start':(viewPly>=moveLog.length?`latest`:`ply ${viewPly}/${moveLog.length}`);
+    renderEvalBar(); renderAnalysis();
+  } else { $('evalbar').hidden=true; }
+}
+
 function onSquare(i){
-  if(busy||pendingPromo)return;
+  if(analyzeMode||busy||pendingPromo)return;
   const st=statusOf(state);if(st!=='ongoing'||threefold())return;
   if(!isHumanTurn())return;
   // if a hand piece is selected -> try drop
@@ -481,7 +660,7 @@ function onSquare(i){
   sel=null;render();
 }
 function onHand(pt){
-  if(busy||pendingPromo||!isHumanTurn())return;
+  if(analyzeMode||busy||pendingPromo||!isHumanTurn())return;
   sel=(sel&&sel.type==='hand'&&sel.pt===pt)?null:{type:'hand',pt};
   render();
 }
@@ -560,6 +739,18 @@ $('newgame').onclick=newGame;
 $('undo').onclick=undo;
 $('side').onchange=newGame;
 $('opp').onchange=newGame;
+$('analyzeBtn').onclick=toggleAnalyze;
+$('navStart').onclick=()=>goto(0);
+$('navPrev').onclick=()=>goto(viewPly-1);
+$('navNext').onclick=()=>goto(viewPly+1);
+$('navEnd').onclick=()=>goto(moveLog.length);
+document.addEventListener('keydown',e=>{
+  if(!analyzeMode)return;
+  if(e.key==='ArrowLeft'){goto(viewPly-1);e.preventDefault();}
+  else if(e.key==='ArrowRight'){goto(viewPly+1);e.preventDefault();}
+  else if(e.key==='Home'){goto(0);e.preventDefault();}
+  else if(e.key==='End'){goto(moveLog.length);e.preventDefault();}
+});
 newGame();
 </script>
 <script src="/games/footer.js"></script>
