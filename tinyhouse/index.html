@@ -55,6 +55,7 @@
   .navrow{display:flex;gap:6px;justify-content:center;align-items:center;margin-bottom:8px}
   .navrow button{padding:6px 12px;font-size:15px}
   .navrow .navlbl{font-size:12px;color:var(--muted);min-width:74px;text-align:center;font-variant-numeric:tabular-nums}
+  .anhint{font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.4}
   .analyze-card[hidden]{display:none}
   .analysis{font-size:12px;color:var(--muted)}
   .analysis .head{color:var(--ink);margin-bottom:2px;font-variant-numeric:tabular-nums}
@@ -155,6 +156,7 @@
   </div>
 
   <div class="card analyze-card" id="analyzeCard" hidden>
+    <div class="anhint">Play moves for either side to explore lines. Step with ⏮ ◀ ▶ ⏭ or ← →; playing from an earlier point starts a new line.</div>
     <div class="navrow">
       <button id="navStart" title="First">⏮</button>
       <button id="navPrev" title="Back">◀</button>
@@ -409,7 +411,7 @@ let state, humanSide=WHITE, oppMode='medium', posCount={}, moveLog=[], busy=fals
 let sel=null;         // {type:'sq',i} or {type:'hand',pt}
 let legalCache=[];    // legal moves this turn
 let pendingPromo=null;
-let analyzeMode=false, viewPly=0, dstate=null, analysisData=null, analysisToken=0;
+let analyzeMode=false, viewPly=0, dstate=null, analysisData=null, analysisToken=0, aLine=[];
 
 function newGame(){
   state=initialState();
@@ -422,11 +424,14 @@ function newGame(){
   maybeBotMove();
 }
 // Reconstruct the game position after `ply` half-moves (for analyze navigation).
+// In analyze mode we navigate/branch the analysis line `aLine`; in play mode the
+// actual game `moveLog`. stateAtPly is only used in analyze mode -> replay aLine.
 function stateAtPly(ply){
   const s=initialState(); const hist=[]; const pc={};
   const bump=()=>{const k=key(s);pc[k]=(pc[k]||0)+1;hist.push(k);};
   bump();
-  for(let i=0;i<ply;i++){ makeMove(s,moveLog[i].m); bump(); }
+  const line = analyzeMode ? aLine : moveLog;
+  for(let i=0;i<ply;i++){ makeMove(s,line[i].m); bump(); }
   s.history=hist; return s;
 }
 function bumpPos(){const k=key(state);posCount[k]=(posCount[k]||0)+1;state.history=Object.keys(posCount).flatMap(kk=>Array(posCount[kk]).fill(kk));}
@@ -450,7 +455,7 @@ function renderBoard(){
   const board=$('board');board.innerHTML='';
   const S=dstate;
   const chkSq = S && inCheck(S.board,S.turn) ? kingSquare(S.board,S.turn) : -1;
-  const last = analyzeMode ? (viewPly>0?moveLog[viewPly-1].m:null)
+  const last = analyzeMode ? (viewPly>0?aLine[viewPly-1].m:null)
                            : (moveLog.length?moveLog[moveLog.length-1].m:null);
   for(const i of orientedIndices()){
     const x=XOF(i),y=YOF(i);const d=document.createElement('div');
@@ -488,7 +493,7 @@ function renderHands(){
 function fillHand(el,color){
   el.innerHTML='';
   const who=document.createElement('div');who.className='who';
-  who.textContent=(color===WHITE?'White':'Black')+' hand'+(color===humanSide?' (you)':'');
+  who.textContent=(color===WHITE?'White':'Black')+' hand'+(!analyzeMode&&color===humanSide?' (you)':'');
   el.appendChild(who);
   const h=dstate.hands[color];
   let any=false;
@@ -500,7 +505,7 @@ function fillHand(el,color){
     tok.appendChild(ic);
     if(n>0){const c=document.createElement('span');c.className='cnt';c.textContent=n;tok.appendChild(c);any=true;}
     if(sel&&sel.type==='hand'&&sel.pt===t&&color===dstate.turn)tok.classList.add('sel');
-    if(n>0&&!analyzeMode&&color===dstate.turn&&isHumanTurn())tok.onclick=()=>onHand(t);
+    if(n>0&&color===dstate.turn&&(analyzeMode?statusOf(dstate)==='ongoing':isHumanTurn()))tok.onclick=()=>onHand(t);
     el.appendChild(tok);
   }
 }
@@ -519,7 +524,8 @@ function renderStatus(){
 }
 function renderMoves(){
   const el=$('moves');
-  el.innerHTML=moveLog.map((e,i)=>{
+  const list=analyzeMode?aLine:moveLog;
+  el.innerHTML=list.map((e,i)=>{
     const num=(i%2===0)?`<b>${(i/2|0)+1}.</b> `:'';
     const on=analyzeMode&&viewPly===i+1?' cur':'';
     return `${num}<span class="mv${on}" data-ply="${i+1}">${e.san}</span> `;
@@ -536,23 +542,31 @@ function renderPromo(){
   for(const pt of ['D','W','F']){
     const b=document.createElement('button');
     b.innerHTML='<span class="pmini">'+pieceMarkup(pt,state.turn)+'</span>'+PIECE[pt].nm;
-    b.onclick=()=>{const m=pendingPromo.options.find(o=>o.promo===pt);pendingPromo=null;doMove(m);};
+    b.onclick=()=>{const m=pendingPromo.options.find(o=>o.promo===pt);pendingPromo=null;(analyzeMode?analyzeMove:doMove)(m);};
     box.appendChild(b);
   }
   el.appendChild(box);
 }
 function isHumanTurn(){return oppMode==='human'||state.turn===humanSide;}
 
-/* ---------------- analyze mode ---------------- */
+/* ---------------- analyze mode (interactive exploration board) ---------------- */
 function toggleAnalyze(){
   analyzeMode=!analyzeMode;
-  if(analyzeMode){ sel=null; pendingPromo=null; viewPly=moveLog.length; render(); startAnalysis(); }
-  else { stopAnalysis(); render(); }
+  if(analyzeMode){ sel=null; pendingPromo=null; aLine=moveLog.map(e=>({m:e.m,san:e.san})); viewPly=aLine.length; render(); startAnalysis(); }
+  else { stopAnalysis(); aLine=[]; render(); }
   const b=$('analyzeBtn'); b.classList.toggle('primary',analyzeMode); b.textContent=analyzeMode?'Analyzing ✓':'Analyze';
 }
 function goto(ply){
-  ply=Math.max(0,Math.min(moveLog.length,ply));
-  viewPly=ply; sel=null; render(); startAnalysis();
+  const max=analyzeMode?aLine.length:moveLog.length;
+  viewPly=Math.max(0,Math.min(max,ply)); sel=null; render(); startAnalysis();
+}
+// Play a move on the analysis board: branch from the viewed position (drops any
+// moves after it) and continue. Then re-analyze.
+function analyzeMove(m){
+  const S=stateAtPly(viewPly);
+  const san=sanOf(S,m);
+  aLine=aLine.slice(0,viewPly); aLine.push({m,san}); viewPly++;
+  sel=null; pendingPromo=null; render(); startAnalysis();
 }
 function stopAnalysis(){ analysisToken++; analysisData=null; }
 function startAnalysis(){
@@ -641,38 +655,42 @@ function renderAnalysis(){
 function renderAnalyzeUI(){
   $('analyzeCard').hidden=!analyzeMode;
   if(analyzeMode){
-    $('navlbl').textContent = viewPly===0?'start':(viewPly>=moveLog.length?`latest`:`ply ${viewPly}/${moveLog.length}`);
+    $('navlbl').textContent = viewPly===0?'start':(viewPly>=aLine.length?`end (${viewPly})`:`ply ${viewPly}/${aLine.length}`);
     renderEvalBar(); renderAnalysis();
   } else { $('evalbar').hidden=true; }
 }
 
 function onSquare(i){
-  if(analyzeMode||busy||pendingPromo)return;
-  const st=statusOf(state);if(st!=='ongoing'||threefold())return;
-  if(!isHumanTurn())return;
+  if(pendingPromo)return;
+  const S=dstate;                                   // dstate===state in play mode
+  if(analyzeMode){ if(statusOf(S)!=='ongoing')return; }
+  else { if(busy)return; if(statusOf(state)!=='ongoing'||threefold())return; if(!isHumanTurn())return; }
+  const apply=analyzeMode?analyzeMove:doMove;
   // if a hand piece is selected -> try drop
   if(sel&&sel.type==='hand'){
     const m=legalCache.find(mm=>mm.drop===sel.pt&&mm.to===i);
-    if(m){sel=null;doMove(m);return;}
+    if(m){sel=null;apply(m);return;}
     sel=null;render();return;
   }
-  const p=state.board[i];
+  const p=S.board[i];
   // clicking a target of the currently selected square
   if(sel&&sel.type==='sq'){
     const cand=legalCache.filter(m=>!m.drop&&m.from===sel.i&&m.to===i);
     if(cand.length){
       if(cand.length>1&&cand[0].promo){pendingPromo={options:cand};sel=null;render();return;}
-      const m=cand[0];sel=null;doMove(m);return;
+      const m=cand[0];sel=null;apply(m);return;
     }
   }
   // tap the already-selected piece to deselect
   if(sel&&sel.type==='sq'&&sel.i===i){sel=null;render();return;}
-  // select own piece
-  if(p&&p.c===state.turn){sel={type:'sq',i};render();return;}
+  // select the side-to-move's piece
+  if(p&&p.c===S.turn){sel={type:'sq',i};render();return;}
   sel=null;render();
 }
 function onHand(pt){
-  if(analyzeMode||busy||pendingPromo||!isHumanTurn())return;
+  if(pendingPromo)return;
+  if(analyzeMode){ if(statusOf(dstate)!=='ongoing')return; }
+  else { if(busy||!isHumanTurn())return; }
   sel=(sel&&sel.type==='hand'&&sel.pt===pt)?null:{type:'hand',pt};
   render();
 }
@@ -755,7 +773,7 @@ $('analyzeBtn').onclick=toggleAnalyze;
 $('navStart').onclick=()=>goto(0);
 $('navPrev').onclick=()=>goto(viewPly-1);
 $('navNext').onclick=()=>goto(viewPly+1);
-$('navEnd').onclick=()=>goto(moveLog.length);
+$('navEnd').onclick=()=>goto(1e9);
 document.addEventListener('keydown',e=>{
   if(!analyzeMode)return;
   if(e.key==='ArrowLeft'){goto(viewPly-1);e.preventDefault();}
