@@ -179,7 +179,7 @@
     <p>The start is a 180° rotation: White's back rank a1→d1 is <strong>King · Wazir · Dragonknight · Ferz</strong> with a pawn on a2; Black is the same shape rotated, so the kings sit on diagonally opposite corners.</p>
     <h2>How the pieces move</h2>
     <div class="legend" id="legend"></div>
-    <p style="margin-top:10px"><strong>Crazyhouse drops:</strong> capturing a piece adds it to your hand (a promoted piece reverts to a pawn). On your turn you may drop a hand piece onto any empty square. Pawns can't be dropped on the 1st or last rank. A drop may give check or mate.</p>
+    <p style="margin-top:10px"><strong>Crazyhouse drops:</strong> capturing a piece adds it to your hand (a promoted piece reverts to a pawn). On your turn you may drop a hand piece onto any empty square — pawns included, even on your own home rank. The only restriction: a pawn can't be dropped on its promotion rank (the far rank). A drop may give check or mate.</p>
   </div>
 </div>
 
@@ -234,7 +234,7 @@ function pseudoMoves(state){
       for(const dx of[-1,1]){const nx=x+dx;if(!inb(nx,fy))continue;const j=IDX(nx,fy);const q=board[j];if(q&&q.c!==turn)addPawn(moves,i,j,fy===promoRank);}}
   }
   const hand=hands[turn];
-  for(const t of TYPES){if(hand[t]<=0)continue;for(let j=0;j<board.length;j++){if(board[j]!=null)continue;if(t==='P'){const ry=YOF(j);if(ry===0||ry===N-1)continue;}moves.push({drop:t,to:j});}}
+  for(const t of TYPES){if(hand[t]<=0)continue;for(let j=0;j<board.length;j++){if(board[j]!=null)continue;if(t==='P'&&YOF(j)===promoRank)continue;moves.push({drop:t,to:j});}}
   return moves;
 }
 function makeMove(state,m){
