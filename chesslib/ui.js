@@ -1,17 +1,22 @@
 /* ==================================================================
    chesslib/ui.js  —  the browser UI, wired to a variant config.
 
-   Board grid (any files×ranks), hands (crazyhouse only), controls
-   (You-play / Opponent / New game / Undo / Analyze), status line,
-   click-to-move + drop selection with target highlighting, centered
-   promotion overlay, help modal, and the interactive Analyze mode
-   (eval bar + multi-PV lines + branching exploration + nav).
+   Two tabs:
+     • Play      — the game (You-play / Opponent / New game / Undo /
+                   Analyze game), board, hands, status, move list, bot.
+     • Analysis  — a full analysis board interactive for BOTH sides:
+                   eval bar, engine multi-PV lines, a real VARIATION TREE
+                   (branch / navigate / promote-to-mainline / delete),
+                   navigation, and variant-PGN import / export.
 
-   boot(config, mount) builds the DOM, injects the shared CSS, creates
-   the engine + search from the config, and starts a new game.
+   The board area is shared and re-rendered per active tab; switching tabs
+   never disturbs the live game.  boot(config, mount) builds the DOM,
+   injects the shared CSS, creates the engine + search + pgn helpers from
+   the config, and starts a new game.
    ================================================================== */
 import { createEngine, WHITE, BLACK } from './engine.js';
 import { createSearch } from './search.js';
+import { createPgn } from './pgn.js';
 import { pieceSVG } from './pieces.js';
 import { CSS } from './styles.js';
 
@@ -21,11 +26,13 @@ const STALEMATE_HTML =
 export function boot(config, mount){
   const engine = createEngine(config);
   const search = createSearch(engine);
+  const pgn = createPgn(engine);
   const {
     W, H, IDX, XOF, YOF, inb, kingSquare, initialState, inCheck,
     legalMoves, makeMove, unmakeMove, statusOf, key,
   } = engine;
   const { WEIGHTS, LEVELS, OPENING_PLIES, searchMove, analyze, pickOpeningMove } = search;
+  const { sanOf, stateAtNode, depthOf } = pgn;
   const MATE = WEIGHTS.MATE;
   const TYPES = config.types;
   const PIECE = config.pieces;
@@ -41,7 +48,6 @@ export function boot(config, mount){
 
   // ---- build markup ----
   const mountEl = typeof mount==='string' ? document.querySelector(mount) : mount;
-  const legendRows = ''; // filled by legend()
   mountEl.innerHTML = `
 <div class="wrap">
   <div class="titlerow">
@@ -50,20 +56,35 @@ export function boot(config, mount){
   </div>
   <div class="tagline">${config.tagline}</div>
 
-  <div class="card controls">
-    <label>You play</label>
-    <select id="side"><option value="alt" selected>Alternate</option><option value="0">White (bottom)</option><option value="1">Black (top)</option></select>
-    <label>Opponent</label>
-    <select id="opp">
-      <option value="human">Human</option>
-      <option value="easy">Bot · Easy</option>
-      <option value="medium" selected>Bot · Medium</option>
-      <option value="hard">Bot · Hard</option>
-      <option value="insane">Bot · Insane</option>
-    </select>
-    <button class="primary" id="newgame">New game</button>
-    <button id="undo">Undo</button>
-    <button id="analyzeBtn">Analyze</button>
+  <div class="tabs">
+    <button class="tab active" id="tabPlay">Play</button>
+    <button class="tab" id="tabAnalysis">Analysis</button>
+  </div>
+
+  <div id="playPanel">
+    <div class="card controls">
+      <label>You play</label>
+      <select id="side"><option value="alt" selected>Alternate</option><option value="0">White (bottom)</option><option value="1">Black (top)</option></select>
+      <label>Opponent</label>
+      <select id="opp">
+        <option value="human">Human</option>
+        <option value="easy">Bot · Easy</option>
+        <option value="medium" selected>Bot · Medium</option>
+        <option value="hard">Bot · Hard</option>
+        <option value="insane">Bot · Insane</option>
+      </select>
+      <button class="primary" id="newgame">New game</button>
+      <button id="undo">Undo</button>
+      <button id="analyzeGame">Analyze game</button>
+    </div>
+  </div>
+
+  <div id="analysisPanel" hidden>
+    <div class="card controls">
+      <button class="primary" id="anNew">New</button>
+      <button id="anImport">Import PGN</button>
+      <button id="anExport">Export PGN</button>
+    </div>
   </div>
 
   <div class="status" id="status"></div>
@@ -79,7 +100,7 @@ export function boot(config, mount){
   </div>
 
   <div class="card analyze-card" id="analyzeCard" hidden>
-    <div class="anhint">Play moves for either side to explore lines. Step with ⏮ ◀ ▶ ⏭ or ← →; playing from an earlier point starts a new line.</div>
+    <div class="anhint">Play moves for either side to explore lines. Step with ⏮ ◀ ▶ ⏭ or ← →. Playing a move from an earlier point starts a new <em>variation</em> instead of overwriting.</div>
     <div class="navrow">
       <button id="navStart" title="First">⏮</button>
       <button id="navPrev" title="Back">◀</button>
@@ -88,9 +109,14 @@ export function boot(config, mount){
       <button id="navEnd" title="Latest">⏭</button>
     </div>
     <div class="analysis" id="analysis"></div>
+    <div class="tree" id="tree"></div>
+    <div class="treeops">
+      <button id="btnPromote" title="Make this variation the mainline">Promote to mainline</button>
+      <button id="btnDelete" title="Delete this variation">Delete variation</button>
+    </div>
   </div>
 
-  <div class="card">
+  <div class="card" id="moveListCard">
     <details><summary>Move list</summary><div class="moves" id="moves"></div></details>
   </div>
 </div>
@@ -106,6 +132,20 @@ export function boot(config, mount){
     <div class="legend" id="legend"></div>
     <p style="margin-top:10px">${config.help.dropsLine}</p>
   </div>
+</div>
+
+<div class="modal-bg" id="pgnModal">
+  <div class="modal-box">
+    <button class="close" id="pgnClose">×</button>
+    <h2>Variant PGN</h2>
+    <textarea class="pgnarea" id="pgnText" spellcheck="false" placeholder="Paste PGN here and press Import, or export the current tree…"></textarea>
+    <div class="pgnerr" id="pgnErr"></div>
+    <div class="pgnbtns">
+      <button id="pgnCopy">Copy</button>
+      <button id="pgnDownload">Download</button>
+      <button class="primary" id="pgnImport">Import</button>
+    </div>
+  </div>
 </div>`;
 
   const $=id=>document.getElementById(id);
@@ -118,7 +158,10 @@ export function boot(config, mount){
   let sel=null;         // {type:'sq',i} or {type:'hand',pt}
   let legalCache=[];
   let pendingPromo=null;
-  let analyzeMode=false, viewPly=0, dstate=null, analysisData=null, analysisToken=0, aLine=[];
+  let activeTab='play', analyzeMode=false;
+  let dstate=null, analysisData=null, analysisToken=0;
+  // variation tree
+  let treeRoot=pgn.newTree(), curNode=treeRoot;
 
   function newGame(){
     state=initialState();
@@ -126,23 +169,14 @@ export function boot(config, mount){
     if(sv==='alt'){ humanSide=altSide; altSide=1-altSide; } else humanSide=parseInt(sv,10);
     oppMode=$('opp').value;
     posCount={}; moveLog=[]; sel=null; pendingPromo=null; busy=false;
-    analyzeMode=false; analysisToken++; analysisData=null;
     bumpPos(); render();
     maybeBotMove();
-  }
-  function stateAtPly(ply){
-    const s=initialState(); const hist=[]; const pc={};
-    const bump=()=>{const k=key(s);pc[k]=(pc[k]||0)+1;hist.push(k);};
-    bump();
-    const line = analyzeMode ? aLine : moveLog;
-    for(let i=0;i<ply;i++){ makeMove(s,line[i].m); bump(); }
-    s.history=hist; return s;
   }
   function bumpPos(){const k=key(state);posCount[k]=(posCount[k]||0)+1;state.history=Object.keys(posCount).flatMap(kk=>Array(posCount[kk]).fill(kk));}
   function threefold(){return posCount[key(state)]>=3;}
 
   function render(){
-    dstate = analyzeMode ? stateAtPly(viewPly) : state;
+    dstate = analyzeMode ? stateAtNode(curNode) : state;
     legalCache = dstate ? legalMoves(dstate) : [];
     renderBoard(); renderHands(); renderStatus(); renderMoves(); renderPromo();
     renderAnalyzeUI();
@@ -157,7 +191,7 @@ export function boot(config, mount){
     board.innerHTML='';
     const S=dstate;
     const chkSq = S && inCheck(S.board,S.turn) ? kingSquare(S.board,S.turn) : -1;
-    const last = analyzeMode ? (viewPly>0?aLine[viewPly-1].m:null)
+    const last = analyzeMode ? (curNode.move||null)
                              : (moveLog.length?moveLog[moveLog.length-1].m:null);
     for(const i of orientedIndices()){
       const x=XOF(i),y=YOF(i);const d=document.createElement('div');
@@ -224,14 +258,11 @@ export function boot(config, mount){
   }
   function renderMoves(){
     const el=$('moves');
-    const list=analyzeMode?aLine:moveLog;
-    el.innerHTML=list.map((e,i)=>{
+    el.innerHTML=moveLog.map((e,i)=>{
       const num=(i%2===0)?`<b>${(i/2|0)+1}.</b> `:'';
-      const on=analyzeMode&&viewPly===i+1?' cur':'';
-      return `${num}<span class="mv${on}" data-ply="${i+1}">${e.san}</span> `;
+      return `${num}<span class="mv" data-ply="${i+1}">${e.san}</span> `;
     }).join('')||'<span style="opacity:.6">No moves yet.</span>';
     el.scrollTop=el.scrollHeight;
-    el.querySelectorAll('.mv').forEach(sp=>sp.onclick=()=>{ if(analyzeMode) goto(parseInt(sp.dataset.ply,10)); });
   }
   function renderPromo(){
     const el=$('promoPick');
@@ -239,9 +270,10 @@ export function boot(config, mount){
     el.innerHTML='';el.style.display='flex';
     const box=document.createElement('div');box.className='promoBox';
     const t=document.createElement('div');t.className='ttl';t.textContent='Promote to';box.appendChild(t);
+    const mover=dstate.turn;
     for(const pt of config.promoUiOrder){
       const b=document.createElement('button');
-      b.innerHTML='<span class="pmini">'+pieceMarkup(pt,state.turn)+'</span>'+PIECE[pt].name;
+      b.innerHTML='<span class="pmini">'+pieceMarkup(pt,mover)+'</span>'+PIECE[pt].name;
       b.onclick=()=>{const m=pendingPromo.options.find(o=>o.promo===pt);pendingPromo=null;(analyzeMode?analyzeMove:doMove)(m);};
       box.appendChild(b);
     }
@@ -249,27 +281,96 @@ export function boot(config, mount){
   }
   function isHumanTurn(){return oppMode==='human'||state.turn===humanSide;}
 
-  /* ---------------- analyze mode ---------------- */
-  function toggleAnalyze(){
-    analyzeMode=!analyzeMode;
-    if(analyzeMode){ sel=null; pendingPromo=null; aLine=moveLog.map(e=>({m:e.m,san:e.san})); viewPly=aLine.length; render(); startAnalysis(); }
-    else { stopAnalysis(); aLine=[]; render(); }
-    const b=$('analyzeBtn'); b.classList.toggle('primary',analyzeMode); b.textContent=analyzeMode?'Analyzing ✓':'Analyze';
+  /* ---------------- tabs ---------------- */
+  function setTab(tab){
+    activeTab=tab; analyzeMode=(tab==='analysis');
+    $('tabPlay').classList.toggle('active',tab==='play');
+    $('tabAnalysis').classList.toggle('active',tab==='analysis');
+    $('playPanel').hidden = tab!=='play';
+    $('analysisPanel').hidden = tab!=='analysis';
+    $('analyzeCard').hidden = tab!=='analysis';
+    $('moveListCard').hidden = tab!=='play';
+    sel=null; pendingPromo=null;
+    if(analyzeMode){ render(); startAnalysis(); }
+    else { stopAnalysis(); render(); }
   }
-  function goto(ply){
-    const max=analyzeMode?aLine.length:moveLog.length;
-    viewPly=Math.max(0,Math.min(max,ply)); sel=null; render(); startAnalysis();
-  }
-  function analyzeMove(m){
-    const S=stateAtPly(viewPly);
-    const san=sanOf(S,m);
-    aLine=aLine.slice(0,viewPly); aLine.push({m,san}); viewPly++;
+
+  /* ---------------- variation tree ---------------- */
+  function goToNode(n){
+    curNode=n; if(n.parent) n.parent._last=n;
     sel=null; pendingPromo=null; render(); startAnalysis();
   }
+  function navBack(){ if(curNode.parent) goToNode(curNode.parent); }
+  function navFwd(){
+    if(!curNode.children.length) return;
+    const n=(curNode._last&&curNode.children.includes(curNode._last))?curNode._last:curNode.children[0];
+    goToNode(n);
+  }
+  function navFirst(){ goToNode(treeRoot); }
+  function navLast(){
+    let n=curNode;
+    while(n.children.length){ n=(n._last&&n.children.includes(n._last))?n._last:n.children[0]; }
+    goToNode(n);
+  }
+  function analyzeMove(m){
+    const S=dstate;                       // position at curNode
+    const child=pgn.addMove(curNode,m,S); // reuse existing or branch a new variation
+    goToNode(child);
+  }
+  function promoteCur(){ if(curNode.parent){ pgn.promoteVariation(curNode); render(); } }
+  function deleteCur(){ if(curNode.parent){ const p=curNode.parent; pgn.deleteVariation(curNode); goToNode(p); } }
+
+  function analyzeGame(){
+    const built=pgn.treeFromMoves(moveLog.map(e=>e.m));
+    treeRoot=built.root; curNode=built.end; curNode._fromEnd=true;
+    setTab('analysis');
+  }
+  function newAnalysis(){
+    treeRoot=pgn.newTree(); curNode=treeRoot;
+    sel=null; pendingPromo=null; render(); startAnalysis();
+  }
+
+  // tree rendering (PGN-style, mainline inline + variations in parens)
+  let treeSeq=0, treeMap={};
+  function mvSpan(node){
+    const id=++treeSeq; treeMap[id]=node;
+    const cur=node===curNode?' cur':'';
+    return `<span class="tmv${cur}" data-n="${id}">${node.san}</span>`;
+  }
+  function treeMoves(node,depth,needNum){
+    if(!node.children.length) return '';
+    const main=node.children[0];
+    const white=depth%2===0, num=Math.floor(depth/2)+1;
+    let s = white?`<span class="mvn">${num}.</span> `:(needNum?`<span class="mvn">${num}…</span> `:'');
+    s+=mvSpan(main)+' ';
+    let hadVar=false;
+    for(let i=1;i<node.children.length;i++){ hadVar=true; s+=`<span class="var">(${treeVar(node.children[i],depth)})</span> `; }
+    s+=treeMoves(main,depth+1,hadVar);
+    return s;
+  }
+  function treeVar(node,depth){
+    const white=depth%2===0, num=Math.floor(depth/2)+1;
+    let s = white?`<span class="mvn">${num}.</span> `:`<span class="mvn">${num}…</span> `;
+    s+=mvSpan(node)+' ';
+    s+=treeMoves(node,depth+1,false);
+    return s.trim();
+  }
+  function renderTree(){
+    const el=$('tree'); treeMap={}; treeSeq=0;
+    const html=treeMoves(treeRoot,0,false);
+    el.innerHTML=html||'<span class="empty">No moves yet — play a move on the board to start a line.</span>';
+    el.querySelectorAll('.tmv').forEach(sp=>sp.onclick=()=>{ const n=treeMap[sp.dataset.n]; if(n) goToNode(n); });
+    const isVar=!!(curNode.parent&&curNode.parent.children.indexOf(curNode)>0);
+    $('btnPromote').disabled=!isVar;
+    $('btnDelete').disabled=!curNode.parent;
+  }
+
+  /* ---------------- analysis engine ---------------- */
   function stopAnalysis(){ analysisToken++; analysisData=null; }
   function startAnalysis(){
+    if(!analyzeMode) return;
     const token=++analysisToken;
-    const S=stateAtPly(viewPly);
+    const S=stateAtNode(curNode);
     const status=statusOf(S);
     if(status!=='ongoing'){ analysisData={depth:0,lines:[],turn:S.turn,terminal:status,base:S}; renderEvalBar(); renderAnalysis(); return; }
     analysisData={depth:0,lines:[],turn:S.turn,terminal:null,base:S};
@@ -320,7 +421,7 @@ export function boot(config, mount){
   }
   function pvToSan(baseState,pv,maxShow){
     const S=baseState,undos=[],out=[];
-    let mvNo=Math.floor(viewPly/2)+1,white=(S.turn===WHITE);
+    let mvNo=Math.floor(depthOf(curNode)/2)+1,white=(S.turn===WHITE);
     for(let i=0;i<pv.length&&i<(maxShow||99);i++){
       const m=pv[i];
       const pre=white?`${mvNo}.`:(i===0?`${mvNo}…`:'');
@@ -350,8 +451,9 @@ export function boot(config, mount){
   function renderAnalyzeUI(){
     $('analyzeCard').hidden=!analyzeMode;
     if(analyzeMode){
-      $('navlbl').textContent = viewPly===0?'start':(viewPly>=aLine.length?`end (${viewPly})`:`ply ${viewPly}/${aLine.length}`);
-      renderEvalBar(); renderAnalysis();
+      const d=depthOf(curNode);
+      $('navlbl').textContent = d===0?'start':(curNode.children.length?`move ${d}`:`end (${d})`);
+      renderEvalBar(); renderAnalysis(); renderTree();
     } else { $('evalbar').hidden=true; }
   }
 
@@ -384,15 +486,6 @@ export function boot(config, mount){
     else { if(busy||!isHumanTurn())return; }
     sel=(sel&&sel.type==='hand'&&sel.pt===pt)?null:{type:'hand',pt};
     render();
-  }
-  function sanOf(state,m){
-    const p=m.drop?{t:m.drop}:state.board[m.from];
-    const file=x=>config.fileLetters[x], sqName=j=>file(XOF(j))+(YOF(j)+1);
-    if(m.drop)return PIECE[m.drop].letter+'@'+sqName(m.to);
-    const cap=state.board[m.to]!=null;
-    let s=(p.t===engine.pawnType?'':PIECE[p.t].letter)+sqName(m.from)+(cap?'x':'-')+sqName(m.to);
-    if(m.promo)s+='='+PIECE[m.promo].letter;
-    return s;
   }
   function doMove(m){
     const san=sanOf(state,m);
@@ -435,6 +528,33 @@ export function boot(config, mount){
     sel=null;pendingPromo=null;busy=false;render();
   }
 
+  /* ---------------- PGN modal ---------------- */
+  function showPgn(){ $('pgnModal').style.display='flex'; }
+  function hidePgn(){ $('pgnModal').style.display='none'; }
+  function openExport(){ $('pgnErr').textContent=''; $('pgnText').value=pgn.exportPgn(treeRoot); showPgn(); }
+  function openImport(){ $('pgnErr').textContent=''; $('pgnText').value=''; showPgn(); $('pgnText').focus(); }
+  function doImport(){
+    try{
+      const {root}=pgn.importPgn($('pgnText').value);
+      treeRoot=root; let n=root; while(n.children.length) n=n.children[0]; curNode=n;
+      hidePgn();
+      if(analyzeMode){ render(); startAnalysis(); } else setTab('analysis');
+    }catch(e){ $('pgnErr').textContent=(e&&e.message)||String(e); }
+  }
+  function pgnDownload(){
+    const blob=new Blob([$('pgnText').value],{type:'text/plain'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=(config.id||'game')+'-analysis.pgn';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  }
+  function pgnCopy(){
+    const ta=$('pgnText'); ta.select();
+    if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(ta.value).catch(()=>{});
+    else { try{document.execCommand('copy');}catch(e){} }
+  }
+
   /* ---- legend ---- */
   (function legend(){
     const el=$('legend');
@@ -449,21 +569,36 @@ export function boot(config, mount){
     modal.onclick=e=>{if(e.target===modal)modal.style.display='none';};
   })();
 
+  /* ---- wire up ---- */
   $('newgame').onclick=newGame;
   $('undo').onclick=undo;
   $('side').onchange=newGame;
   $('opp').onchange=newGame;
-  $('analyzeBtn').onclick=toggleAnalyze;
-  $('navStart').onclick=()=>goto(0);
-  $('navPrev').onclick=()=>goto(viewPly-1);
-  $('navNext').onclick=()=>goto(viewPly+1);
-  $('navEnd').onclick=()=>goto(1e9);
+  $('analyzeGame').onclick=analyzeGame;
+  $('tabPlay').onclick=()=>setTab('play');
+  $('tabAnalysis').onclick=()=>setTab('analysis');
+  $('anNew').onclick=newAnalysis;
+  $('anImport').onclick=openImport;
+  $('anExport').onclick=openExport;
+  $('btnPromote').onclick=promoteCur;
+  $('btnDelete').onclick=deleteCur;
+  $('navStart').onclick=navFirst;
+  $('navPrev').onclick=navBack;
+  $('navNext').onclick=navFwd;
+  $('navEnd').onclick=navLast;
+  $('pgnClose').onclick=hidePgn;
+  $('pgnImport').onclick=doImport;
+  $('pgnCopy').onclick=pgnCopy;
+  $('pgnDownload').onclick=pgnDownload;
+  (function(){ const m=$('pgnModal'); m.onclick=e=>{if(e.target===m)hidePgn();}; })();
   document.addEventListener('keydown',e=>{
     if(!analyzeMode)return;
-    if(e.key==='ArrowLeft'){goto(viewPly-1);e.preventDefault();}
-    else if(e.key==='ArrowRight'){goto(viewPly+1);e.preventDefault();}
-    else if(e.key==='Home'){goto(0);e.preventDefault();}
-    else if(e.key==='End'){goto(moveLog.length);e.preventDefault();}
+    const tag=(e.target&&e.target.tagName)||'';
+    if(tag==='TEXTAREA'||tag==='INPUT')return;
+    if(e.key==='ArrowLeft'){navBack();e.preventDefault();}
+    else if(e.key==='ArrowRight'){navFwd();e.preventDefault();}
+    else if(e.key==='Home'){navFirst();e.preventDefault();}
+    else if(e.key==='End'){navLast();e.preventDefault();}
   });
   newGame();
 }
