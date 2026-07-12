@@ -19,6 +19,7 @@ export function createSearch(engine){
   const WEIGHTS = config.weights;
   const LEVELS  = config.levels;
   const TYPES   = config.types;
+  const crazyhouse = !!config.rules.crazyhouse;
   const stalemateWin = (config.rules.stalemate || 'win') === 'win';
   const centralPiece = config.eval ? config.eval.centralPiece : null;
   const centralKey   = config.eval ? config.eval.centralWeightKey : null;
@@ -32,7 +33,9 @@ export function createSearch(engine){
     const b=state.board; let s=0;
     for(let i=0;i<b.length;i++){
       const p=b[i]; if(!p||p.t===engine.royalType) continue;
-      const base=p.promo?val(w,pawnType):val(w,p.t), sign=p.c===WHITE?1:-1; s+=sign*base;
+      // In crazyhouse a promoted piece reverts to a pawn when captured, so it is
+      // valued as a pawn; in a standard variant a promoted Queen is worth a Queen.
+      const base=(p.promo&&crazyhouse)?val(w,pawnType):val(w,p.t), sign=p.c===WHITE?1:-1; s+=sign*base;
       if(p.t===pawnType){ const adv=p.c===WHITE?YOF(i):(H-1-YOF(i)); s+=sign*adv*w.pawnAdvance; }
       if(centralPiece && p.t===centralPiece){
         const x=XOF(i),y=YOF(i);
@@ -58,7 +61,7 @@ export function createSearch(engine){
   function isCapture(state,m){ return !m.drop && state.board[m.to]!=null; }
   function moveScore(state,m,w,ttBest){
     if(ttBest&&sameMove(m,ttBest)) return 1e6; let sc=0;
-    if(!m.drop){ const v=state.board[m.to]; if(v) sc+=1000+val(w,v.promo?pawnType:v.t)-val(w,state.board[m.from].t)/10; if(m.promo) sc+=500+val(w,m.promo); }
+    if(!m.drop){ const v=state.board[m.to]; if(v) sc+=1000+val(w,(v.promo&&crazyhouse)?pawnType:v.t)-val(w,state.board[m.from].t)/10; if(m.promo) sc+=500+val(w,m.promo); }
     else sc+=50;
     return sc;
   }

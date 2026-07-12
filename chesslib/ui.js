@@ -36,6 +36,8 @@ export function boot(config, mount){
   const MATE = WEIGHTS.MATE;
   const TYPES = config.types;
   const PIECE = config.pieces;
+  const CRAZYHOUSE = !!config.rules.crazyhouse;
+  const STALEMATE_WIN = (config.rules.stalemate || 'win') === 'win';
   const pieceMarkup = (t,c)=>pieceSVG(t,c);
   const promoRankOf = turn=>turn===WHITE?H-1:0;
 
@@ -126,11 +128,11 @@ export function boot(config, mount){
     <button class="close" id="helpClose">×</button>
     <h2>${config.help.title}</h2>
     <p>${config.help.intro}</p>
-    <p>${STALEMATE_HTML}</p>
+    ${CRAZYHOUSE ? `<p>${STALEMATE_HTML}</p>` : (config.help.stalemateLine ? `<p>${config.help.stalemateLine}</p>` : '')}
     <p>${config.help.setupLine}</p>
     <h2>How the pieces move</h2>
     <div class="legend" id="legend"></div>
-    <p style="margin-top:10px">${config.help.dropsLine}</p>
+    ${config.help.dropsLine ? `<p style="margin-top:10px">${config.help.dropsLine}</p>` : ''}
   </div>
 </div>
 
@@ -220,6 +222,8 @@ export function boot(config, mount){
     return legalCache.filter(m=>m.drop===sel.pt);
   }
   function renderHands(){
+    // No hands in a non-crazyhouse variant — hide the rows entirely.
+    if(!CRAZYHOUSE){ $('handTop').hidden=true; $('handBot').hidden=true; $('handTop').innerHTML=''; $('handBot').innerHTML=''; return; }
     const topColor = humanSide===WHITE?BLACK:WHITE;
     fillHand($('handTop'),topColor);
     fillHand($('handBot'),1-topColor);
@@ -249,7 +253,9 @@ export function boot(config, mount){
     const gameOver = !analyzeMode && (st==='checkmate'||st==='stalemate'||threefold());
     let html;
     if(st==='checkmate') html=`<span class="check">Checkmate — ${sideName(1-S.turn)} wins.</span>`;
-    else if(st==='stalemate') html=`<span class="check">Stalemate — ${sideName(S.turn)} wins!</span>`;
+    else if(st==='stalemate') html=STALEMATE_WIN
+      ? `<span class="check">Stalemate — ${sideName(S.turn)} wins!</span>`
+      : `Stalemate — draw.`;
     else if(!analyzeMode&&threefold()) html=`Draw by threefold repetition.`;
     else {
       let s='';
@@ -402,6 +408,7 @@ export function boot(config, mount){
   function whiteEvalCp(){
     if(!analysisData)return null;
     if(analysisData.terminal){
+      if(analysisData.terminal==='stalemate' && !STALEMATE_WIN) return 0;   // standard: stalemate = draw
       const mover=analysisData.turn;
       const moverWins = analysisData.terminal==='stalemate';
       const cp = moverWins ? MATE : -MATE;
@@ -448,7 +455,7 @@ export function boot(config, mount){
     const A=analysisData;
     if(!A){el.innerHTML='<div class="head">Starting engine…</div>';return;}
     if(A.terminal){ const w=A.turn===WHITE?'White':'Black',b=A.turn===WHITE?'Black':'White';
-      const msg=A.terminal==='checkmate'?`Checkmate — ${b} wins`:A.terminal==='stalemate'?`Stalemate — ${w} wins`:'Game over';
+      const msg=A.terminal==='checkmate'?`Checkmate — ${b} wins`:A.terminal==='stalemate'?(STALEMATE_WIN?`Stalemate — ${w} wins`:`Stalemate — draw`):'Game over';
       el.innerHTML=`<div class="head">${msg}</div>`; return; }
     const cp=whiteEvalCp();
     let h=`<div class="head">Depth ${A.depth||'…'}${A.nodes?` · ${(A.nodes/1000|0)}k nodes`:''}${cp!=null?` · <b>${evalLabel(cp)}</b>`:''}</div>`;
