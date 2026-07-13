@@ -18,6 +18,7 @@ import { createEngine, WHITE, BLACK } from './engine.js';
 import { createSearch } from './search.js';
 import { createSearch2 } from './search2.js';
 import { createPgn } from './pgn.js';
+import { createBook } from './book.js';
 import { pieceSVG } from './pieces.js';
 import { CSS } from './styles.js';
 
@@ -29,12 +30,13 @@ export function boot(config, mount){
   const search = createSearch(engine);
   const search2 = createSearch2(engine);   // stronger search (PVS+LMR+…) for the Insane tier
   const pgn = createPgn(engine);
+  const book = createBook(config.name || config.id || config.title);  // precomputed opening book (may be absent)
   const {
     W, H, IDX, XOF, YOF, inb, kingSquare, initialState, inCheck,
     legalMoves, makeMove, unmakeMove, statusOf, key,
   } = engine;
   const { WEIGHTS, LEVELS, OPENING_PLIES, searchMove, analyze, pickOpeningMove } = search;
-  const { sanOf, stateAtNode, depthOf } = pgn;
+  const { sanOf, normSan, stateAtNode, depthOf } = pgn;
   const MATE = WEIGHTS.MATE;
   const TYPES = config.types;
   const PIECE = config.pieces;
@@ -113,6 +115,7 @@ export function boot(config, mount){
       <button id="navNext" title="Forward">▶</button>
       <button id="navEnd" title="Latest">⏭</button>
     </div>
+    <div class="book" id="bookpanel" hidden></div>
     <div class="analysis" id="analysis"></div>
     <div class="tree" id="tree"></div>
     <div class="treeops">
@@ -164,7 +167,7 @@ export function boot(config, mount){
   let legalCache=[];
   let pendingPromo=null;
   let activeTab='play', analyzeMode=false;
-  let dstate=null, analysisData=null, analysisToken=0;
+  let dstate=null, analysisData=null, bookData=null, analysisToken=0;
   // variation tree
   let treeRoot=pgn.newTree(), curNode=treeRoot;
 
@@ -386,14 +389,30 @@ export function boot(config, mount){
   }
 
   /* ---------------- analysis engine ---------------- */
-  function stopAnalysis(){ analysisToken++; analysisData=null; }
+  function stopAnalysis(){ analysisToken++; analysisData=null; bookData=null; }
   function startAnalysis(){
     if(!analyzeMode) return;
     const token=++analysisToken;
     const S=stateAtNode(curNode);
     const status=statusOf(S);
-    if(status!=='ongoing'){ analysisData={depth:0,lines:[],turn:S.turn,terminal:status,base:S}; renderEvalBar(); renderAnalysis(); return; }
+    bookData=null; analysisData=null;
+    if(status!=='ongoing'){ analysisData={depth:0,lines:[],turn:S.turn,terminal:status,base:S}; renderEvalBar(); renderBook(); renderAnalysis(); return; }
+    renderBook();                       // clear any stale book rows while we decide
+    // Prefer instant, precomputed book moves for this position; fall back to
+    // the live engine when the position is beyond the book's coverage.
+    book.lookup(key(S)).then(entries=>{
+      if(token!==analysisToken) return;
+      if(entries && entries.length){
+        bookData={entries,base:S,turn:S.turn};
+        renderEvalBar(); renderBook(); renderAnalysis();
+      } else {
+        runEngine(S,token);
+      }
+    });
+  }
+  function runEngine(S,token){
     analysisData={depth:0,lines:[],turn:S.turn,terminal:null,base:S};
+    renderEvalBar(); renderBook(); renderAnalysis();
     const MAXD=8; let d=1;
     const step=()=>{
       if(token!==analysisToken) return;
@@ -409,6 +428,7 @@ export function boot(config, mount){
     setTimeout(step,16);
   }
   function whiteEvalCp(){
+    if(bookData && bookData.entries.length) return bookData.entries[0].cp;  // book cp is white-relative
     if(!analysisData)return null;
     if(analysisData.terminal){
       if(analysisData.terminal==='stalemate' && !STALEMATE_WIN) return 0;   // standard: stalemate = draw
@@ -453,8 +473,41 @@ export function boot(config, mount){
     for(let i=undos.length-1;i>=0;i--)unmakeMove(S,undos[i]);
     return out.join(' ');
   }
+  // horizontal white-vs-black fill (0..100% white) for a white-relative cp
+  function cpToPct(cp){
+    if(cp==null) return 50;
+    if(Math.abs(cp)>MATE-100) return cp>0?100:0;
+    return 100/(1+Math.pow(10,-cp/400));
+  }
+  function bookPlay(i){
+    const en=bookData&&bookData.entries[i]; if(!en) return;
+    const S=dstate, target=normSan(en.san);
+    const m=legalCache.find(mm=>normSan(sanOf(S,mm))===target);   // reuse SAN + tree move-play
+    if(m) analyzeMove(m);
+  }
+  function renderBook(){
+    const el=$('bookpanel');
+    if(!analyzeMode || !bookData){ el.hidden=true; el.innerHTML=''; return; }
+    el.hidden=false;
+    const meta=book.info();
+    const depth=(meta&&meta.depth!=null)?meta.depth:'?';
+    const cp=whiteEvalCp();
+    let h=`<div class="head"><span class="bookbadge">book</span> Opening book · depth ${depth}${cp!=null?` · <b>${evalLabel(cp)}</b>`:''}</div>`;
+    h+=bookData.entries.map((en,i)=>{
+      const cls=en.cp>20?'pos':(en.cp<-20?'neg':'');
+      return `<div class="brow" data-i="${i}">`
+        +`<span class="bsan">${en.san}</span>`
+        +`<span class="bbar"><span class="bfill" style="width:${cpToPct(en.cp)}%"></span></span>`
+        +`<span class="bnum ${cls}">${evalLabel(en.cp)}</span>`
+        +`</div>`;
+    }).join('');
+    el.innerHTML=h;
+    el.querySelectorAll('.brow').forEach(row=>row.onclick=()=>bookPlay(+row.dataset.i));
+  }
   function renderAnalysis(){
     const el=$('analysis'); if(!analyzeMode)return;
+    if(bookData){ el.hidden=true; return; }   // in-book → book panel replaces the live engine lines
+    el.hidden=false;
     const A=analysisData;
     if(!A){el.innerHTML='<div class="head">Starting engine…</div>';return;}
     if(A.terminal){ const w=A.turn===WHITE?'White':'Black',b=A.turn===WHITE?'Black':'White';
@@ -474,7 +527,7 @@ export function boot(config, mount){
     if(analyzeMode){
       const d=depthOf(curNode);
       $('navlbl').textContent = d===0?'start':(curNode.children.length?`move ${d}`:`end (${d})`);
-      renderEvalBar(); renderAnalysis(); renderTree();
+      renderEvalBar(); renderBook(); renderAnalysis(); renderTree();
     } else { $('evalbar').hidden=true; }
   }
 
