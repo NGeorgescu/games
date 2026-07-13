@@ -35,7 +35,7 @@ export default {
   // Standard-ish material values (no hand bonus — there are no hands).
   weights: {"P":100,"N":300,"B":320,"R":500,"Q":900,"handBonus":0,"mobility":3.0,"kingExposure":6.0,"pawnAdvance":6.0,"centerN":8.0,"MATE":100000},
   eval: { centralPiece:'N', centralWeightKey:'centerN' },
-  levels: {easy:{maxDepth:2,timeMs:150,blunder:0.35},medium:{maxDepth:6,timeMs:600,blunder:0.06},hard:{maxDepth:10,timeMs:1500,blunder:0},insane:{maxDepth:16,timeMs:3500,blunder:0}},
+  levels: {easy:{maxDepth:2,timeMs:150,blunder:0.35},medium:{maxDepth:6,timeMs:600,blunder:0.06},hard:{maxDepth:10,timeMs:1500,blunder:0},expert:{maxDepth:16,timeMs:3500,blunder:0},insane:{maxDepth:24,timeMs:3500,blunder:0,v2:true}},
 
   openingPlies: 8,
 

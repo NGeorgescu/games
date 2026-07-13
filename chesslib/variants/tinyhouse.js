@@ -29,7 +29,7 @@ export default {
   // Trained by offline self-play (greedy hill-climb over randomized-opening matches).
   weights: {"P":100,"W":246.14,"F":235.883,"D":188.726,"handBonus":1.489,"mobility":3.242,"kingExposure":7.133,"pawnAdvance":6.001,"centerD":8.336,"MATE":100000},
   eval: { centralPiece:'D', centralWeightKey:'centerD' },
-  levels: {easy:{maxDepth:2,timeMs:150,blunder:0.35},medium:{maxDepth:6,timeMs:500,blunder:0.06},hard:{maxDepth:10,timeMs:1200,blunder:0},insane:{maxDepth:18,timeMs:3000,blunder:0}},
+  levels: {easy:{maxDepth:2,timeMs:150,blunder:0.35},medium:{maxDepth:6,timeMs:500,blunder:0.06},hard:{maxDepth:10,timeMs:1200,blunder:0},expert:{maxDepth:18,timeMs:3000,blunder:0},insane:{maxDepth:24,timeMs:3000,blunder:0,v2:true}},
 
   openingPlies: 8,
 

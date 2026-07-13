@@ -29,7 +29,7 @@ export default {
   // Hand-tuned standard-ish crazyhouse values (no queen). Hand pieces ~1.3x board value.
   weights: {"P":100,"R":500,"N":300,"B":320,"handBonus":1.3,"mobility":2.0,"kingExposure":7.0,"pawnAdvance":6.0,"centerN":8.0,"MATE":100000},
   eval: { centralPiece:'N', centralWeightKey:'centerN' },
-  levels: {easy:{maxDepth:2,timeMs:200,blunder:0.35},medium:{maxDepth:6,timeMs:700,blunder:0.06},hard:{maxDepth:12,timeMs:1800,blunder:0},insane:{maxDepth:20,timeMs:4000,blunder:0}},
+  levels: {easy:{maxDepth:2,timeMs:200,blunder:0.35},medium:{maxDepth:6,timeMs:700,blunder:0.06},hard:{maxDepth:12,timeMs:1800,blunder:0},expert:{maxDepth:20,timeMs:4000,blunder:0},insane:{maxDepth:28,timeMs:4000,blunder:0,v2:true}},
 
   openingPlies: 8,
 

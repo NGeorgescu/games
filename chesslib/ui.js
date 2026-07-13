@@ -16,6 +16,7 @@
    ================================================================== */
 import { createEngine, WHITE, BLACK } from './engine.js';
 import { createSearch } from './search.js';
+import { createSearch2 } from './search2.js';
 import { createPgn } from './pgn.js';
 import { pieceSVG } from './pieces.js';
 import { CSS } from './styles.js';
@@ -26,6 +27,7 @@ const STALEMATE_HTML =
 export function boot(config, mount){
   const engine = createEngine(config);
   const search = createSearch(engine);
+  const search2 = createSearch2(engine);   // stronger search (PVS+LMR+…) for the Insane tier
   const pgn = createPgn(engine);
   const {
     W, H, IDX, XOF, YOF, inb, kingSquare, initialState, inCheck,
@@ -73,6 +75,7 @@ export function boot(config, mount){
         <option value="easy">Bot · Easy</option>
         <option value="medium" selected>Bot · Medium</option>
         <option value="hard">Bot · Hard</option>
+        <option value="expert">Bot · Expert</option>
         <option value="insane">Bot · Insane</option>
       </select>
       <button class="primary" id="newgame">New game</button>
@@ -522,14 +525,15 @@ export function boot(config, mount){
     busy=true;renderStatus();
     setTimeout(()=>{
       const lvl=LEVELS[oppMode];
+      const sm = lvl.v2 ? search2.searchMove : searchMove;   // Insane uses the stronger engine
       let move;
       const legal=legalMoves(state);
       if(lvl.blunder>0&&Math.random()<lvl.blunder){
         move=legal[Math.floor(Math.random()*legal.length)];
       }else if(moveLog.length<OPENING_PLIES){
-        move=pickOpeningMove(state,lvl,state.history)||searchMove(state,{maxDepth:lvl.maxDepth,timeMs:lvl.timeMs,history:state.history}).move||legal[0];
+        move=pickOpeningMove(state,lvl,state.history)||sm(state,{maxDepth:lvl.maxDepth,timeMs:lvl.timeMs,history:state.history}).move||legal[0];
       }else{
-        const res=searchMove(state,{maxDepth:lvl.maxDepth,timeMs:lvl.timeMs,history:state.history});
+        const res=sm(state,{maxDepth:lvl.maxDepth,timeMs:lvl.timeMs,history:state.history});
         move=res.move||legal[0];
       }
       const san=sanOf(state,move);
