@@ -150,57 +150,158 @@ function chooseMove(){
   return pickWeighted(empties,c=>lineScore(c,CPU)+lineScore(c,HUMAN)*0.6+threatsAfter(c,CPU)*40+Math.random()*1.5);
 }
 
-/* ===================== Insane engine =====================
-   Iterative-deepening negamax + alpha-beta + transposition table (Zobrist),
-   threat-aware move ordering, and a quiescence search over forcing moves
-   (own win / forced block) so forks are seen beyond the full-width horizon.
-   CPU='B' is the maximiser. Operates on its own working state (Int arrays +
-   per-line mark counts), seeded from the live `board`; never mutates `board`. */
-const STRONG=(()=>{
-  const CPU_I=1, HUM_I=2, WIN=1e7, NL=LINES.length, TIME_MS=350;
-  const W3=[0,1,6,26];
-  const ZOB=(()=>{ const z=Array.from({length:CELLS},()=>[null,[0,0],[0,0]]);
+/* ===================== Insane engine — strong Qubic defender =====================
+   Rebuilt for real defensive strength (the previous version let the opponent build a
+   central-2x2 double-threat fork).  Layers, cheap+certain first, then deep:
+     - guaranteed win-in-1 and block-in-1 (never missed);
+     - Threat-Space Search (tss): proves forced wins by open-3 threat sequences, used
+       to grab our own forced wins and to refuse any move giving the opponent one;
+     - a bounded AND-OR solver that also lets the attacker play QUIET setup moves,
+       which is exactly how the central-block reciprocal-zugzwang fork is built, so
+       the defender steers clear of it several plies early;
+     - iterative-deepening negamax + alpha-beta + Zobrist TT + quiescence, with a
+       threat-aware, centre-weighted, defensively-biased evaluation (breaks up the
+       opponent developing forks and contests the high-connectivity inner cells);
+     - root-move reduction by the position symmetry stabiliser (48-element cube group).
+   Operates on an internal Int8 copy seeded from the live `board`; never mutates it. */
+function createStrong(deps){
+  const {CELLS, LINES, LINES_BY_CELL, CELLW} = deps;
+  const NL = LINES.length;
+  const WIN = 1e7;
+  const W3  = [0,1,6,26];           // static weight for MY (side-1) lines
+  const W3O = [0,1,11,46];          // heavier weight for OPPONENT lines (defensive bias)
+  // Positional weight per cell.  Inner 2x2x2 block cells enable central-block forks,
+  // so they are worth far more than equally-connected corners: contest the centre.
+  const PW = (()=>{ const w=new Float64Array(CELLS);
+    for(let c=0;c<CELLS;c++){ const i=c%4, j=(c>>2)&3, z=(c>>4)&3;
+      const inI=(i===1||i===2), inJ=(j===1||j===2), inZ=(z===1||z===2);
+      const inner=inI&&inJ&&inZ; w[c]=CELLW[c] + (inner?10:0); }
+    return w; })();
+  const IS_INNER = (()=>{ const a=new Uint8Array(CELLS);
+    for(let c=0;c<CELLS;c++){ const i=c%4, j=(c>>2)&3, z=(c>>4)&3;
+      if((i===1||i===2)&&(j===1||j===2)&&(z===1||z===2)) a[c]=1; } return a; })();
+
+  // ---- Zobrist ----
+  const ZOB = (()=>{ const z=Array.from({length:CELLS},()=>[null,[0,0],[0,0]]);
     let seed=0x2f6e2b1>>>0; const rnd=()=>{ seed^=seed<<13; seed^=seed>>>17; seed^=seed<<5; seed>>>=0; return seed>>>0; };
-    for(let c=0;c<CELLS;c++){ z[c][CPU_I]=[rnd(),rnd()]; z[c][HUM_I]=[rnd(),rnd()]; } return z; })();
+    for(let c=0;c<CELLS;c++){ z[c][1]=[rnd(),rnd()]; z[c][2]=[rnd(),rnd()]; } return z; })();
+
+  // ---- 48 symmetries of the 4x4x4 grid (axis permutations x axis flips) ----
+  const SYMS = (()=>{ const idx3=(i,j,z)=>z*16+j*4+i;
+    const perms=[[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]]; const out=[];
+    for(const p of perms) for(let f=0; f<8; f++){ const fl=[f&1,(f>>1)&1,(f>>2)&1];
+      const map=new Int32Array(CELLS);
+      for(let z=0;z<4;z++)for(let j=0;j<4;j++)for(let i=0;i<4;i++){ const co=[i,j,z];
+        let a=co[p[0]], b=co[p[1]], d=co[p[2]]; if(fl[0])a=3-a; if(fl[1])b=3-b; if(fl[2])d=3-d;
+        map[idx3(i,j,z)] = idx3(a,b,d); }
+      out.push(map); }
+    return out; })();
+
+  // ---- search state ----
   let sB, sC1, sC2, sHa, sHb, sPly, sTT, sDeadline, sAbort, sNodes;
+  let tssNodes, tssBudget;
+  let solverNodes, solverBudget, solverTT;
 
   function make(c,side){ sB[c]=side; sHa^=ZOB[c][side][0]; sHb^=ZOB[c][side][1]; sPly++;
     const L=LINES_BY_CELL[c]; let won=false;
-    if(side===CPU_I){ for(const li of L){ if(++sC1[li]===4) won=true; } }
+    if(side===1){ for(const li of L){ if(++sC1[li]===4) won=true; } }
     else { for(const li of L){ if(++sC2[li]===4) won=true; } } return won; }
   function unmake(c,side){ sB[c]=0; sHa^=ZOB[c][side][0]; sHb^=ZOB[c][side][1]; sPly--;
     const L=LINES_BY_CELL[c];
-    if(side===CPU_I){ for(const li of L) sC1[li]--; } else { for(const li of L) sC2[li]--; } }
+    if(side===1){ for(const li of L) sC1[li]--; } else { for(const li of L) sC2[li]--; } }
   function emptyOfLine(li){ for(const cc of LINES[li]) if(!sB[cc]) return cc; return -1; }
 
-  // Quiescence over forcing moves; value from `side` perspective. Allocation-free single pass.
+  // distinct empty cells that complete a line for `side` right now (immediate wins)
+  function winCells(side){ const mine=side===1?sC1:sC2, opp=side===1?sC2:sC1; let out=null;
+    for(let li=0; li<NL; li++){ if(mine[li]===3 && opp[li]===0){ const e=emptyOfLine(li);
+      if(e<0) continue; if(!out) out=[e]; else if(!out.includes(e)) out.push(e); } }
+    return out||[]; }
+
+  // moves that create at least one new open-3 threat for `side`, with threat count
+  function threatMoves(side){ const mine=side===1?sC1:sC2, opp=side===1?sC2:sC1; const out=[];
+    for(let c=0;c<CELLS;c++){ if(sB[c]) continue; let n=0;
+      for(const li of LINES_BY_CELL[c]) if(mine[li]===2 && opp[li]===0) n++;
+      if(n>0) out.push([c,n]); }
+    out.sort((a,b)=>b[1]-a[1]); return out; }
+
+  /* Threat-space search: can `side` (to move) force a win using only threatening
+     moves (each creates an open-3), the opponent being forced to block the single
+     resulting threat?  Returns true if a forced win is proven, false otherwise.
+     `depth` counts side's moves. Sound-ish for defense: opponent is allowed to
+     win immediately if it can (refutes the line). */
+  function tss(side, depth){
+    if(sAbort || (++tssNodes)>tssBudget) return false;
+    if((tssNodes&511)===0 && Date.now()>sDeadline){ sAbort=true; return false; }
+    const other = side===1?2:1;
+    if(winCells(side).length>=1) return true;         // we complete a 4 right now
+    const ow = winCells(other);
+    if(ow.length>=2) return false;                    // opponent already has a fork; we can't win first
+    if(depth<=0) return false;
+    let moves;
+    if(ow.length===1) moves=[[ow[0],0]];              // we are forced to block their single threat
+    else moves=threatMoves(side);
+    for(const [c] of moves){
+      const won = make(c,side); if(won){ unmake(c,side); return true; }
+      const wc = winCells(side);
+      if(wc.length>=2){                               // we created a double threat (fork)
+        if(winCells(other).length===0){ unmake(c,side); return true; }
+        unmake(c,side); continue;                     // opponent can win first -> refuted
+      }
+      if(wc.length===1){                              // single threat: opponent forced to block it
+        if(winCells(other).length>=1){ unmake(c,side); continue; } // opponent wins first -> refuted
+        const won2 = make(wc[0], other);
+        const r = won2 ? false : tss(side, depth-1);
+        unmake(wc[0], other); unmake(c,side);
+        if(r) return true; continue;
+      }
+      unmake(c,side);                                 // forced block with no counter-threat: can't prove
+    }
+    return false;
+  }
+
+  // ---- quiescence over forcing replies + threat-aware, center-weighted static eval ----
   function qsearch(side, q){
     if(sPly===CELLS) return 0;
-    const meIsCPU = side===CPU_I;
+    const meMax = side===1;
     let s=0, myWin=false, t0=-1, forkOpp=false;
     for(let li=0;li<NL;li++){ const a=sC1[li], b=sC2[li];
       if(a){ if(b) continue; s+=W3[a];
-        if(a===3){ if(meIsCPU) myWin=true; else { const e=emptyOfLine(li); if(t0<0) t0=e; else if(e!==t0) forkOpp=true; } }
-      } else if(b){ s-=W3[b];
-        if(b===3){ if(!meIsCPU) myWin=true; else { const e=emptyOfLine(li); if(t0<0) t0=e; else if(e!==t0) forkOpp=true; } }
+        if(a===3){ if(meMax) myWin=true; else { const e=emptyOfLine(li); if(t0<0) t0=e; else if(e!==t0) forkOpp=true; } }
+      } else if(b){ s-=W3O[b];
+        if(b===3){ if(!meMax) myWin=true; else { const e=emptyOfLine(li); if(t0<0) t0=e; else if(e!==t0) forkOpp=true; } }
       } }
     if(myWin) return WIN - sPly - 1;
     if(forkOpp) return -(WIN - sPly - 2);
-    if(t0>=0 && q<10){ const other = meIsCPU?HUM_I:CPU_I;
+    if(t0>=0 && q<12){ const other = meMax?2:1;
       const won=make(t0,side); const v = won ? (WIN - sPly - 1) : -qsearch(other, q+1);
       unmake(t0,side); return v; }
-    return meIsCPU? s : -s;
+    // Threat-space (VCT) probe: can the side to move force a win by threats?
+    if(q<3 && sPly<CELLS-1){ tssNodes=0; tssBudget=12000;
+      if(tss(side, 9)) return WIN - sPly - 3; }
+    // positional: centre / high-connectivity occupancy (inner block weighted up)
+    let pos=0; for(let c=0;c<CELLS;c++){ const v=sB[c]; if(v===1) pos+=PW[c]; else if(v===2) pos-=PW[c]; }
+    s += pos*0.35;
+    // fork-pressure (defensive only): count empty cells where the OPPONENT would gain an
+    // open-3 (threat) or a double threat (fork), and penalise it — the defender should
+    // break up developing forks before they turn tactical.  Own potential is left to the
+    // line terms / positional so the defender does not abandon the centre to attack.
+    let oTh=0,oFork=0;
+    for(let c=0;c<CELLS;c++){ if(sB[c]) continue; let o2=0;
+      for(const li of LINES_BY_CELL[c]){ if(sC1[li]===0 && sC2[li]===2) o2++; }
+      if(o2>=1) oTh++; if(o2>=2) oFork++; }
+    s -= oTh*5 + oFork*70;
+    return meMax? s : -s;
   }
 
-  function ordered(side, ttMove){
-    const list=[]; for(let c=0;c<CELLS;c++) if(!sB[c]) list.push(c);
-    const scoreOf=c=>{ if(c===ttMove) return 1e9; let sv=CELLW[c]*2;
-      for(const li of LINES_BY_CELL[c]){ const a=side===CPU_I?sC1[li]:sC2[li], o=side===CPU_I?sC2[li]:sC1[li];
+  function orderList(list, side, ttMove){ const mine=side===1?sC1:sC2, opp=side===1?sC2:sC1;
+    const scoreOf=c=>{ if(c===ttMove) return 1e9; let sv=CELLW[c]*2 + (IS_INNER[c]?12:0);
+      for(const li of LINES_BY_CELL[c]){ const a=mine[li], o=opp[li];
         if(a===3&&o===0) sv+=100000; if(o===3&&a===0) sv+=9000;
         if(o===0) sv+=[0,1,8,50][a]; else if(a===0) sv+=[0,1,3,20][o]*0.3; }
       return sv; };
-    return list.sort((x,y)=>scoreOf(y)-scoreOf(x));
-  }
+    return list.slice().sort((x,y)=>scoreOf(y)-scoreOf(x)); }
+  function ordered(side, ttMove){ const list=[]; for(let c=0;c<CELLS;c++) if(!sB[c]) list.push(c);
+    return orderList(list, side, ttMove); }
 
   function nm(depth, alpha, beta, side){
     if((sNodes++&1023)===0 && Date.now()>sDeadline) sAbort=true;
@@ -211,7 +312,7 @@ const STRONG=(()=>{
     if(tt && tt.d>=depth){ if(tt.f===0) return tt.v;
       if(tt.f===1){ if(tt.v>alpha) alpha=tt.v; } else { if(tt.v<beta) beta=tt.v; }
       if(alpha>=beta) return tt.v; }
-    const other=side===CPU_I?HUM_I:CPU_I;
+    const other=side===1?2:1;
     const moves=ordered(side, tt?tt.m:-1);
     let best=-Infinity, bestMove=moves[0];
     for(const c of moves){ const won=make(c,side);
@@ -225,41 +326,151 @@ const STRONG=(()=>{
     return best;
   }
 
-  function setup(){
+  function setup(board, me){
     sB=new Int8Array(CELLS); sC1=new Int16Array(NL); sC2=new Int16Array(NL);
     sHa=0; sHb=0; sPly=0;
     for(let c=0;c<CELLS;c++){ const v=board[c]; if(!v) continue;
-      const side=v===CPU?CPU_I:HUM_I; sB[c]=side; sPly++;
+      const side=v===me?1:2; sB[c]=side; sPly++;
       sHa^=ZOB[c][side][0]; sHb^=ZOB[c][side][1];
-      const L=LINES_BY_CELL[c]; if(side===CPU_I){ for(const li of L) sC1[li]++; } else { for(const li of L) sC2[li]++; } }
+      const L=LINES_BY_CELL[c]; if(side===1){ for(const li of L) sC1[li]++; } else { for(const li of L) sC2[li]++; } }
   }
 
-  return function choose(){
-    setup();
-    const empties=[]; for(let c=0;c<CELLS;c++) if(!sB[c]) empties.push(c);
-    if(empties.length===0) return null;
-    if(empties.length===1) return empties[0];
-    for(const c of empties){ for(const li of LINES_BY_CELL[c]) if(sC1[li]===3&&sC2[li]===0) return c; } // guaranteed win-in-1
-    sTT=new Map(); sDeadline=Date.now()+TIME_MS; sAbort=false; sNodes=0;
-    let bestMove=empties[0], bestScore=-Infinity;
-    const maxD=empties.length;
+  function rootMoves(){ const emp=[]; for(let c=0;c<CELLS;c++) if(!sB[c]) emp.push(c);
+    const stab=[]; for(const m of SYMS){ let ok=true; for(let c=0;c<CELLS;c++){ if(sB[m[c]]!==sB[c]){ ok=false; break; } } if(ok) stab.push(m); }
+    if(stab.length<=1) return emp;
+    const seen=new Uint8Array(CELLS), reps=[];
+    for(const c of emp){ if(seen[c]) continue; reps.push(c); for(const m of stab) seen[m[c]]=1; }
+    return reps; }
+
+  // does opponent (to move next, internal side 2) have a forced threat-win from current sB?
+  function oppHasForcedWin(depth){ tssNodes=0; tssBudget=200000; return tss(2, depth); }
+
+  /* Bounded AND-OR solver for the DEFENDER.  Unlike tss, the attacker (opp, side 2)
+     may play QUIET setup moves (not just open-3 threats), which is how the central-
+     block reciprocal-zugzwang fork is built.  Returns true iff opp (to move) can
+     force a win within `depth` opp tempo-moves against the defender's best reply,
+     over a pruned but generous set of relevant moves.  Root-only (expensive). */
+  // opp QUIET setup moves: build open-2s (toward a fork) but create no open-3 (those
+  // are handled by tss). Ordered by how much they build. side 2 = opp.
+  function quietOppSetups(){ const out=[];
+    for(let c=0;c<CELLS;c++){ if(sB[c]) continue; let build=0, threat=false;
+      for(const li of LINES_BY_CELL[c]){ if(sC1[li]===0){ if(sC2[li]===2) threat=true; else if(sC2[li]===1) build++; } }
+      if(!threat && build>0) out.push([c, build*100 + PW[c]]); }
+    out.sort((a,b)=>b[1]-a[1]); return out.slice(0,9).map(x=>x[0]); }
+  // defender replies to opp's setup: forced block(s) first, then contest opp lines.
+  function defReplies(){ const ow=winCells(2); if(ow.length>=2) return [];
+    const out=[]; for(let c=0;c<CELLS;c++){ if(sB[c]) continue; let val=PW[c];
+      for(const li of LINES_BY_CELL[c]){ if(sC1[li]===0 && sC2[li]>=1) val+=sC2[li]*sC2[li]*10;
+        if(sC2[li]===0 && sC1[li]===2) val+=20; }
+      if(ow.length===1 && c===ow[0]) val+=1e6;
+      out.push([c,val]); }
+    out.sort((a,b)=>b[1]-a[1]); return out.slice(0, ow.length===1?5:8).map(x=>x[0]); }
+
+  /* opp (side 2, to move) can force a win?  tss finishes any threat sequence; the
+     AND-OR recursion explores up to `depth` QUIET setup moves that build the fork
+     (e.g. the central-block zugzwang), with the defender forced to reply. */
+  function oppWins(depth){
+    if(sAbort) return false;
+    if((++solverNodes & 1023)===0 && Date.now()>sDeadline){ sAbort=true; return false; }
+    if(solverNodes>solverBudget) return false;   // inconclusive -> not proven
+    tssNodes=0; tssBudget=30000; if(tss(2, 11)) return true;   // threat / fork-in-1 win
+    if(depth<=0) return false;
+    const key=sHa+','+sHb+','+depth; const c0=solverTT.get(key); if(c0!==undefined) return c0;
+    let res=false;
+    for(const m of quietOppSetups()){
+      make(m,2);
+      let defSafe=false; const dm=defReplies();
+      if(dm.length===0){ unmake(m,2); res=true; break; }      // opp forked -> defender lost
+      for(const d of dm){ const w2=make(d,1);
+        if(w2){ unmake(d,1); defSafe=true; break; }            // defender wins outright
+        const lost=oppWins(depth-1); unmake(d,1);
+        if(!lost){ defSafe=true; break; } }
+      unmake(m,2);
+      if(!defSafe){ res=true; break; }
+    }
+    solverTT.set(key,res); return res;
+  }
+
+  return function bestMove(board, me, timeMs){
+    setup(board, me);
+    const emp=[]; for(let c=0;c<CELLS;c++) if(!sB[c]) emp.push(c);
+    if(emp.length===0) return null;
+    if(emp.length===1) return emp[0];
+
+    // 1) guaranteed win-in-1
+    { const w=winCells(1); if(w.length) return w[0]; }
+    // 2) guaranteed block-in-1
+    { const ow=winCells(2);
+      if(ow.length===1) return ow[0];
+      if(ow.length>=2) return ow[0]; }           // lost (double threat already) — block one
+
+    // 3) if WE have a forced threat-win, play a move that keeps it forced.
+    { tssNodes=0; tssBudget=120000;
+      if(tss(1, 8)){ // find first move of the forced win
+        // prefer an immediate fork move; else a threatening move whose forced line still wins
+        const tm = threatMoves(1);
+        for(const [c] of tm){ const won=make(c,1);
+          if(won){ unmake(c,1); return c; }
+          const wc=winCells(1);
+          if(wc.length>=2 && winCells(2).length===0){ unmake(c,1); return c; }
+          if(wc.length===1 && winCells(2).length===0){ const w2=make(wc[0],2);
+            let ok=false; if(!w2){ tssNodes=0; tssBudget=120000; ok=tss(1,7); }
+            unmake(wc[0],2); unmake(c,1); if(ok) return c; continue; }
+          unmake(c,1);
+        }
+      }
+    }
+
+    // 4) DEFENSE: refuse moves after which the opponent can force a win — first a
+    //    fast threat-space gate, then a deeper AND-OR solver that also lets the
+    //    attacker use quiet setup moves (catches the central-block zugzwang fork).
+    sDeadline=Date.now()+timeMs;               // shared clock for gate + search
+    const roots = rootMoves();
+    let safe=[], unsafe=[];
+    for(const c of roots){ make(c,1);
+      const bad = oppHasForcedWin(9);
+      unmake(c,1);
+      (bad?unsafe:safe).push(c);
+    }
+    if(safe.length>1){                          // deeper solver only if a choice remains
+      const s2=[]; solverTT=new Map(); solverNodes=0; solverBudget=400000;
+      const gateDeadline=Date.now()+Math.min(timeMs, Math.max(300, timeMs*0.55));
+      for(const c of safe){
+        if(Date.now()>gateDeadline){ s2.push(c); continue; }   // out of gate time: keep as candidate
+        make(c,1);
+        solverNodes=0; sAbort=false;
+        const bad = oppWins(4);
+        const inconclusive = sAbort;
+        unmake(c,1); sAbort=false;
+        if(!bad) s2.push(c); else if(inconclusive) s2.push(c);  // only drop PROVEN-lost moves
+      }
+      if(s2.length) safe=s2;
+    }
+    const pool = safe.length? safe : unsafe;   // if everything loses, pick least-bad by search
+
+    // 5) positional search over the chosen pool.
+    sTT=new Map(); sDeadline=Date.now()+timeMs; sAbort=false; sNodes=0;
+    let bestMove=pool[0], bestScore=-Infinity;
+    const maxD=emp.length;
     for(let d=2; d<=maxD; d++){
       let lBest=null, lScore=-Infinity, a=-Infinity, b=Infinity;
-      for(const c of ordered(CPU_I, bestMove)){
-        const won=make(c,CPU_I);
-        const s = won ? (WIN - sPly) : -nm(d-1, -b, -a, HUM_I);
-        unmake(c,CPU_I);
+      for(const c of orderList(pool, 1, bestMove)){
+        const won=make(c,1);
+        const s = won ? (WIN - sPly) : -nm(d-1, -b, -a, 2);
+        unmake(c,1);
         if(sAbort) break;
-        if(s>lScore){ lScore=s; lBest=c; if(s>a) a=s; } }
+        if(s>lScore){ lScore=s; lBest=c; if(s>a) a=s; }
+      }
       if(!sAbort && lBest!=null){ bestMove=lBest; bestScore=lScore; }
       if(sAbort) break;
-      if(bestScore>=WIN-100000) break;   // forced win located
+      if(bestScore>=WIN-100000) break;
       if(Date.now()>sDeadline) break;
     }
     return bestMove;
   };
-})();
-function chooseMoveStrong(){ const c=STRONG(); return c==null?null:c; }
+}
+const STRONG = createStrong({CELLS, LINES, LINES_BY_CELL, CELLW});
+function chooseMoveStrong(){ const c=STRONG(board, CPU, 700); return c==null?null:c; }
 
 function startingPlayer(){
   if(firstPref==='alt'){ const p=altNext; altNext=altNext==='R'?'B':'R'; return p; }
