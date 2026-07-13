@@ -73,6 +73,7 @@
       <div class="seg" id="diffSeg">
         <button data-diff="easy">Easy</button>
         <button data-diff="hard" class="on">Hard</button>
+        <button data-diff="insane">Insane</button>
       </div>
       <span class="muted" id="firstWrap" style="display:flex;align-items:center;gap:8px">First
         <span class="seg" id="firstSeg">
@@ -123,6 +124,7 @@ const LINES=(()=>{
 })();
 const LINES_BY_CELL=Array.from({length:CELLS},()=>[]);
 LINES.forEach((ln,li)=>ln.forEach(c=>LINES_BY_CELL[c].push(li)));
+const CELLW=LINES_BY_CELL.map(a=>a.length);
 
 let board, turn, winner, winLine, lastMove, busy;
 let mode='cpu', diff='hard', firstPref='alt', altNext='R', view='3d';
@@ -138,6 +140,7 @@ function threatsAfter(c,p){ const opp=p==='R'?'B':'R'; board[c]=p; let t=0;
     if(!bad&&mine===3) t++; } board[c]=null; return t; }
 function pickWeighted(arr,fn){ let best=-1e9,pick=arr[0]; for(const c of arr){ const s=fn(c); if(s>best){best=s;pick=c;} } return pick; }
 function chooseMove(){
+  if(diff==='insane') return chooseMoveStrong();
   const empties=[]; for(let c=0;c<CELLS;c++) if(!board[c]) empties.push(c);
   for(const c of empties){ board[c]=CPU; const w=!!wonLine(board,CPU); board[c]=null; if(w) return c; }
   for(const c of empties){ board[c]=HUMAN; const w=!!wonLine(board,HUMAN); board[c]=null; if(w) return c; }
@@ -146,6 +149,117 @@ function chooseMove(){
   const oppForks=empties.filter(c=>threatsAfter(c,HUMAN)>=2); if(oppForks.length===1) return oppForks[0];
   return pickWeighted(empties,c=>lineScore(c,CPU)+lineScore(c,HUMAN)*0.6+threatsAfter(c,CPU)*40+Math.random()*1.5);
 }
+
+/* ===================== Insane engine =====================
+   Iterative-deepening negamax + alpha-beta + transposition table (Zobrist),
+   threat-aware move ordering, and a quiescence search over forcing moves
+   (own win / forced block) so forks are seen beyond the full-width horizon.
+   CPU='B' is the maximiser. Operates on its own working state (Int arrays +
+   per-line mark counts), seeded from the live `board`; never mutates `board`. */
+const STRONG=(()=>{
+  const CPU_I=1, HUM_I=2, WIN=1e7, NL=LINES.length, TIME_MS=350;
+  const W3=[0,1,6,26];
+  const ZOB=(()=>{ const z=Array.from({length:CELLS},()=>[null,[0,0],[0,0]]);
+    let seed=0x2f6e2b1>>>0; const rnd=()=>{ seed^=seed<<13; seed^=seed>>>17; seed^=seed<<5; seed>>>=0; return seed>>>0; };
+    for(let c=0;c<CELLS;c++){ z[c][CPU_I]=[rnd(),rnd()]; z[c][HUM_I]=[rnd(),rnd()]; } return z; })();
+  let sB, sC1, sC2, sHa, sHb, sPly, sTT, sDeadline, sAbort, sNodes;
+
+  function make(c,side){ sB[c]=side; sHa^=ZOB[c][side][0]; sHb^=ZOB[c][side][1]; sPly++;
+    const L=LINES_BY_CELL[c]; let won=false;
+    if(side===CPU_I){ for(const li of L){ if(++sC1[li]===4) won=true; } }
+    else { for(const li of L){ if(++sC2[li]===4) won=true; } } return won; }
+  function unmake(c,side){ sB[c]=0; sHa^=ZOB[c][side][0]; sHb^=ZOB[c][side][1]; sPly--;
+    const L=LINES_BY_CELL[c];
+    if(side===CPU_I){ for(const li of L) sC1[li]--; } else { for(const li of L) sC2[li]--; } }
+  function emptyOfLine(li){ for(const cc of LINES[li]) if(!sB[cc]) return cc; return -1; }
+
+  // Quiescence over forcing moves; value from `side` perspective. Allocation-free single pass.
+  function qsearch(side, q){
+    if(sPly===CELLS) return 0;
+    const meIsCPU = side===CPU_I;
+    let s=0, myWin=false, t0=-1, forkOpp=false;
+    for(let li=0;li<NL;li++){ const a=sC1[li], b=sC2[li];
+      if(a){ if(b) continue; s+=W3[a];
+        if(a===3){ if(meIsCPU) myWin=true; else { const e=emptyOfLine(li); if(t0<0) t0=e; else if(e!==t0) forkOpp=true; } }
+      } else if(b){ s-=W3[b];
+        if(b===3){ if(!meIsCPU) myWin=true; else { const e=emptyOfLine(li); if(t0<0) t0=e; else if(e!==t0) forkOpp=true; } }
+      } }
+    if(myWin) return WIN - sPly - 1;
+    if(forkOpp) return -(WIN - sPly - 2);
+    if(t0>=0 && q<10){ const other = meIsCPU?HUM_I:CPU_I;
+      const won=make(t0,side); const v = won ? (WIN - sPly - 1) : -qsearch(other, q+1);
+      unmake(t0,side); return v; }
+    return meIsCPU? s : -s;
+  }
+
+  function ordered(side, ttMove){
+    const list=[]; for(let c=0;c<CELLS;c++) if(!sB[c]) list.push(c);
+    const scoreOf=c=>{ if(c===ttMove) return 1e9; let sv=CELLW[c]*2;
+      for(const li of LINES_BY_CELL[c]){ const a=side===CPU_I?sC1[li]:sC2[li], o=side===CPU_I?sC2[li]:sC1[li];
+        if(a===3&&o===0) sv+=100000; if(o===3&&a===0) sv+=9000;
+        if(o===0) sv+=[0,1,8,50][a]; else if(a===0) sv+=[0,1,3,20][o]*0.3; }
+      return sv; };
+    return list.sort((x,y)=>scoreOf(y)-scoreOf(x));
+  }
+
+  function nm(depth, alpha, beta, side){
+    if((sNodes++&1023)===0 && Date.now()>sDeadline) sAbort=true;
+    if(sAbort) return 0;
+    if(sPly===CELLS) return 0;
+    if(depth<=0) return qsearch(side, 0);
+    const key=sHa+','+sHb+','+side, tt=sTT.get(key), a0=alpha;
+    if(tt && tt.d>=depth){ if(tt.f===0) return tt.v;
+      if(tt.f===1){ if(tt.v>alpha) alpha=tt.v; } else { if(tt.v<beta) beta=tt.v; }
+      if(alpha>=beta) return tt.v; }
+    const other=side===CPU_I?HUM_I:CPU_I;
+    const moves=ordered(side, tt?tt.m:-1);
+    let best=-Infinity, bestMove=moves[0];
+    for(const c of moves){ const won=make(c,side);
+      const s = won ? (WIN - sPly) : -nm(depth-1, -beta, -alpha, other);
+      unmake(c,side);
+      if(sAbort) return best>-Infinity?best:0;
+      if(s>best){ best=s; bestMove=c; if(s>alpha) alpha=s; }
+      if(alpha>=beta) break; }
+    let f=0; if(best<=a0) f=2; else if(best>=beta) f=1;
+    sTT.set(key,{d:depth,v:best,f,m:bestMove});
+    return best;
+  }
+
+  function setup(){
+    sB=new Int8Array(CELLS); sC1=new Int16Array(NL); sC2=new Int16Array(NL);
+    sHa=0; sHb=0; sPly=0;
+    for(let c=0;c<CELLS;c++){ const v=board[c]; if(!v) continue;
+      const side=v===CPU?CPU_I:HUM_I; sB[c]=side; sPly++;
+      sHa^=ZOB[c][side][0]; sHb^=ZOB[c][side][1];
+      const L=LINES_BY_CELL[c]; if(side===CPU_I){ for(const li of L) sC1[li]++; } else { for(const li of L) sC2[li]++; } }
+  }
+
+  return function choose(){
+    setup();
+    const empties=[]; for(let c=0;c<CELLS;c++) if(!sB[c]) empties.push(c);
+    if(empties.length===0) return null;
+    if(empties.length===1) return empties[0];
+    for(const c of empties){ for(const li of LINES_BY_CELL[c]) if(sC1[li]===3&&sC2[li]===0) return c; } // guaranteed win-in-1
+    sTT=new Map(); sDeadline=Date.now()+TIME_MS; sAbort=false; sNodes=0;
+    let bestMove=empties[0], bestScore=-Infinity;
+    const maxD=empties.length;
+    for(let d=2; d<=maxD; d++){
+      let lBest=null, lScore=-Infinity, a=-Infinity, b=Infinity;
+      for(const c of ordered(CPU_I, bestMove)){
+        const won=make(c,CPU_I);
+        const s = won ? (WIN - sPly) : -nm(d-1, -b, -a, HUM_I);
+        unmake(c,CPU_I);
+        if(sAbort) break;
+        if(s>lScore){ lScore=s; lBest=c; if(s>a) a=s; } }
+      if(!sAbort && lBest!=null){ bestMove=lBest; bestScore=lScore; }
+      if(sAbort) break;
+      if(bestScore>=WIN-100000) break;   // forced win located
+      if(Date.now()>sDeadline) break;
+    }
+    return bestMove;
+  };
+})();
+function chooseMoveStrong(){ const c=STRONG(); return c==null?null:c; }
 
 function startingPlayer(){
   if(firstPref==='alt'){ const p=altNext; altNext=altNext==='R'?'B':'R'; return p; }
