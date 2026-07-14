@@ -17,6 +17,7 @@
 import { createEngine, WHITE, BLACK } from './engine.js';
 import { createSearch } from './search.js';
 import { createSearch2 } from './search2.js';
+import { createMC } from './montecarlo.js';
 import { createPgn } from './pgn.js';
 import { createBook } from './book.js';
 import { pieceSVG } from './pieces.js';
@@ -35,7 +36,13 @@ export function boot(config, mount){
     W, H, IDX, XOF, YOF, inb, kingSquare, initialState, inCheck,
     legalMoves, makeMove, unmakeMove, statusOf, key,
   } = engine;
-  const { WEIGHTS, LEVELS, OPENING_PLIES, searchMove, analyze, pickOpeningMove } = search;
+  const { WEIGHTS, LEVELS, OPENING_PLIES, searchMove, pickOpeningMove } = search;
+  // Some games (Clobber) are near-balanced under exact minimax, so the analysis
+  // reads a flat 0.0 everywhere. For those, evaluate the Analysis tab with a
+  // Monte-Carlo win-probability estimator instead. The BOT still uses the exact
+  // negamax search (stronger); only the analysis display switches.
+  const mc = config.analyzer==='montecarlo' ? createMC(engine) : null;
+  const analyze = mc ? mc.analyze : search.analyze;
   const { sanOf, normSan, stateAtNode, depthOf } = pgn;
   const MATE = WEIGHTS.MATE;
   const TYPES = config.types;

@@ -35,6 +35,10 @@ export default {
   // difference in mobile-stone counts (see clobberEval in search.js).
   weights: { P:100, W:100, handBonus:0, mobility:50, kingExposure:0, pawnAdvance:0, centerN:0, MATE:100000 },
   eval: { mode:'clobber' },
+  // Openings are near-balanced under exact minimax (game-value ≈ 0), so the
+  // Analysis tab uses a Monte-Carlo win-probability estimator for a meaningful,
+  // differentiated eval. The bot still plays with the exact negamax search.
+  analyzer: 'montecarlo',
 
   levels: {
     easy:   { maxDepth:2,  timeMs:150,  blunder:0.45 },
