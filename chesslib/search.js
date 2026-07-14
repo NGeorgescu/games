@@ -21,6 +21,9 @@ export function createSearch(engine){
   const TYPES   = config.types;
   const crazyhouse = !!config.rules.crazyhouse;
   const stalemateWin = (config.rules.stalemate || 'win') === 'win';
+  const stalemateLose = (config.rules.stalemate) === 'lose';   // Clobber: no move = you lose
+  const evalMode = config.eval ? config.eval.mode : null;      // 'mobility' for Clobber
+  const useQuiesce = config.rules.quiesce !== false;           // off for capture-only games
   const centralPiece = config.eval ? config.eval.centralPiece : null;
   const centralKey   = config.eval ? config.eval.centralWeightKey : null;
   const OPENING_PLIES = config.openingPlies || 8;
@@ -29,7 +32,17 @@ export function createSearch(engine){
 
   const val = (w,t)=>w[t]||0;
 
+  // Mobility eval (Clobber): white-relative difference in available moves. Material
+  // is meaningless when every piece is identical and the goal is to make the last move.
+  function mobilityEval(state,w){
+    const stm=state.turn;
+    const myMob=legalMoves(state).length;
+    state.turn=1-stm; const opMob=legalMoves(state).length; state.turn=stm;
+    const diff=(stm===WHITE?1:-1)*(myMob-opMob);   // white-relative
+    return diff*(w.mobility||8);
+  }
   function evaluate(state,w){
+    if(evalMode==='mobility') return mobilityEval(state,w);
     const b=state.board; let s=0;
     for(let i=0;i<b.length;i++){
       const p=b[i]; if(!p||p.t===engine.royalType) continue;
@@ -89,9 +102,11 @@ export function createSearch(engine){
     // When stalemate==='draw', a stalemated (not-in-check) node scores 0.
     if(moves.length===0){
       if(inCheck(state.board,state.turn)) return -w.MATE+ply;
+      if(stalemateLose) return -w.MATE+ply;              // no move = side to move loses
       return stalemateWin ? (w.MATE-ply) : 0;
     }
-    if(depth<=0) return quiesce(state,alpha,beta,w,cfg);
+    if(depth<=0) return useQuiesce ? quiesce(state,alpha,beta,w,cfg)
+                                   : (state.turn===WHITE?1:-1)*evaluate(state,w);
     seen.set(k,rep+1); let best=-Infinity, bestMove=null;
     for(const m of orderMoves(state,moves,w,ttBest)){
       const u=makeMove(state,m); const sc=-negamax(state,depth-1,-beta,-alpha,ply+1,w,cfg,seen); unmakeMove(state,u);

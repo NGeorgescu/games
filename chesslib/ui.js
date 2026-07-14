@@ -42,6 +42,7 @@ export function boot(config, mount){
   const PIECE = config.pieces;
   const CRAZYHOUSE = !!config.rules.crazyhouse;
   const STALEMATE_WIN = (config.rules.stalemate || 'win') === 'win';
+  const STALEMATE_LOSE = (config.rules.stalemate) === 'lose';   // Clobber: no move = you lose
   const pieceMarkup = (t,c)=>pieceSVG(t,c);
   const promoRankOf = turn=>turn===WHITE?H-1:0;
 
@@ -261,7 +262,9 @@ export function boot(config, mount){
     if(st==='checkmate') html=`<span class="check">Checkmate — ${sideName(1-S.turn)} wins.</span>`;
     else if(st==='stalemate') html=STALEMATE_WIN
       ? `<span class="check">Stalemate — ${sideName(S.turn)} wins!</span>`
-      : `Stalemate — draw.`;
+      : STALEMATE_LOSE
+        ? `<span class="check">${sideName(1-S.turn)} wins — ${sideName(S.turn)} has no move.</span>`
+        : `Stalemate — draw.`;
     else if(!analyzeMode&&threefold()) html=`Draw by threefold repetition.`;
     else {
       let s='';
@@ -431,9 +434,10 @@ export function boot(config, mount){
     if(bookData && bookData.entries.length) return bookData.entries[0].cp;  // book cp is white-relative
     if(!analysisData)return null;
     if(analysisData.terminal){
-      if(analysisData.terminal==='stalemate' && !STALEMATE_WIN) return 0;   // standard: stalemate = draw
-      const mover=analysisData.turn;
-      const moverWins = analysisData.terminal==='stalemate';
+      const term=analysisData.terminal, mover=analysisData.turn;
+      if(term==='stalemate' && !STALEMATE_WIN && !STALEMATE_LOSE) return 0;   // standard: stalemate = draw
+      // checkmate → mover lost; stalemate-win → mover won; stalemate-lose → mover lost
+      const moverWins = (term==='stalemate' && STALEMATE_WIN);
       const cp = moverWins ? MATE : -MATE;
       return mover===WHITE?cp:-cp;
     }
@@ -511,7 +515,7 @@ export function boot(config, mount){
     const A=analysisData;
     if(!A){el.innerHTML='<div class="head">Starting engine…</div>';return;}
     if(A.terminal){ const w=A.turn===WHITE?'White':'Black',b=A.turn===WHITE?'Black':'White';
-      const msg=A.terminal==='checkmate'?`Checkmate — ${b} wins`:A.terminal==='stalemate'?(STALEMATE_WIN?`Stalemate — ${w} wins`:`Stalemate — draw`):'Game over';
+      const msg=A.terminal==='checkmate'?`Checkmate — ${b} wins`:A.terminal==='stalemate'?(STALEMATE_WIN?`Stalemate — ${w} wins`:STALEMATE_LOSE?`${b} wins — ${w} has no move`:`Stalemate — draw`):'Game over';
       el.innerHTML=`<div class="head">${msg}</div>`; return; }
     const cp=whiteEvalCp();
     let h=`<div class="head">Depth ${A.depth||'…'}${A.nodes?` · ${(A.nodes/1000|0)}k nodes`:''}${cp!=null?` · <b>${evalLabel(cp)}</b>`:''}</div>`;

@@ -122,7 +122,10 @@ export function createEngine(config){
       if(spec.leaps){
         for(const [dx,dy] of spec.leaps){
           const nx=x+dx, ny=y+dy; if(!inb(nx,ny)) continue;
-          const j=IDX(nx,ny), q=board[j]; if(q&&q.c===turn) continue;
+          const j=IDX(nx,ny), q=board[j];
+          // captureOnly (Clobber wazir): a move must land on an enemy — no quiet moves.
+          if(spec.captureOnly){ if(!(q&&q.c!==turn)) continue; }
+          else if(q&&q.c===turn) continue;
           moves.push({from:i,to:j});
         }
       }
