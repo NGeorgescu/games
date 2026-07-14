@@ -31,9 +31,10 @@ export default {
   // games have no "quiet" positions, so quiescence is turned off.
   rules: { crazyhouse:false, stalemate:'lose', promoteTo:[], quiesce:false },
 
-  // Material is meaningless (all stones identical); the bot evaluates mobility.
-  weights: { P:100, W:100, handBonus:0, mobility:8, kingExposure:0, pawnAdvance:0, centerN:0, MATE:100000 },
-  eval: { mode:'mobility' },
+  // Material is meaningless (all stones identical); the bot evaluates the
+  // difference in mobile-stone counts (see clobberEval in search.js).
+  weights: { P:100, W:100, handBonus:0, mobility:50, kingExposure:0, pawnAdvance:0, centerN:0, MATE:100000 },
+  eval: { mode:'clobber' },
 
   levels: {
     easy:   { maxDepth:2,  timeMs:150,  blunder:0.45 },

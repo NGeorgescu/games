@@ -29,7 +29,7 @@ export function createSearch2(engine){
   const crazyhouse = !!config.rules.crazyhouse;
   const stalemateWin = (config.rules.stalemate || 'win') === 'win';
   const stalemateLose = (config.rules.stalemate) === 'lose';   // Clobber: no move = you lose
-  const evalMode = config.eval ? config.eval.mode : null;      // 'mobility' for Clobber
+  const evalMode = config.eval ? config.eval.mode : null;      // 'clobber' for Clobber
   const useQuiesce = config.rules.quiesce !== false;           // off for capture-only games
   const centralPiece = config.eval ? config.eval.centralPiece : null;
   const centralKey   = config.eval ? config.eval.centralWeightKey : null;
@@ -40,15 +40,23 @@ export function createSearch2(engine){
   const val = (w,t)=>w[t]||0;
 
   /* ---------- EVALUATION (verbatim copy of search.js) ---------- */
-  function mobilityEval(state,w){
-    const stm=state.turn;
-    const myMob=legalMoves(state).length;
-    state.turn=1-stm; const opMob=legalMoves(state).length; state.turn=stm;
-    const diff=(stm===WHITE?1:-1)*(myMob-opMob);   // white-relative
-    return diff*(w.mobility||8);
+  // Clobber eval: white-relative difference in the count of MOBILE stones (stones
+  // with ≥1 enemy neighbour). Move-count is degenerate (always equal); mobile-stone
+  // count is not. Material measured worse than useless, so it is not used.
+  function clobberEval(state,w){
+    const b=state.board; let mobW=0, mobB=0;
+    for(let i=0;i<b.length;i++){ const p=b[i]; if(!p) continue;
+      const x=XOF(i), y=YOF(i), opp=p.c^1; let en=false;
+      if(x>0){const q=b[i-1];if(q&&q.c===opp)en=true;}
+      if(!en&&x<W-1){const q=b[i+1];if(q&&q.c===opp)en=true;}
+      if(!en&&y>0){const q=b[i-W];if(q&&q.c===opp)en=true;}
+      if(!en&&y<H-1){const q=b[i+W];if(q&&q.c===opp)en=true;}
+      if(en){ if(p.c===WHITE) mobW++; else mobB++; }
+    }
+    return (mobW-mobB)*(w.mobility||50);
   }
   function evaluate(state,w){
-    if(evalMode==='mobility') return mobilityEval(state,w);
+    if(evalMode==='clobber') return clobberEval(state,w);
     const b=state.board; let s=0;
     for(let i=0;i<b.length;i++){
       const p=b[i]; if(!p||p.t===engine.royalType) continue;

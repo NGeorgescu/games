@@ -520,12 +520,16 @@ export function boot(config, mount){
       el.innerHTML=`<div class="head">${msg}</div>`; return; }
     const cp=whiteEvalCp();
     let h=`<div class="head">Depth ${A.depth||'…'}${A.nodes?` · ${(A.nodes/1000|0)}k nodes`:''}${cp!=null?` · <b>${evalLabel(cp)}</b>`:''}</div>`;
-    h+=(A.lines||[]).map(ln=>{
+    h+=(A.lines||[]).map((ln,i)=>{
       const wcp=A.turn===WHITE?ln.score:-ln.score;
       const cls=wcp>20?'pos':(wcp<-20?'neg':'');
-      return `<div class="ln"><span class="sc ${cls}">${evalLabel(wcp)}</span><span class="pv">${pvToSan(A.base,ln.pv,8)}</span></div>`;
+      return `<div class="ln" data-i="${i}"><span class="sc ${cls}">${evalLabel(wcp)}</span><span class="pv">${pvToSan(A.base,ln.pv,8)}</span></div>`;
     }).join('');
     el.innerHTML=h;
+    // Click an engine line to play its move into the tree (like the book rows).
+    el.querySelectorAll('.ln').forEach(row=>row.onclick=()=>{
+      const ln=A.lines[+row.dataset.i]; if(ln&&ln.move) analyzeMove(ln.move);
+    });
   }
   function renderAnalyzeUI(){
     $('analyzeCard').hidden=!analyzeMode;
