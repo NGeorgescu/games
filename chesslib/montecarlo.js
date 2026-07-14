@@ -126,7 +126,7 @@ export function createMC(engine){
     return solve;
   }
   // Label every root move exactly (win → +decisive, loss → −decisive, by mate
-  // distance so faster wins rank first). Returns rows, or null if it blows the cap.
+  // distance so faster wins rank first). Returns {rows,solve}, or null if capped.
   function exactRoot(state, cap){
     const solve=makeExact(cap);
     try{
@@ -136,26 +136,69 @@ export function createMC(engine){
         return {move:m, score: winning ? (MATE-dist) : -(MATE-dist)};
       });
       rows.sort((a,b)=>b.score-a.score);
-      return rows;
+      return {rows, solve};
     }catch(e){ return null; }
   }
-  let exactCache=null;   // {key,rows} so the UI's depth-1..8 loop doesn't re-solve
+  // Principal variation under OPTIMAL play from `state`: the winner mates as fast
+  // as possible, the loser resists as long as possible. Uses the (memoised) exact
+  // solver, so it's cheap once the position is solved.
+  function exactPV(state, solve, maxLen){
+    const pv=[], undos=[];
+    for(let d=0; d<maxLen; d++){
+      const ml=legalMoves(state); if(!ml.length) break;
+      const win = solve(state).win;
+      let bestM=null, bestKey=null;
+      for(const m of ml){
+        const u=makeMove(state,m); const c=solve(state); unmakeMove(state,u);
+        const moveWins=!c.win, dist=c.dist+1;
+        if(win){ if(!moveWins) continue; if(bestKey===null||dist<bestKey){bestKey=dist;bestM=m;} }
+        else   { if(bestKey===null||dist>bestKey){bestKey=dist;bestM=m;} }
+      }
+      if(bestM===null) break;
+      pv.push(bestM); undos.push(makeMove(state,bestM));
+    }
+    for(let i=undos.length-1;i>=0;i--) unmakeMove(state,undos[i]);
+    return pv;
+  }
+  // Heuristic Monte-Carlo continuation for the opening (greedy best move each ply).
+  function mcPV(state, maxLen){
+    const pv=[], undos=[];
+    for(let d=0; d<maxLen; d++){
+      const ml=legalMoves(state); if(!ml.length) break;
+      const rows=evalRoot(state, Math.max(120, ml.length*15));
+      pv.push(rows[0].move); undos.push(makeMove(state, rows[0].move));
+    }
+    for(let i=undos.length-1;i>=0;i--) unmakeMove(state,undos[i]);
+    return pv;
+  }
+  let exactCache=null, mcCache=null;   // by position key, so the UI's depth loop doesn't recompute
 
   // ---- public: multi-PV analysis (exact in the endgame, Monte-Carlo otherwise) ----
+  // Each line carries a full principal variation (pv); clicking a line in the UI
+  // plays only its first move (line.move), then the analysis re-runs.
   function analyze(state, depth, K, history){
     const moves = legalMoves(state);
     if(moves.length===0) return {depth,nodes:0,terminal:'stalemate',lines:[]};
+    const kk = key(state);
     if(stoneCount(state) <= 20){
-      const kk=key(state);
-      let rows = (exactCache && exactCache.key===kk) ? exactCache.rows : null;
-      if(!rows){ rows=exactRoot(state, 500000); exactCache = rows?{key:kk,rows}:null; }
-      if(rows){ const lines=rows.slice(0,K).map(r=>({move:r.move,score:r.score,pv:[r.move]}));
-        return {depth,nodes:0,exact:true,lines}; }
+      let ex = (exactCache && exactCache.key===kk) ? exactCache : null;
+      if(!ex){ const r=exactRoot(state, 500000); ex = r?{key:kk,rows:r.rows,solve:r.solve}:null; exactCache=ex; }
+      if(ex){
+        const lines=ex.rows.slice(0,K).map(r=>{
+          const u=makeMove(state,r.move); const cont=exactPV(state, ex.solve, 9); unmakeMove(state,u);
+          return {move:r.move, score:r.score, pv:[r.move, ...cont]};
+        });
+        return {depth,nodes:0,exact:true,lines};
+      }
     }
+    if(mcCache && mcCache.key===kk) return mcCache.res;
     const budget = 60 * Math.max(1, depth) * Math.max(4, moves.length);
     const rows = evalRoot(state, budget);
-    const lines = rows.slice(0, K).map(r=>({move:r.move, score:r.score, pv:[r.move]}));
-    return {depth, nodes:budget, lines};
+    const lines = rows.slice(0, K).map(r=>{
+      const u=makeMove(state,r.move); const cont=mcPV(state, 4); unmakeMove(state,u);
+      return {move:r.move, score:r.score, pv:[r.move, ...cont]};
+    });
+    const res={depth, nodes:budget, lines}; mcCache={key:kk,res}; return res;
   }
 
   // ---- opening variety: sample among the better playable moves ----
