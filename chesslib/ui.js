@@ -161,6 +161,7 @@ export function boot(config, mount){
   const board=$('board');
   board.style.gridTemplateColumns=`repeat(${W},1fr)`;
   board.style.gridTemplateRows=`repeat(${H},1fr)`;
+  board.style.aspectRatio=`${W} / ${H}`;   // non-square boards (e.g. Clobber 5×6) must not be forced to 1:1
 
   // ---- state ----
   let state, humanSide=WHITE, oppMode='medium', posCount={}, moveLog=[], busy=false, altSide=WHITE;
