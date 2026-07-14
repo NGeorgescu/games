@@ -15,7 +15,7 @@
 import { WHITE } from './engine.js';
 
 export function createMC(engine){
-  const { config, legalMoves, makeMove, unmakeMove } = engine;
+  const { config, legalMoves, makeMove, unmakeMove, key } = engine;
   const WEIGHTS = config.weights, LEVELS = config.levels;
   const OPENING_PLIES = config.openingPlies || 8;
   const MATE = WEIGHTS.MATE;
@@ -104,10 +104,54 @@ export function createMC(engine){
     return {move:pick.move, score:rows[0].score, depth:budget, nodes:budget};
   }
 
-  // ---- public: multi-PV analysis ----
+  // ---- exact endgame solve (random playouts are unreliable when precise play
+  //      matters, so solve small positions exactly instead) ----
+  function stoneCount(state){ let n=0; for(const p of state.board) if(p) n++; return n; }
+  // optimal-play win/loss for the side to move, with mate distance (plies). Memoised;
+  // throws 'cap' if the subtree exceeds the node budget.
+  function makeExact(cap){
+    const memo=new Map(); let nodes=0;
+    function solve(state){
+      if(++nodes>cap) throw 'cap';
+      const k=key(state); const hit=memo.get(k); if(hit) return hit;
+      const ml=legalMoves(state);
+      if(ml.length===0){ const r={win:false,dist:0}; memo.set(k,r); return r; }
+      let win=false, bestWin=Infinity, worstLoss=-1;
+      for(const m of ml){ const u=makeMove(state,m); const c=solve(state); unmakeMove(state,u);
+        if(!c.win){ win=true; if(c.dist+1<bestWin) bestWin=c.dist+1; }
+        else if(c.dist+1>worstLoss) worstLoss=c.dist+1; }
+      const r = win?{win:true,dist:bestWin}:{win:false,dist:worstLoss};
+      memo.set(k,r); return r;
+    }
+    return solve;
+  }
+  // Label every root move exactly (win → +decisive, loss → −decisive, by mate
+  // distance so faster wins rank first). Returns rows, or null if it blows the cap.
+  function exactRoot(state, cap){
+    const solve=makeExact(cap);
+    try{
+      const rows=legalMoves(state).map(m=>{
+        const u=makeMove(state,m); const c=solve(state); unmakeMove(state,u);
+        const winning=!c.win, dist=c.dist+1;
+        return {move:m, score: winning ? (MATE-dist) : -(MATE-dist)};
+      });
+      rows.sort((a,b)=>b.score-a.score);
+      return rows;
+    }catch(e){ return null; }
+  }
+  let exactCache=null;   // {key,rows} so the UI's depth-1..8 loop doesn't re-solve
+
+  // ---- public: multi-PV analysis (exact in the endgame, Monte-Carlo otherwise) ----
   function analyze(state, depth, K, history){
     const moves = legalMoves(state);
     if(moves.length===0) return {depth,nodes:0,terminal:'stalemate',lines:[]};
+    if(stoneCount(state) <= 20){
+      const kk=key(state);
+      let rows = (exactCache && exactCache.key===kk) ? exactCache.rows : null;
+      if(!rows){ rows=exactRoot(state, 500000); exactCache = rows?{key:kk,rows}:null; }
+      if(rows){ const lines=rows.slice(0,K).map(r=>({move:r.move,score:r.score,pv:[r.move]}));
+        return {depth,nodes:0,exact:true,lines}; }
+    }
     const budget = 60 * Math.max(1, depth) * Math.max(4, moves.length);
     const rows = evalRoot(state, budget);
     const lines = rows.slice(0, K).map(r=>({move:r.move, score:r.score, pv:[r.move]}));
