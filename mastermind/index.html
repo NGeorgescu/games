@@ -73,20 +73,19 @@
   .hintbox ul{margin:6px 0 8px;padding-left:18px}
   .hintbox li{margin-bottom:5px}
   .hintbox .peg{vertical-align:-4px;margin:0 1px}
+  /* solver's reasoning shown under each CPU row — same voice as the Hint */
+  .cpunote{margin:1px 0 11px 6px;padding:2px 0 2px 10px;border-left:2px solid var(--line);
+    color:var(--muted);font-size:12.5px;line-height:1.55;text-align:left}
+  .cpunote b{color:var(--ink)}
+  .cpunote .pegline{text-align:left;color:var(--accent);font-weight:600;margin:3px 0}
+  .cpunote ul{margin:4px 0;padding-left:16px}
+  .cpunote li{margin-bottom:3px}
+  .cpunote .peg{vertical-align:-4px;margin:0 1px}
   /* ---- last-move rating shown inside the Hint ---- */
   .g-brilliant{color:#2fe06a} .g-strong{color:#56b4e9} .g-ok{color:#e69f00}
   .g-wasteful{color:#ff8088} .g-solved{color:#7ee0a3} .g-forced{color:var(--muted)}
   .hintbox .acc{margin:0 0 9px;color:var(--ink)}
   .hintbox .acc .gr{font-weight:800}
-  #howto summary{cursor:pointer;font-weight:700;font-size:15px;color:var(--ink);list-style:none}
-  #howto summary::-webkit-details-marker{display:none}
-  #howto summary::before{content:"▸ ";color:var(--accent)}
-  #howto[open] summary::before{content:"▾ "}
-  #howto .note{color:var(--muted);font-size:13.5px;line-height:1.55;margin-top:8px}
-  #howto .note b{color:var(--ink)}
-  #howto .note ol{margin:8px 0;padding-left:20px}
-  #howto .note li{margin-bottom:7px}
-  #howto .note .small{font-size:12.5px;opacity:.85}
 </style>
 </head>
 <body>
@@ -94,7 +93,7 @@
   <h1>Mastermind</h1>
   <p class="sub">Break the hidden code: 4 pegs, 6 colors, repeats allowed.
     <b>Black</b> peg = right color in the right spot. <b>White</b> peg = right color, wrong spot.
-    Crack it yourself, or watch the computer solve any code in five guesses or fewer using Knuth's minimax strategy.</p>
+    Crack it yourself, or watch the computer crack any code in six guesses or fewer, reasoning out loud as it goes.</p>
 
   <div class="card">
     <div class="row">
@@ -152,35 +151,8 @@
     </div>
   </div>
 
-  <div class="card">
-    <details id="howto">
-      <summary>How the computer solves it — Knuth's minimax</summary>
-      <div class="note">
-        <p>The solver follows the strategy Donald Knuth published in 1977. It never needs more
-          than <b>5 guesses</b> for any of the 1296 possible codes (here it averages about
-          <b>4.48</b>). The <b>Hint</b> button in "You crack it" mode teaches a different, by-hand
-          method — differential probing — rather than this exhaustive search.</p>
-        <ol>
-          <li><b>Open with 1122.</b> Every game starts with this same two-color guess — Knuth showed
-            it leads to the best worst case.</li>
-          <li><b>Keep the still-possible codes.</b> The solver holds the set <i>S</i> of every code
-            that fits all the feedback so far. It starts at all 1296 codes, and each guess's
-            black/white pegs prune the ones that don't match.</li>
-          <li><b>Score every candidate by its worst case.</b> To pick the next guess it tries all
-            1296 codes as a candidate. For each, it groups the codes in <i>S</i> by the feedback that
-            candidate would produce, and looks at the <i>largest</i> group — the most codes that could
-            still survive that guess.</li>
-          <li><b>Play the minimax guess.</b> It picks the candidate whose largest group is the
-            <i>smallest</i> — minimizing the worst case (that's the "minimax"). Ties go to a guess
-            that's still a possible code.</li>
-        </ol>
-        <p class="small">Because it minimizes the worst case, no single lucky near-miss helps much —
-          progress comes from guesses that split the remaining possibilities as evenly as possible.</p>
-      </div>
-    </details>
-  </div>
 
-  <footer>One of <a href="../">the games</a>. Solver: Knuth (1977) worst-case minimax.</footer>
+  <footer>One of <a href="../">the games</a>.</footer>
 </div>
 
 <script>
@@ -218,25 +190,27 @@ const cmpCode = (x,y) => {                       // numeric order
   for(let i=0;i<LEN;i++){ if(x[i]!==y[i]) return x[i]-y[i]; } return 0;
 };
 
-// Knuth minimax pick over the FULL set of 1296 candidates, against
-// consistent set S. Tie-break: smaller worst-case, then prefer a
-// candidate that is itself in S, then numerically smallest.
-function bestGuess(S){
-  if(S.length===1) return S[0];
-  const sSet = new Set(S.map(c=>c.join('')));
-  let best=null, bestMax=Infinity, bestInS=false;
-  for(const g of ALL){                           // ALL is ascending, so "first" == smallest
-    const parts = new Map();
-    let mx = 0;
-    for(const s of S){
-      const k = fbKey(score(s,g));
-      const v = (parts.get(k)||0)+1; parts.set(k,v);
-      if(v>mx) mx = v;
-      if(mx>bestMax) break;          // can't beat current best; abandon this candidate
-    }
-    const gInS = sSet.has(g.join(''));
-    if(mx < bestMax){ best=g; bestMax=mx; bestInS=gInS; }
-    else if(mx===bestMax && gInS && !bestInS){ best=g; bestInS=true; }
+// worst-case surviving group: if `g` is played against consistent set S, the
+// size of the largest bucket of codes that would share one feedback.
+function worstCaseSplit(g, S){
+  const parts = new Map(); let mx = 0;
+  for(const s of S){
+    const k = fbKey(score(s, g));
+    const v = (parts.get(k)||0)+1; parts.set(k, v);
+    if(v>mx) mx = v;
+  }
+  return mx;
+}
+// STRATEGY (shared by the solver and the Hint): among the codes still possible,
+// play the one whose worst-case group is smallest — i.e. the still-possible
+// guess that splits the field most evenly. Never wastes a turn on a code that
+// can't win. Deterministic (numeric tie-break). ~4.50 avg, 6 worst over 1296.
+function evenSplitGuess(S){
+  if(S.length<=1) return S[0];
+  let best=null, bestMax=Infinity;
+  for(const g of S){
+    const mx = worstCaseSplit(g, S);
+    if(mx<bestMax || (mx===bestMax && cmpCode(g,best)<0)){ bestMax=mx; best=g; }
   }
   return best;
 }
@@ -247,7 +221,7 @@ function filterConsistent(S, guess, f){
   return S.filter(c => fbKey(score(c, guess)) === key);
 }
 
-const FIRST_GUESS = [1,1,2,2];   // Knuth's two-color opener
+const FIRST_GUESS = [1,1,2,2];   // balanced two-colour opener
 
 // Decide the solver's next guess given the history of {guess,fb} so far.
 // Rebuilds S from scratch each call so it is pure/stateless.
@@ -256,7 +230,7 @@ function solverNext(history){
   let S = ALL;
   for(const h of history) S = filterConsistent(S, h.guess, h.fb);
   if(S.length===0) return null;          // contradictory feedback
-  return bestGuess(S);
+  return evenSplitGuess(S);
 }
 
 // Play the solver against a known secret; return array of guesses made.
@@ -270,11 +244,37 @@ function solve(secret){
   }
   return history.map(h=>h.guess);
 }
+
+// Everything the clues PROVE about the secret — plus strong provable odds —
+// read straight off the still-possible set S. The solver narration and the Hint
+// both render from this, so they say the same things. Pure/DOM-free.
+function deriveFacts(S){
+  const N = S.length;
+  const out=[], exact=[], atLeast=[], likelyIn=[], pinned=[], posLikely=[];
+  for(let c=1;c<=NCOL;c++){
+    let mn=Infinity, mx=0, appears=0;
+    for(const s of S){ const k=s.filter(x=>x===c).length; if(k<mn)mn=k; if(k>mx)mx=k; if(k>0)appears++; }
+    if(mx===0){ out.push(c); continue; }          // colour appears in no surviving code
+    if(mn===mx) exact.push({c, k:mn});            // exact count known
+    else if(mn>=1) atLeast.push({c, mn});         // present for sure, count varies
+    else likelyIn.push({c, freq:appears});        // not certain, but in `appears` of N
+  }
+  likelyIn.sort((a,b)=>b.freq-a.freq);
+  for(let i=0;i<LEN;i++){
+    const c0=S[0][i];
+    if(S.every(s=>s[i]===c0)){ pinned.push({i, c:c0}); continue; }   // position fixed
+    const fr={}; for(const s of S) fr[s[i]]=(fr[s[i]]||0)+1;
+    let bc=0, bf=0; for(const c in fr) if(fr[c]>bf){ bf=fr[c]; bc=+c; }
+    posLikely.push({i, c:bc, freq:bf});           // modal colour at this spot
+  }
+  posLikely.sort((a,b)=>b.freq-a.freq);
+  return {N, out, exact, atLeast, likelyIn, pinned, posLikely};
+}
 /* __CORE_END__ */
 
 /* expose for Node */
 if (typeof module !== 'undefined' && module.exports){
-  module.exports = {LEN,NCOL,ALL,score,fbKey,bestGuess,filterConsistent,FIRST_GUESS,solverNext,solve};
+  module.exports = {LEN,NCOL,ALL,score,fbKey,worstCaseSplit,evenSplitGuess,filterConsistent,deriveFacts,FIRST_GUESS,solverNext,solve};
 }
 </script>
 
@@ -303,6 +303,43 @@ function rowHTML(n, code, fb, win){
 }
 function randomCode(){ return Array.from({length:LEN},()=>1+Math.floor(Math.random()*NCOL)); }
 const empty4 = ()=>[0,0,0,0];   // slots fill left-to-right (0 = empty)
+
+/* ---- shared reasoning renderer: one voice for the solver AND the Hint ---- */
+const pt = c => pegHTML(c, 18);                       // inline peg for sentences
+const oddsWord = (f,N) => f>=N*0.8 ? 'very likely' : (f>N*0.5 ? 'likely' : 'possible');
+// Render, as HTML, the reasoning for playing `guess` against still-possible set
+// S: what the clues already prove, strong provable odds, then why this guess.
+function narrateHTML(S, guess, lastGuess, isFirst){
+  const pegs = c => c.map(pt).join('');
+  if(isFirst){
+    return `<div>Open with ${pegs(FIRST_GUESS)} — a balanced two-colour probe. `
+         + `Nothing's known yet, so it just splits the field about as evenly as any opener can.</div>`;
+  }
+  const N = S.length, f = deriveFacts(S), items = [];
+  if(f.out.length) items.push(`Ruled out: ${f.out.map(pt).join(' ')} appear nowhere in the code.`);
+  for(const {c,k}  of f.exact)   items.push(`Exactly <b>${k}</b> ${pt(c)} in the code.`);
+  for(const {c,mn} of f.atLeast) items.push(`At least <b>${mn}</b> ${pt(c)} in the code.`);
+  for(const {i,c}  of f.pinned)  items.push(`Position <b>${i+1}</b> is ${pt(c)} — every code still standing agrees.`);
+  if(f.pinned.length < LEN){                          // add odds only where things aren't pinned
+    for(const {c,freq} of f.likelyIn.slice(0,2))
+      if(freq > N*0.5) items.push(`${pt(c)} is in <b>${freq}</b> of the ${N} — ${oddsWord(freq,N)} in, just not placed yet.`);
+    const p = f.posLikely.find(p => p.freq > N*0.5);
+    if(p) items.push(`Position ${p.i+1} is ${pt(p.c)} in <b>${p.freq}</b> of ${N} — ${oddsWord(p.freq,N)}.`);
+  }
+  const head = `<div><b>${N}</b> code${N>1?'s':''} still fit${N>1?'':'s'} every clue.</div>`;
+  const list = items.length ? `<ul>${items.map(t=>`<li>${t}</li>`).join('')}</ul>` : '';
+  if(N===1) return head + list + `<div>Only one code still fits — it must be ${pegs(guess)}. Play it.</div>`;
+  const wc = worstCaseSplit(guess, S);
+  let why = `<div class="pegline">Play ${pegs(guess)}</div>`
+          + `<div>Still a possible answer, and of the ${N} it narrows the field best — `
+          + `whatever the pegs come back, at most <b>${wc}</b> code${wc>1?'s':''} can survive.`;
+  if(lastGuess){
+    const chg=[]; for(let i=0;i<LEN;i++) if(guess[i]!==lastGuess[i]) chg.push(i);
+    if(chg.length===1){ const i=chg[0];
+      why += ` It moves only position ${i+1} (${pt(lastGuess[i])}→${pt(guess[i])}), so the change in black pegs reads that one spot on its own.`; }
+  }
+  return head + list + why + `</div>`;
+}
 
 /* ---------- HUMAN MODE ---------- */
 const H = { secret:[], guesses:[], cur:empty4(), over:false, S:ALL };
@@ -377,21 +414,6 @@ function hEnd(won){
   $('hStatus').textContent = won ? 'Solved!' : 'Game over';
   $('guessBtn').disabled = true; $('hintBtn').disabled = true;
 }
-// small inline peg for use inside explanatory sentences
-const pegTxt = c => pegHTML(c,18);
-
-// For a candidate guess against the still-possible set S, how big is the
-// worst-case surviving group? (Same grouping bestGuess uses to pick.)
-function worstCaseSplit(guess, S){
-  const parts = new Map(); let mx = 0;
-  for(const s of S){
-    const k = fbKey(score(s, guess));
-    const v = (parts.get(k)||0)+1; parts.set(k, v);
-    if(v>mx) mx = v;
-  }
-  return mx;
-}
-const hamDist = (a,b)=>{ let d=0; for(let i=0;i<LEN;i++) if(a[i]!==b[i]) d++; return d; };
 
 /* ============ "how good was that move" — information-theory grade ============
    Everything here is computed live from the game's own core (score / fbKey /
@@ -450,73 +472,6 @@ function computeEval(Sprev, guess, fb){
   return {N, M, ruledOut:N-M, black:fb.black, white:fb.white,
           realized, decision:H, bestBits, bestEx, ratio, grade, cls, usesAbsent};
 }
-// Suggested next guess under the teachable "consistent minimal-change probe"
-// method: play a code that could still be right (∈ S, so never a wasted turn)
-// and that changes the fewest pegs from your last guess (so its black-peg
-// delta is easy to read); break ties toward the guess that splits S most
-// evenly. Deterministic. Opening move has nothing to compare to → FIRST_GUESS.
-function suggestGuess(S, history){
-  if(S.length===1) return S[0];
-  if(history.length===0) return FIRST_GUESS.slice();
-  const last = history[history.length-1].guess;
-  let minH = Infinity;
-  for(const g of S){ const d = hamDist(g, last); if(d<minH) minH = d; }
-  let best = null, bestMax = Infinity;
-  for(const g of S){
-    if(hamDist(g, last)!==minH) continue;
-    const mx = worstCaseSplit(g, S);
-    if(mx<bestMax || (mx===bestMax && (!best || cmpCode(g,best)<0))){ bestMax = mx; best = g; }
-  }
-  return best;
-}
-
-// Plain-language facts the clues *prove* on their own — each one hand-checkable
-// against the board. Differential (single-peg-change) facts come first: they
-// pin a position outright and are the heart of the method. Returns HTML.
-function hintDeductions(history){
-  const out = [];
-  const seenPos = {};
-  // 1) Differential probing: any two rows differing in exactly one position.
-  //    Black is purely positional, so black(b)−black(a) depends ONLY on that
-  //    one spot: +1 ⇒ it's the new color, −1 ⇒ it's the old color, 0 ⇒ neither.
-  for(let a=0;a<history.length;a++){
-    for(let b=a+1;b<history.length;b++){
-      let pos=-1, n=0;
-      for(let i=0;i<LEN;i++) if(history[a].guess[i]!==history[b].guess[i]){ pos=i; n++; }
-      if(n!==1 || seenPos[pos]) continue;    // one clean fact per position is plenty
-      const x = history[a].guess[pos], y = history[b].guess[pos];
-      const ba = history[a].fb.black, bb = history[b].fb.black, dB = bb - ba;
-      seenPos[pos] = 1;
-      if(dB===1)
-        out.push(`Rows ${a+1} and ${b+1} differ only at position ${pos+1} (${pegTxt(x)}→${pegTxt(y)}) and black rose ${ba}→${bb}, so <b>position ${pos+1} is ${pegTxt(y)}</b>.`);
-      else if(dB===-1)
-        out.push(`Rows ${a+1} and ${b+1} differ only at position ${pos+1} (${pegTxt(x)}→${pegTxt(y)}) and black fell ${ba}→${bb}, so <b>position ${pos+1} is ${pegTxt(x)}</b>.`);
-      else
-        out.push(`Rows ${a+1} and ${b+1} differ only at position ${pos+1} (${pegTxt(x)}→${pegTxt(y)}) with black unchanged, so <b>position ${pos+1} is neither ${pegTxt(x)} nor ${pegTxt(y)}</b>.`);
-    }
-  }
-  // 2) Monochromatic probes → an exact color count (black = count, white = 0).
-  history.forEach((h,i)=>{
-    const g = h.guess;
-    if(!g.every(x=>x===g[0])) return;
-    const c = g[0], k = h.fb.black;
-    if(k===0) out.push(`Row ${i+1} played ${pegTxt(c)}×4 for 0 black, so <b>no ${pegTxt(c)}</b> is in the code.`);
-    else out.push(`Row ${i+1} played ${pegTxt(c)}×4 and scored ${k} black, so the code has exactly <b>${k}</b> ${pegTxt(c)}.`);
-  });
-  // 3) Whole-guess facts on mixed guesses: nothing right, or full multiset.
-  history.forEach((h,i)=>{
-    if(h.fb.black===LEN) return;            // that row was the winning guess
-    const g = h.guess, tot = h.fb.black + h.fb.white;
-    if(g.every(x=>x===g[0])) return;        // covered above
-    if(tot===0){
-      const cols = [...new Set(g)].map(pegTxt).join(' ');
-      out.push(`Row ${i+1} (${cols}) scored nothing, so <b>none</b> of those colors are in the code.`);
-    } else if(tot===LEN){
-      out.push(`Row ${i+1} had all four right colors (only ${h.fb.black} in place), so the answer is a <b>rearrangement</b> of it.`);
-    }
-  });
-  return out;
-}
 // One-line "how good was your last guess" for the top of the hint: the guess's
 // decision entropy as a percentage of the best move available (100% = best,
 // 0% = ruled nothing out, e.g. a replay or a proven-absent color).
@@ -534,107 +489,58 @@ function lastMoveAccuracyHTML(ev, rowNum){
   return `<div class="acc">Your last guess (row ${rowNum}) rated `
        + `<span class="gr ${ev.cls}">${pct}%</span> of the best move here${why}</div>`;
 }
+// Grade a PROSPECTIVE guess (not yet played, so no feedback/luck): its expected
+// information as a % of the best move available on the still-possible set S.
+function prospectiveGradeHTML(guess, S){
+  const H = bucketEntropy(guess, S, false);
+  let bestBits = 0;
+  for(const cand of ALL){ const h = bucketEntropy(cand, S, false); if(h > bestBits) bestBits = h; }
+  const ratio = bestBits > 0 ? H / bestBits : 0;
+  const pct = Math.round(ratio * 100);
+  const present = new Set();                       // colours still possible in any remaining code
+  for(const s of S) for(const c of s) present.add(c);
+  const usesAbsent = guess.some(c => !present.has(c));
+  let cls = 'g-wasteful', grade = 'Wasteful';
+  if(!usesAbsent && ratio >= 0.05){
+    for(const [t,g,c] of EV_BANDS){ if(ratio >= t){ grade = g; cls = c; break; } }
+  }
+  let why;
+  if(usesAbsent)          why = ` — it plays a colour already ruled out, so it can't separate the codes still in play.`;
+  else if(ratio < 0.05)   why = ` — every code still in play gives it the same feedback, so it would rule nothing out.`;
+  else if(grade==='Brilliant') why = ` — essentially the best move on the board.`;
+  else if(grade==='Strong')    why = ` — a strong, information-rich guess.`;
+  else if(grade==='OK')        why = ` — solid, though a more even split is available.`;
+  else                         why = ` — it leaves a lot on the table; a sharper guess is available.`;
+  return `<div class="acc">The guess you've entered rates `
+       + `<span class="gr ${cls}">${pct}%</span> of the best move here${why}</div>`;
+}
+
 function hHint(){
   if(H.over) return;
   const box = $('hintBox');
-  const history = H.guesses.map(g=>({guess:g.code, fb:g.fb}));
-
-  // Opening move: nothing to compare against yet.
-  if(history.length===0){
-    box.innerHTML =
-      `<div class="pegline">Open with ${FIRST_GUESS.map(pegTxt).join(' ')}</div>`
-    + `<div>No clues yet, so all <b>1296</b> codes are still in play and there's nothing to isolate.`
-    + ` Open with a balanced two-color probe like this — it splits the field about as evenly as any`
-    + ` first guess can.</div>`
-    + `<div style="margin-top:6px">From here, treat each guess as an experiment: keep playing codes`
-    + ` that could still be right, and change as few pegs as you can between guesses. Because a`
-    + ` <b>black</b> peg means "right color, right spot", the change in the black count tells you`
-    + ` exactly what your edit did — that's how you pin a position.</div>`;
-    return;
+  let html = '';
+  // Grade your last SUBMITTED guess (with the luck its real feedback carried).
+  if(H.guesses.length){
+    const lastG = H.guesses[H.guesses.length-1];
+    if(!lastG.eval) lastG.eval = computeEval(lastG.Sprev, lastG.code, lastG.fb);
+    html += lastMoveAccuracyHTML(lastG.eval, H.guesses.length);
   }
-
-  // Rate the LAST guess (top of hint): its fraction of the best-available info.
-  const lastG = H.guesses[H.guesses.length-1];
-  if(!lastG.eval) lastG.eval = computeEval(lastG.Sprev, lastG.code, lastG.fb);
-  const accHTML = lastMoveAccuracyHTML(lastG.eval, H.guesses.length);
-
-  // Rebuild the set S of codes still consistent with every clue so far.
-  let S = ALL;
-  for(const h of history) S = filterConsistent(S, h.guess, h.fb);
-
-  if(S.length===0){
-    box.innerHTML = `A clue somewhere is contradictory — <b>no</b> code fits all the pegs shown.`
-      + ` Double-check the black/white feedback on an earlier row.`;
-    return;
+  // Grade the guess you're building now, if all four slots are filled.
+  if(H.cur.every(x=>x)){
+    if(H.S.length > 1) html += prospectiveGradeHTML(H.cur, H.S);
+    else if(H.S.length === 1) html += `<div class="acc">Only one code still fits every clue — enter it to win.</div>`;
   }
-
-  const deds = hintDeductions(history);
-
-  if(S.length===1){
-    const g = S[0];
-    box.innerHTML = accHTML
-      + `<div class="pegline">It must be ${g.map(pegTxt).join(' ')}</div>`
-    + (deds.length ? `<div>Putting your clues together:</div><ul>${deds.slice(0,4).map(d=>`<li>${d}</li>`).join('')}</ul>` : '')
-    + `<div>Just <b>one</b> code still fits every clue — so that's the secret. Enter it to win.</div>`;
-    return;
-  }
-
-  // Teachable suggestion: a still-possible, minimal-change probe.
-  const g = suggestGuess(S, history);
-  const last = history[history.length-1].guess;
-  const changed = [];
-  for(let i=0;i<LEN;i++) if(g[i]!==last[i]) changed.push(i);
-
-  let html = `<div class="pegline">Try ${g.map(pegTxt).join(' ')}</div>`;
-  html += `<div><b>${S.length}</b> codes still fit every clue.</div>`;
-  if(deds.length){
-    html += `<div>What your clues already prove:</div><ul>${deds.slice(0,4).map(d=>`<li>${d}</li>`).join('')}</ul>`;
-  }
-  html += `<div>This code is still one of those ${S.length}, so it's never a wasted turn.`;
-  if(changed.length===1){
-    const i = changed[0];
-    html += ` It changes only position ${i+1} from your last guess (${pegTxt(last[i])}→${pegTxt(g[i])}),`
-          + ` <b>so it tests position ${i+1} on its own</b>: if <b>black</b> rises, position ${i+1} is`
-          + ` ${pegTxt(g[i])}; if it falls, that spot was ${pegTxt(last[i])}; if it holds, it's neither.</div>`;
+  // The shared reasoning — what the clues prove now and a strong guess to play:
+  // the very same narration the computer shows while it solves.
+  if(H.S.length === 0){
+    html += `<div>A clue is contradictory — no code fits every peg shown. Re-check the feedback on an earlier row.</div>`;
   } else {
-    // No single-peg still-possible probe exists, so g's black delta can't point
-    // at one spot. Offer an isolation experiment — but only if it's good advice.
-    // Isolating one peg only pays off when the OTHER pegs are worth holding
-    // fixed, so anchor on the STRONGEST past guess (most pegs already in place),
-    // not blindly the last one. If even the best guess has 0 in place, replaying
-    // it wastes three known-wrong pegs — so skip the test entirely there.
-    html += ` It fits every clue, so it could be the answer — but it changes ${changed.length}`
-          + ` pegs at once, so its black count won't single out any one spot.</div>`;
-    let base = history[0];
-    for(const h of history) if(h.fb.black >= base.fb.black) base = h;   // ties → latest
-    if(base.fb.black >= 1){
-      const bg = base.guess, baseIdx = history.indexOf(base);
-      const known = [];
-      for(let i=0;i<LEN;i++){ const c=S[0][i]; known[i] = S.every(s=>s[i]===c)?c:null; }
-      let bi=-1, bv=-1;
-      for(let i=0;i<LEN;i++){
-        if(known[i]!=null) continue;                 // already pinned — nothing to test
-        const set = new Set(S.map(s=>s[i]));
-        if(set.size>bv){ bv=set.size; bi=i; }         // the spot S disagrees on most
-      }
-      if(bi>=0){
-        const freq = {};
-        for(const s of S) freq[s[bi]] = (freq[s[bi]]||0)+1;
-        let y=null, fy=-1;                            // a color that actually occurs there
-        for(const c in freq){ if(+c!==bg[bi] && freq[c]>fy){ fy=freq[c]; y=+c; } }
-        const probe = bg.slice(); probe[bi]=y;
-        const nb = base.fb.black;
-        html += `<div style="margin-top:6px"><b>Or run a test to pin down position ${bi+1}.</b>`
-              + ` Take row ${baseIdx+1} — your strongest guess, with ${nb} peg${nb>1?'s':''} already`
-              + ` in place — and change only position ${bi+1}: ${probe.map(pegTxt).join(' ')}`
-              + ` (${pegTxt(bg[bi])}→${pegTxt(y)}). Because a single peg moved, the change in black`
-              + ` <b>answers position ${bi+1} by itself</b>: <b>rises</b> ⇒ it's ${pegTxt(y)};`
-              + ` <b>falls</b> ⇒ it's ${pegTxt(bg[bi])}; <b>unchanged</b> ⇒ it's neither. One unknown`
-              + ` becomes a fact (this probe may cost a turn, since it might not be the answer itself).</div>`;
-      }
-    }
+    const isFirst = H.guesses.length === 0;
+    const lastGuess = isFirst ? null : H.guesses[H.guesses.length-1].code;
+    const g = isFirst ? FIRST_GUESS.slice() : evenSplitGuess(H.S);
+    html += narrateHTML(H.S, g, lastGuess, isFirst);
   }
-  box.innerHTML = accHTML + html;
+  box.innerHTML = html;
 }
 function hNew(){
   H.secret = randomCode(); H.guesses = []; H.cur = empty4(); H.over = false;
@@ -668,22 +574,30 @@ async function cSolve(){
   const hist = $('cHistory'); hist.innerHTML='';
   const secret = C.secret.slice();
   const history = [];
+  let S = ALL;                                   // codes still possible, going into each guess
   $('cStatus').textContent = 'Computer is solving…';
   for(let step=0; step<10; step++){
     $('cCount').textContent = `guess ${step+1}…`;
     await sleep(step===0?250:650);
     const g = solverNext(history);
     const fb = score(secret, g);
+    const lastGuess = history.length ? history[history.length-1].guess : null;
     history.push({guess:g, fb});
     hist.insertAdjacentHTML('beforeend', rowHTML(history.length, g, fb, fb.black===LEN));
+    // the SAME reasoning the Hint gives — why this guess, given S before it
+    const note = fb.black===LEN
+      ? `Cracked — the code is ${g.map(c=>pegHTML(c,18)).join(' ')}.`
+      : narrateHTML(S, g, lastGuess, step===0);
+    hist.insertAdjacentHTML('beforeend', `<div class="cpunote">${note}</div>`);
     hist.lastElementChild.scrollIntoView({block:'nearest'});
     if(fb.black===LEN){
       const b=$('cBanner'); b.className='banner win';
       b.textContent = `Solved in ${history.length} guess${history.length>1?'es':''}. ✅`;
       b.classList.remove('hidden');
-      $('cStatus').textContent='Done'; $('cCount').textContent=`${history.length} / ≤5`;
+      $('cStatus').textContent='Done'; $('cCount').textContent=`${history.length} / ≤6`;
       break;
     }
+    S = filterConsistent(S, g, fb);              // prune for the next guess's narration
   }
   C.running = false; cRefresh();
 }
