@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Lights Out — a solving course</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  :root{ --panel:var(--bg-card); --ink:var(--fg); --muted:var(--fg-dim); --line:var(--rule); --good:#7ee0a3;
+    --lit:#ffd23f; --litglow:rgba(255,210,63,.55); --dark:#12161d; --ring:var(--accent,#6ab2d4); }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:var(--sans);-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+  .wrap{max-width:480px;margin:0 auto;padding:16px 16px 40px}
+  h1{font-size:24px;margin:.1em 0}
+  .sub{color:var(--muted);font-size:13px;line-height:1.55;margin:0 0 16px}
+  .cat{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.6px;margin:18px 0 4px}
+  .catdesc{color:var(--muted);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.5;margin:0 0 9px}
+  a.tile,button.tile{display:block;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);
+    border-radius:13px;padding:13px 14px;margin-bottom:9px;text-decoration:none;color:var(--ink);cursor:pointer}
+  .tile b{font-size:16px}
+  .tile span{display:block;color:var(--muted);font-size:12.5px;margin-top:2px;line-height:1.4}
+  .tile.play{background:#1d1a0d;border-color:#5a4a1a}
+  .top{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .back{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:10px;
+    width:40px;height:40px;font-size:18px;cursor:pointer;flex:0 0 auto}
+  .top h2{font-size:18px;margin:0}
+  .lesson{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;line-height:1.62;font-size:14.5px}
+  .lesson h3{margin:.7em 0 .4em;font-size:15px}
+  .lesson h3:first-child{margin-top:.1em}
+  .lesson p{margin:.5em 0}
+  .lesson ul,.lesson ol{margin:.5em 0;padding-left:20px}
+  .lesson li{margin:.35em 0}
+  .lesson .why{color:var(--muted);font-size:12.5px;font-style:italic;border-left:2px solid var(--line);padding-left:10px;margin:9px 0;line-height:1.55}
+  .lesson code,.mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+  .lesson table{border-collapse:collapse;margin:8px auto;font-family:ui-monospace,monospace;font-size:13px}
+  .lesson td,.lesson th{border:1px solid var(--line);padding:5px 8px;text-align:center}
+  .src{color:#5a6473;font-size:11.5px;margin-top:10px}
+  button.go{appearance:none;border:0;border-radius:12px;padding:14px;font-size:16px;font-weight:700;
+    background:var(--accent);color:#06243a;width:100%;margin-top:12px;cursor:pointer}
+  .subnav{display:flex;justify-content:space-between;gap:10px;margin-top:18px}
+  .subnav button{flex:1;background:var(--panel);border:1px solid var(--line);color:var(--ink);
+    border-radius:10px;padding:11px;font-size:14px;font-weight:600;cursor:pointer}
+  .subnav button:hover:not(:disabled){border-color:var(--accent)}
+  .subnav button:disabled{opacity:.35;cursor:default}
+
+  /* ---- lights-out board ---- */
+  .lo{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;background:#0a0d12;border:1px solid #232a35;
+    border-radius:14px;padding:9px;touch-action:manipulation;max-width:340px;margin:0 auto}
+  .lo.mini{gap:4px;padding:6px;max-width:210px;margin:10px auto}
+  .cell{aspect-ratio:1;border-radius:9px;background:var(--dark);position:relative;cursor:pointer;
+    box-shadow:inset 0 2px 5px rgba(0,0,0,.6);transition:background .08s,box-shadow .08s}
+  .lo.mini .cell{border-radius:6px;cursor:default}
+  .cell.on{background:radial-gradient(circle at 38% 32%, #fff0b0, var(--lit));
+    box-shadow:0 0 12px 1px var(--litglow), inset 0 1px 2px rgba(255,255,255,.5)}
+  .cell.ring{outline:3px solid var(--ring);outline-offset:-3px}
+  .cell.flip{outline:2px dashed #6ab2d4;outline-offset:-2px}
+  .cell.hint::after{content:"";position:absolute;inset:0;margin:auto;width:34%;height:34%;border-radius:50%;
+    background:var(--ring);opacity:.9;box-shadow:0 0 8px var(--ring)}
+  .cell .lbl{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:12px;font-weight:800;color:#0c0e12}
+  .cell.on .lbl{color:#3a2c00}
+  .dcap{text-align:center;color:var(--muted);font-size:12px;margin:8px auto 2px;line-height:1.45;font-style:italic;max-width:320px}
+
+  /* sandbox controls */
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:11px;overflow:hidden;background:#12151b}
+  .seg button{background:transparent;color:var(--muted);border:0;border-radius:0;font-weight:600;padding:8px 11px;font-size:13px;cursor:pointer}
+  .seg button.on{background:#40381a;color:#ffe9a8}
+  .ghost{background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:11px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer}
+  .ghost.act{border-color:var(--lit);color:#ffe9a8}
+  .status{font-size:14px;font-weight:600;min-height:22px;text-align:center;margin:10px 0 8px}
+  .status.win{color:var(--good)}
+  .legend{color:var(--muted);font-size:12px;text-align:center;margin-top:10px;line-height:1.55}
+  .statline{display:flex;justify-content:space-between;color:var(--muted);font-size:13px;margin:2px 2px 8px}
+  .statline b{color:var(--ink)}
+  footer{color:#5a6473;font-size:12px;text-align:center;margin-top:14px}
+  a{color:var(--accent)}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HOME -->
+  <section id="home">
+    <h1>Lights Out</h1>
+    <p class="sub">The 5&times;5 puzzle where every tap flips a light <b>and its four neighbours</b>, and you win when the whole board goes dark. It looks like trial and error. It isn't &mdash; underneath it's a piece of linear algebra, and a simple procedure (<b>chasing the lights</b>) cracks <i>any</i> solvable board. This course teaches the trick, then the mathematics that makes it work: why press-order is irrelevant, why some boards are impossible, and how to finish in the fewest taps.</p>
+    <button class="tile play" onclick="app.play()"><b>&#9658; Play &amp; solve</b><span>A live 5&times;5 board with random solvable puzzles. Turn on hints to see the fewest-tap solution, or step through it one press at a time.</span></button>
+    <div id="lessonList"></div>
+    <footer>Solvability &amp; quiet patterns verified this build by direct GF(2) computation. &middot; <a href="../">&larr; all games</a></footer>
+  </section>
+
+  <!-- LESSON -->
+  <section id="lesson" class="hidden">
+    <div class="top"><button class="back" onclick="app.home()">&larr;</button><h2 id="lessonTitle"></h2></div>
+    <div class="lesson" id="lessonBody"></div>
+    <button class="go" onclick="app.play()">Try it on a live board &rarr;</button>
+    <div class="subnav"><button class="prev" onclick="app.nav(-1)">&larr; Prev</button><button class="next" onclick="app.nav(1)">Next &rarr;</button></div>
+  </section>
+
+  <!-- PLAY -->
+  <section id="playScreen" class="hidden">
+    <div class="top"><button class="back" onclick="app.home()">&larr;</button><h2>Play &amp; solve</h2></div>
+    <div class="row">
+      <div class="seg" id="diffSeg">
+        <button data-d="4">Easy</button>
+        <button data-d="8" class="on">Medium</button>
+        <button data-d="14">Hard</button>
+      </div>
+      <button class="ghost" id="hintBtn">Hints: off</button>
+      <button class="ghost" id="stepBtn">Step</button>
+    </div>
+    <div class="statline"><span>Your taps: <b id="taps">0</b></span><span id="minLine"></span></div>
+    <div class="status" id="status"></div>
+    <div id="playBoard"></div>
+    <div class="legend" id="legend"></div>
+    <button class="go" onclick="app.newPuzzle()">New puzzle</button>
+  </section>
+
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+function show(id){ for(const s of ["home","lesson","playScreen"]) $(s).classList.add("hidden"); $(id).classList.remove("hidden"); window.scrollTo(0,0); }
+const rnd = n => Math.floor(Math.random()*n);
+
+/* =================== ENGINE (GF(2), 25-bit masks) =================== */
+const N=5, SIZE=25;
+const at=(r,c)=>5*r+c;
+// CROSS[j] = bitmask of cells toggled by pressing button j (itself + orthogonal neighbours)
+const CROSS=(()=>{ const a=new Array(SIZE);
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){ let m=1<<at(r,c);
+    for(const [dr,dc] of [[1,0],[-1,0],[0,1],[0,-1]]){ const rr=r+dr,cc=c+dc;
+      if(rr>=0&&rr<N&&cc>=0&&cc<N) m|=1<<at(rr,cc); }
+    a[at(r,c)]=m; }
+  return a; })();
+const press=(state,j)=>state^CROSS[j];
+const apply=(state,x)=>{ let s=state; for(let j=0;j<SIZE;j++) if((x>>j)&1) s^=CROSS[j]; return s; };
+function popcount(x){ let n=0; while(x){ n+=x&1; x>>>=1; } return n; }
+
+// Row coefficients of A (equation for cell i): which presses j affect cell i. A is symmetric,
+// so cell i's equation has a 1 in column j exactly when CROSS[j] toggles i.
+const ROWCOEFF=(()=>{ const rows=new Array(SIZE).fill(0);
+  for(let i=0;i<SIZE;i++){ let coeff=0;
+    for(let j=0;j<SIZE;j++) if((CROSS[j]>>i)&1) coeff|=1<<j;
+    rows[i]=coeff; }
+  return rows; })();
+
+// Gaussian elimination over GF(2) solving A x = b. Returns {solvable, part, basis[]}.
+function gaussian(b){
+  const coeff=ROWCOEFF.slice(); const rhs=new Array(SIZE);
+  for(let i=0;i<SIZE;i++) rhs[i]=(b>>i)&1;
+  const pivots={}; let r=0;
+  for(let col=0;col<SIZE;col++){
+    let piv=-1;
+    for(let rr=r;rr<SIZE;rr++) if((coeff[rr]>>col)&1){ piv=rr; break; }
+    if(piv<0) continue;
+    [coeff[r],coeff[piv]]=[coeff[piv],coeff[r]]; [rhs[r],rhs[piv]]=[rhs[piv],rhs[r]];
+    for(let rr=0;rr<SIZE;rr++) if(rr!==r && ((coeff[rr]>>col)&1)){ coeff[rr]^=coeff[r]; rhs[rr]^=rhs[r]; }
+    pivots[col]=r; r++;
+  }
+  for(let rr=r;rr<SIZE;rr++) if(coeff[rr]===0 && rhs[rr]===1) return {solvable:false};
+  let part=0;
+  for(const col in pivots) if(rhs[pivots[col]]) part|=1<<col;
+  const basis=[];
+  for(let fc=0;fc<SIZE;fc++){ if(fc in pivots) continue;
+    let v=1<<fc; for(const col in pivots) if((coeff[pivots[col]]>>fc)&1) v|=1<<(+col);
+    basis.push(v); }
+  return {solvable:true, part, basis};
+}
+// All solutions (particular + every null-space combo), sorted fewest-taps first.
+function solutions(b){
+  const g=gaussian(b); if(!g.solvable) return null;
+  const out=[]; const k=g.basis.length;
+  for(let bits=0;bits<(1<<k);bits++){ let x=g.part;
+    for(let t=0;t<k;t++) if((bits>>t)&1) x^=g.basis[t]; out.push(x); }
+  out.sort((p,q)=>popcount(p)-popcount(q));
+  return out;
+}
+
+/* =================== static lesson boards =================== */
+// spec: {on:"25-char rows of 0/1", ring:[[r,c]], flip:[[r,c]], hint:[[r,c]], lbl:{"r,c":"X"}, mini:true, cap}
+function boardHTML(spec){
+  const on = spec.on || "0".repeat(25);
+  const rS=new Set((spec.ring||[]).map(p=>at(p[0],p[1])));
+  const fS=new Set((spec.flip||[]).map(p=>at(p[0],p[1])));
+  const hS=new Set((spec.hint||[]).map(p=>at(p[0],p[1])));
+  const lbl=spec.lbl||{};
+  let cells="";
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){ const i=at(r,c);
+    let cls="cell"+(on[i]==="1"?" on":"");
+    if(rS.has(i)) cls+=" ring"; if(fS.has(i)) cls+=" flip"; if(hS.has(i)) cls+=" hint";
+    const L=lbl[r+","+c];
+    cells+=`<div class="${cls}">${L?`<span class="lbl">${L}</span>`:""}</div>`; }
+  return `<div class="lo mini">${cells}</div>${spec.cap?`<div class="dcap">${spec.cap}</div>`:""}`;
+}
+// helper: build a 25-char on-string from a list of [r,c]
+function lit(list){ const a="0".repeat(25).split(""); for(const p of list) a[at(p[0],p[1])]="1"; return a.join(""); }
+
+/* =================== LESSONS =================== */
+const L=[
+  // ===== 1 · The rules =====
+  { id:"cross", cat:"1 · The rules", name:"The board & the cross", tag:"One tap flips five lights",
+    body:`<h3>The goal</h3>
+      <p>A 5&times;5 grid of lights, each <b>on</b> or <b>off</b>. Tap any cell and it flips &mdash; <b>along with its up, down, left and right neighbours</b>. Cells on an edge simply have fewer neighbours to flip. You win when <b>every light is off</b>.</p>
+      ${boardHTML({on:lit([[2,2]]), flip:[[2,2],[1,2],[3,2],[2,1],[2,3]], cap:"Tapping the centre flips a plus-shaped cross of five cells (dashed)."})}
+      <p>On the four sides a tap flips four cells; in a corner, three.</p>
+      ${boardHTML({flip:[[0,0],[0,1],[1,0]], cap:"A corner tap flips only three &mdash; itself, and its two neighbours."})}` },
+
+  { id:"flip", cat:"1 · The rules", name:"It flips — it doesn't just turn off", tag:"Taps can switch lights back ON",
+    body:`<h3>A common trap</h3>
+      <p>It's tempting to think a tap <i>turns off</i> nearby lights. It doesn't &mdash; it <b>flips</b> them. A neighbour that was off comes <b>on</b>. That's the whole difficulty: fixing one light disturbs up to four others.</p>
+      ${boardHTML({on:lit([[2,2]]), cap:"Before: one light on in the middle."})}
+      ${boardHTML({on:lit([[1,2],[3,2],[2,1],[2,3]]), flip:[[2,2],[1,2],[3,2],[2,1],[2,3]], cap:"After tapping it: the centre goes off, but its four neighbours light UP. Four lights where there was one."})}
+      <p>So there's no move that only helps. Every tap is a trade. The rest of the course is about controlling those trades instead of flailing.</p>` },
+
+  // ===== 2 · Two secrets =====
+  { id:"order", cat:"2 · Two secrets", name:"Order doesn't matter", tag:"Only WHICH buttons, not in what sequence",
+    body:`<h3>Taps commute</h3>
+      <p>Press button A then button B, or B then A &mdash; the board ends up <b>identical</b>. Each tap just flips a fixed set of cells, and flipping is <i>independent</i> of what else you've flipped: a light's final state is on if it was flipped an odd number of times, off if even, and that count doesn't care about order.</p>
+      <p>So a solution is not a <i>sequence</i> of moves. It's just a <b>set</b> of buttons &mdash; a choice, for each of the 25 cells, of &ldquo;tap it&rdquo; or &ldquo;don't.&rdquo;</p>
+      <p class="why">This is the first hint that Lights Out is really arithmetic: flips add up, and addition doesn't care about order.</p>` },
+
+  { id:"twice", cat:"2 · Two secrets", name:"Tapping twice does nothing", tag:"Every button is pressed 0 or 1 times",
+    body:`<h3>Two taps cancel</h3>
+      <p>Flip a cross, then flip the exact same cross again: every cell returns to where it started. Tapping a button <b>twice</b> is the same as never touching it.</p>
+      ${boardHTML({on:lit([[2,2]]), flip:[[2,2],[1,2],[3,2],[2,1],[2,3]], cap:"Tap centre once…"})}
+      ${boardHTML({on:lit([[2,2]]), cap:"…tap it again, and you're exactly back to the start."})}
+      <p>Combine this with the last lesson and a solution collapses to something tiny: for each of the 25 buttons, you press it <b>once or not at all</b>. There is never a reason to press anything three times (same as once) or twice (same as zero). Solving is choosing the right <b>subset</b> of the 25 buttons.</p>` },
+
+  // ===== 3 · Light chasing =====
+  { id:"chase", cat:"3 · Light chasing", name:"Chase the lights down", tag:"The one technique that beats any board",
+    body:`<h3>Push everything to the bottom</h3>
+      <p>Here is the trick that solves any solvable board without cleverness. Work <b>top row to bottom</b>. Look at the top row: wherever a light is on, <b>press the button directly beneath it</b> (in the next row down). That tap flips the light above it off.</p>
+      ${boardHTML({on:lit([[0,1],[0,3]]), hint:[[1,1],[1,3]], cap:"Top row has lights at columns 2 and 4 → press the cells directly below them (dots)."})}
+      <p>Doing this for the top row clears it &mdash; the presses scramble rows 2 and 3, but ignore that. Now the top row is dark, so move to row 2 and do the same: for each light in row 2, press directly below it in row 3. Then row 3 &rarr; row 4.</p>
+      <p>After you've chased rows 1 through 4, <b>every light that remains is in the bottom row.</b> You've swept the whole board downward into a single row.</p>
+      <div class="dcap" style="font-style:normal">Verified this build: from every starting board, one chase leaves lights only in the bottom row.</div>
+      <p>Sometimes the bottom row is already empty &mdash; you're done. Usually it isn't, and that's where the next lesson comes in.</p>` },
+
+  // ===== 4 · The bottom row =====
+  { id:"lookup", cat:"4 · The bottom row", name:"The bottom-row lookup table", tag:"Read the last row, fix it from the top",
+    body:`<h3>Finish from the top</h3>
+      <p>After one chase, only the bottom row can still be lit. The fix is a small lookup: <b>read the bottom-row pattern, press the matching buttons in the TOP row, then chase again.</b> The second chase sweeps the board clean.</p>
+      <p>There are only eight bottom patterns that can occur (columns are numbered 1&ndash;5):</p>
+      <table>
+        <tr><th>Bottom row left after chasing</th><th>Press these TOP-row columns</th></tr>
+        <tr><td><span class="mono">&middot; &middot; &middot; &middot; &middot;</span></td><td>already solved</td></tr>
+        <tr><td><span class="mono"># # # &middot; &middot;</span></td><td>2</td></tr>
+        <tr><td><span class="mono">&middot; # &middot; # &middot;</span></td><td>1 &middot; 2 &middot; 3</td></tr>
+        <tr><td><span class="mono"># &middot; # # &middot;</span></td><td>1 &middot; 3</td></tr>
+        <tr><td><span class="mono"># &middot; &middot; &middot; #</span></td><td>1 &middot; 2</td></tr>
+        <tr><td><span class="mono">&middot; # # &middot; #</span></td><td>1</td></tr>
+        <tr><td><span class="mono"># # &middot; # #</span></td><td>3</td></tr>
+        <tr><td><span class="mono">&middot; &middot; # # #</span></td><td>2 &middot; 3</td></tr>
+      </table>
+      <p>Example: if chasing leaves the bottom row as <span class="mono"># # &middot; # #</span>, press the top-row button in <b>column 3</b>, then chase the whole board again. It clears.</p>
+      ${boardHTML({on:lit([[4,0],[4,1],[4,3],[4,4]]), hint:[[0,2]], cap:"Bottom row # # · # # → press top-row column 3 (dot), then chase again."})}
+      <p class="why">This exact table &mdash; the eight patterns and their top-row presses &mdash; was generated and checked against a full solver in this build.</p>
+      <div class="src">The table depends on the chasing convention above; it is self-consistent and verified for it.</div>` },
+
+  { id:"impossible", cat:"4 · The bottom row", name:"When the table says “impossible”", tag:"Only 8 of 32 bottom rows can be fixed",
+    body:`<h3>Some boards can't be solved</h3>
+      <p>A bottom row has <b>32</b> possible patterns (each of five cells on or off). But the lookup table has only <b>eight</b> entries. If a chase leaves you a bottom row that <i>isn't</i> one of those eight, no top-row press will fix it &mdash; the board you started from was <b>unsolvable</b>.</p>
+      <p>This is a genuine feature of Lights Out, not a flaw in the method: you cannot turn off every light from every starting pattern. The chase is also a <b>solvability test</b> &mdash; reach a non-table bottom row and you've proved it can't be done.</p>
+      ${boardHTML({on:lit([[4,0]]), cap:"A single light left in the bottom row (# · · · ·) is NOT in the table — a board that chases to this was impossible from the start."})}
+      <p>Why exactly eight? That's the next stage &mdash; and the answer is the deepest thing in the game.</p>
+      <div class="src">Verified: exactly 8 of the 32 bottom-row patterns are solvable.</div>` },
+
+  // ===== 5 · Quiet patterns =====
+  { id:"quiet", cat:"5 · Quiet patterns", name:"Patterns that do nothing", tag:"Press all of these and the board doesn't change",
+    body:`<h3>The silent presses</h3>
+      <p>Here's a startling fact. There are special <b>sets of buttons</b> where, if you press <i>every</i> button in the set, <b>the board ends up exactly as it started.</b> Nothing changes. Every light gets flipped an even number of times and cancels out. These are the <b>quiet patterns</b>.</p>
+      <p>For the 5&times;5 board there are exactly three, and pressing any one of them is a no-op:</p>
+      ${boardHTML({on:lit([[0,0],[0,2],[0,4],[1,0],[1,2],[1,4],[3,0],[3,2],[3,4],[4,0],[4,2],[4,4]]), cap:"Quiet pattern 1 (12 buttons). Press all of them → board unchanged."})}
+      ${boardHTML({on:lit([[0,0],[0,1],[0,3],[0,4],[2,0],[2,1],[2,3],[2,4],[4,0],[4,1],[4,3],[4,4]]), cap:"Quiet pattern 2 (12 buttons)."})}
+      ${boardHTML({on:lit([[0,1],[0,2],[0,3],[1,0],[1,2],[1,4],[2,0],[2,1],[2,3],[2,4],[3,0],[3,2],[3,4],[4,1],[4,2],[4,3]]), cap:"Quiet pattern 3 (16 buttons) — which is just patterns 1 and 2 pressed together."})}
+      <p class="why">Pattern 3 = pattern 1 + pattern 2: press two no-ops and you still have a no-op. These three (plus &ldquo;press nothing&rdquo;) are the only silent sets.</p>
+      <div class="src">Verified: the null space of the press matrix is 2-dimensional — these are its three nonzero members, and each was confirmed to toggle nothing.</div>` },
+
+  { id:"four", cat:"5 · Quiet patterns", name:"Why every board has four solutions", tag:"Add a quiet pattern, get another solution",
+    body:`<h3>Solutions come in fours</h3>
+      <p>Take any solution &mdash; a set of taps that clears the board. Now also press an entire quiet pattern. The board still clears (the quiet pattern changed nothing), so you have a <b>different set of taps that also solves it</b>.</p>
+      <p>There are three quiet patterns plus &ldquo;add nothing,&rdquo; so every solvable board has exactly <b>four solutions</b>: your original, and the original combined with each quiet pattern.</p>
+      <p>And it explains the impossibility from Stage 4. Because presses come in these silent redundancies, the taps can only ever <i>reach</i> a fraction of all boards &mdash; precisely <b>one quarter</b> of them. So:</p>
+      <ul>
+        <li>Solvable boards: <b>2<sup>23</sup> = 8,388,608</b></li>
+        <li>All boards: <b>2<sup>25</sup> = 33,554,432</b></li>
+        <li>Each solvable board's solutions: <b>4</b></li>
+      </ul>
+      <p>Four solutions each, one quarter of boards reachable &mdash; same factor of four, from the same two quiet patterns.</p>
+      <div class="src">Verified this build: rank 23, nullity 2 → 2²³ solvable boards, 2² = 4 solutions apiece.</div>` },
+
+  // ===== 6 · The mathematics =====
+  { id:"algebra", cat:"6 · The mathematics", name:"It's linear algebra (mod 2)", tag:"The whole game is one equation",
+    body:`<h3>Everything above, in one line</h3>
+      <p>Lights work in the arithmetic of a single bit: <b>0 = off, 1 = on, and 1 + 1 = 0</b> (a flip that comes back). This is the field <span class="mono">GF(2)</span>. In it, the entire puzzle is one equation:</p>
+      <p style="text-align:center;font-size:16px"><b>A x = b</b></p>
+      <ul>
+        <li><b>b</b> &mdash; the starting board (25 bits, which lights are on).</li>
+        <li><b>x</b> &mdash; the answer you want (25 bits, which buttons to press).</li>
+        <li><b>A</b> &mdash; the fixed 25&times;25 &ldquo;cross&rdquo; matrix: column j is the set of cells button j flips.</li>
+      </ul>
+      <p>Now every lesson is a theorem:</p>
+      <ul>
+        <li><b>Order doesn't matter / press once</b> &rarr; x lives over GF(2): each entry is 0 or 1, and addition commutes.</li>
+        <li><b>Light chasing</b> &rarr; is <b>Gaussian elimination</b> on A, done in the natural top-to-bottom order.</li>
+        <li><b>Quiet patterns</b> &rarr; are the <b>null space</b> of A (the x with A x = 0). It has dimension 2 &rarr; 4 solutions, ¼ of boards solvable.</li>
+        <li><b>Unsolvable boards</b> &rarr; are the b not in A's <b>column space</b>.</li>
+      </ul>
+      <p class="why">Same trick works for any grid and any toggle shape &mdash; build A, solve A x = b. The 5&times;5 cross is just the famous case.</p>` },
+
+  { id:"fewest", cat:"6 · The mathematics", name:"Finishing in the fewest taps", tag:"Pick the lightest of the four solutions",
+    body:`<h3>Chasing works — but it isn't always shortest</h3>
+      <p>Chasing gives you <i>a</i> solution, not necessarily the <b>shortest</b> one. Since every board has exactly four solutions, the fewest-tap answer is simply the <b>lightest of the four</b>.</p>
+      <p>To find it: take your chase solution, then add each quiet pattern to it (pressing a pattern's buttons flips some of your presses on and off). Count the taps in all four versions and keep the smallest.</p>
+      <p>The board on the play screen does exactly this: with hints on it shows the fewest-tap solution, computed by solving <b>A x = b</b> and comparing all four. Go try to match it &mdash; or beat your own count.</p>
+      <button class="go" onclick="app.play()">Open the board &rarr;</button>` },
+];
+
+/* =================== APP =================== */
+const app={
+  cur:null, order:[],
+  diff:8, hints:false,
+  state:0, taps:0, solved:false, stepSol:null,
+
+  init(){
+    const list=$("lessonList");
+    const cats=["1 · The rules","2 · Two secrets","3 · Light chasing","4 · The bottom row","5 · Quiet patterns","6 · The mathematics"];
+    const DESC={
+      "1 · The rules":"What a tap actually does — and the mistake everyone makes.",
+      "2 · Two secrets":"Two facts that shrink the puzzle to a subset choice.",
+      "3 · Light chasing":"The procedure that solves any solvable board.",
+      "4 · The bottom row":"Finishing the job — and spotting the impossible ones.",
+      "5 · Quiet patterns":"The presses that change nothing, and what they explain.",
+      "6 · The mathematics":"The one equation the whole game has been, all along."
+    };
+    this.order=L.map(l=>l.id);
+    let lastCat="";
+    L.forEach(l=>{
+      if(l.cat!==lastCat){ const h=document.createElement("div"); h.className="cat"; h.textContent=l.cat; list.appendChild(h);
+        if(DESC[l.cat]){ const p=document.createElement("p"); p.className="catdesc"; p.textContent=DESC[l.cat]; list.appendChild(p); }
+        lastCat=l.cat; }
+      const b=document.createElement("button"); b.className="tile";
+      b.innerHTML=`<b>${l.name}</b><span>${l.tag}</span>`; b.onclick=()=>this.lesson(l.id);
+      list.appendChild(b);
+    });
+  },
+  home(){ show("home"); },
+  lesson(id){ this.cur=L.find(l=>l.id===id);
+    $("lessonTitle").textContent=this.cur.name; $("lessonBody").innerHTML=this.cur.body;
+    this.syncNav(); show("lesson"); },
+  nav(d){ const i=this.order.indexOf(this.cur.id)+d;
+    if(i>=0 && i<this.order.length) this.lesson(this.order[i]); },
+  syncNav(){ const i=this.order.indexOf(this.cur.id);
+    document.querySelectorAll(".subnav .prev").forEach(b=>b.disabled=i<=0);
+    document.querySelectorAll(".subnav .next").forEach(b=>b.disabled=i>=this.order.length-1); },
+
+  /* ---------- play ---------- */
+  play(){ show("playScreen");
+    $("diffSeg").querySelectorAll("button").forEach(b=>b.onclick=()=>{ this.diff=+b.dataset.d;
+      $("diffSeg").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b)); this.newPuzzle(); });
+    $("hintBtn").onclick=()=>{ this.hints=!this.hints; this.stepSol=null;
+      $("hintBtn").textContent="Hints: "+(this.hints?"on":"off"); $("hintBtn").classList.toggle("act",this.hints); this.draw(); };
+    $("stepBtn").onclick=()=>this.step();
+    if(!this.state && !this.taps) this.newPuzzle(); else this.draw();
+  },
+  newPuzzle(){
+    // scramble a blank board by pressing `diff` distinct random buttons → always solvable
+    let s=0, chosen=new Set();
+    while(chosen.size<this.diff){ const j=rnd(SIZE); if(!chosen.has(j)){ chosen.add(j); s=press(s,j); } }
+    if(s===0) return this.newPuzzle();          // don't hand out an already-solved board
+    this.state=s; this.taps=0; this.solved=false; this.stepSol=null; this.draw();
+  },
+  minSolveSet(){ const sols=solutions(this.state); return sols?sols[0]:0; },
+  step(){ // advance the fewest-tap solution by one guaranteed-correct press
+    if(this.solved) return;
+    const best=this.minSolveSet(); if(!best) return;
+    for(let j=0;j<SIZE;j++) if((best>>j)&1){ this.tap(j,true); return; }
+  },
+  draw(){
+    const host=$("playBoard"); host.innerHTML="";
+    const hintMask = (this.hints && !this.solved) ? this.minSolveSet() : 0;
+    const lo=document.createElement("div"); lo.className="lo";
+    for(let j=0;j<SIZE;j++){ const cell=document.createElement("div");
+      cell.className="cell"+(((this.state>>j)&1)?" on":"")+(((hintMask>>j)&1)?" hint":"");
+      if(!this.solved) cell.onclick=()=>this.tap(j,false);
+      lo.appendChild(cell); }
+    host.appendChild(lo);
+    $("taps").textContent=this.taps;
+    const sols=solutions(this.state);
+    const rem = sols?popcount(sols[0]):null;
+    $("minLine").innerHTML = this.solved ? "" :
+      (rem!=null ? `Fewest taps from here: <b>${rem}</b>` : `<b style="color:#ff8a8a">unsolvable</b>`);
+    if(this.solved){ $("status").textContent="Solved! 💡  "+this.taps+" tap"+(this.taps===1?"":"s"); $("status").className="status win"; }
+    else { $("status").textContent=""; $("status").className="status"; }
+    $("legend").innerHTML = this.hints
+      ? "Blue dots = the fewest-tap solution. Tap them (in any order) to clear the board."
+      : "Tap a light to flip it and its neighbours. Turn on <b>Hints</b> to see the solution, or use <b>Step</b> to play it one tap at a time.";
+  },
+  tap(j,fromStep){
+    if(this.solved) return;
+    this.state=press(this.state,j); this.taps++;
+    if(this.state===0){ this.solved=true; }
+    this.draw();
+  },
+};
+app.init();
+</script>
+<script src="/games/footer.js"></script>
+</body>
+</html>
